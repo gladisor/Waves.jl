@@ -79,8 +79,8 @@ function animate!(sol::WaveSolution2D, path::String; zlim = (-1.0, 1.0))
         p = surface(
             x, y, u[:, :, i],
             title = "Wave at T = u(x, $(t[i]))",
-            xlabel = "x",
-            ylabel = "y",
+            xlabel = "y", ## x and y axes get flipped in plotting for some reason
+            ylabel = "x",
             zlim = zlim,
             legend = false,
             size=(1920, 1080))

@@ -5,7 +5,7 @@ mutable struct WaveSimulation{W <: AbstractWave}
     prob::ODEProblem
 end
 
-function WaveSimulation(wave::Wave1D; ic::Function, C::Function, n::Int)
+function WaveSimulation(wave::Wave1D; ic::Function, C::Function, n::Int, p = [])
     x, t, u = wave.x, wave.t, wave.u
     t_min, _ = getbounds(t)
     bcs = [u(x, t_min) ~ ic(x), boundary_conditions(wave)...]
@@ -14,7 +14,7 @@ function WaveSimulation(wave::Wave1D; ic::Function, C::Function, n::Int)
         x ∈ getbounds(x),
         t ∈ getbounds(t),]
 
-    @named sys = PDESystem(wave_equation(wave, C), bcs, domain, [x, t], [u(x, t)])
+    @named sys = PDESystem(wave_equation(wave, C), bcs, domain, [x, t], [u(x, t)], p)
     disc = MOLFiniteDifference([x => n], t)
     prob = discretize(sys, disc)
     return WaveSimulation(wave, prob)
@@ -44,6 +44,13 @@ function ∫ₜ(sim::WaveSimulation{Wave1D}; dt)::WaveSolution1D
     return WaveSolution1D(x, t, u)
 end
 
+function ∫ₜ(sim::WaveSimulation{Wave1D}; dt)::WaveSolution1D
+    sol = solve(sim.prob, Tsit5(), saveat = dt)
+    x = collect(sol.ivdomain[2])
+    t = sol.t
+    u = sol[sim.wave.u(sim.wave.x, sim.wave.t)]
+    return WaveSolution1D(x, t, u)
+end
 
 function ∫ₜ(sim::WaveSimulation{Wave2D}; dt)::WaveSolution2D
     sol = solve(sim.prob, Tsit5(), saveat = dt)

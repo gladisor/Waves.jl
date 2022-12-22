@@ -1,48 +1,52 @@
-# using Plots
-# ENV["GKSwstype"] = "nul"
-# pyplot()
-
-using ModelingToolkit
-using MethodOfLines
-using OrdinaryDiffEq
-using IfElse
-
+using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
+using GLMakie
 using Waves
-# using Waves: boundary_conditions, wave_equation, WaveSolution2D
 
-# mutable struct Cylinder
-#     x::Pair{Num, Real}
-#     y::Pair{Num, Real}
-#     r::Pair{Num, Real}
-#     c::Pair{Num, Real}
-# end
+wave = Wave2D(x_min = -5.0, x_max = 5.0, y_min = -5.0, y_max = 5.0, t_max = 10.0)
+M = 2
+@parameters x_pos[1:M], y_pos[1:M]
+@parameters wavespeed
 
-# function Cylinder(x_pos::Real, y_pos::Real, radius::Real, wavespeed::Real)
-#     @parameters x, y, r, c
-#     return Cylinder(
-#         x => x_pos, 
-#         y => y_pos, 
-#         r => radius, 
-#         c => wavespeed)
-# end
+function C(x, y, t)
 
-@parameters speed
-@parameters x_pos, y_pos, r, cyl_speed
+    s = wavespeed
 
-wave = Wave2D(
-    x_min = -10.0, x_max = 10.0,
-    y_min = -10.0, y_max = 10.0,
-    t_max = 1.0)
+    for i in 1:M
+        s = IfElse.ifelse((x - x_pos[i]) ^ 2 + (y - y_pos[i]) ^ 2 < 1.0 ^ 2, 0.0, s)
+    end
 
-wavespeed(x, y, t) = IfElse.ifelse((x - x_pos) ^ 2 + (y - y_pos) ^ 2 < r, cyl_speed, speed)
+    return s
+end
 
-sim = WaveSimulation(
-    wave,
-    ic = (x, y) -> exp(- 0.5 * ((x - 2.5)^2 + (y - 0.0)^2)),
-    C = wavespeed,
+sim = WaveSimulation(wave,
+    ic = (x, y) -> exp(- 1 * ((x - 2.5) ^ 2 + (y - 0.0) ^ 2)),
+    C = C,
     n = 30,
-    p = [speed => 2.0, x_pos => -0.25, y_pos => 2.5, r => 0.1, cyl_speed => 0.0])
+    p = [
+        wavespeed => 4.0,
+        Pair.(collect(x_pos), [-3.0, -3.0])...,
+        Pair.(collect(y_pos), [-2.0, 2.0])...]
+    )
 
-sim.prob = remake(sim.prob, tspan = (0.0, 10.0), p = [1.0, -0.5, 0.0, 2.0, 0.1])
-@time sol = ∫ₜ(sim, dt = 0.05)
-# animate!(sol, "vid_large.mp4")
+sol = ∫ₜ(sim, dt = 0.01)
+
+fig = Figure(resolution = (1920, 1080), fontsize = 20)
+
+ax = Axis3(
+    fig[1,1],
+    aspect = (1, 1, 1),
+    perspectiveness = 0.5,
+    title="3D Wave",
+    xlabel = "X",
+    ylabel = "Y",
+    zlabel = "Z",
+    )
+
+xlims!(ax, getbounds(wave.x)...)
+ylims!(ax, getbounds(wave.y)...)
+zlims!(ax, 0.0, 5.0)
+
+record(fig, "func.mp4", axes(sol.u, 3)) do i
+    GLMakie.empty!(ax.scene)
+    GLMakie.surface!(ax, sol.x, sol.y, sol.u[:, :, i], colormap = :ice, shading = false)
+end

@@ -7,7 +7,7 @@ using GLMakie
 
 x_min = y_min = -10.0
 x_max = y_max = 10.0
-t_max = 1.0
+t_max = 5.0
 
 @parameters x [bounds = (x_min, x_max)]
 @parameters y [bounds = (y_min, y_max)]
@@ -23,14 +23,17 @@ Dtt = Differential(t) ^ 2
 
 M = 2
 @parameters x_pos[1:M], y_pos[1:M]
+@parameters x_pos_f[1:M], y_pos_f[1:M]
 @parameters radii[1:M]
+@parameters T[1:2]
 @parameters wavespeed
 
 function C(x, y, t)
     c = wavespeed
+    t_norm = (t - T[1]) / (T[2] - T[1])
     
     for i in 1:M
-        c = IfElse.ifelse((x - x_pos[i]) ^ 2 + (y - y_pos[i]) ^ 2 < radii[i] ^ 2, 0.0, c)
+        c = IfElse.ifelse((x - x_pos[i] - (x_pos_f[i] - x_pos[i]) * t_norm) ^ 2 + (y - y_pos[i] - (y_pos_f[i] - y_pos[i]) * t_norm) ^ 2 < radii[i] ^ 2, 0.0, c)
     end
 
     return c
@@ -60,6 +63,10 @@ domain = [
 x_pos_params = [-3.0, -3.0]
 y_pos_params = [-2.0, 2.0]
 radii_params = [1.0, 1.0]
+time_params = [0.0, t_max]
+
+x_pos_f_params = x_pos_f_params
+y_pos_f_params = y_pos_params
 
 @named sys = PDESystem(
     eq, 
@@ -71,7 +78,8 @@ radii_params = [1.0, 1.0]
         wavespeed => 4.0,
         collect(x_pos .=> x_pos_params)...,
         collect(y_pos .=> y_pos_params)...,
-        collect(radii .=> radii_params)...
+        collect(radii .=> radii_params)...,
+        collect(T .=> time_params)...,
     ]
     )
 
@@ -80,16 +88,24 @@ disc = MOLFiniteDifference([x => n, y => n], t)
 prob = discretize(sys, disc)
 prob = remake(
     prob, 
-    p = [1.0, -5.0, -5.0, -2.0, 2.0, 1.0, 1.0], 
-    tspan = (0.0, 10.0))
+    p = [
+        4.0, # ambient wave speed
+        x_pos_params..., # x positions
+        y_pos_params...,  # y positions
+        radii_params..., # radii
+        0.0, # cylinder wavespeed
+        time_params..., # t0, tf
+        ], 
+    # tspan = (0.0, 10.0)
+    )
 
 grid = get_discrete(sys, disc)
 
 iter = init(prob, Tsit5())
 
-for i ∈ 1:100
+while iter.t <= time_params[2]
     display(iter.t)
-    step!(iter, 0.01, true)
+    step!(iter, 0.05, true)
 end
 
 u_sol = iter.sol[grid[u(x, y, t)]]

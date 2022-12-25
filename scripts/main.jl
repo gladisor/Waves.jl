@@ -1,7 +1,6 @@
 using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
 using ModelingToolkit.Symbolics: CallWithMetadata
 using GLMakie
-
 # abstract type AbstractDesign end
 
 # struct Cylinder <: AbstractDesign

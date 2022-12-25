@@ -1,21 +1,12 @@
 module Waves
 
-export animate!
-
-using Plots
-using BSON
-using ModelingToolkit
-using MethodOfLines
+using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
 using ModelingToolkit.Symbolics: CallWithMetadata
-using OrdinaryDiffEq
-using ProgressMeter
+using GLMakie
 
-abstract type AbstractWave end
-abstract type InitialCondition end
+abstract type AbstractDim end
 
-include("wave1d.jl")
-include("wave2d.jl")
-include("wave_simulation.jl")
-include("data.jl")
+include("dims.jl")
+include("wave.jl")
 
 end # module

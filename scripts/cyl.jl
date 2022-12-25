@@ -16,6 +16,14 @@ function Cylinder(x, y)
     return Cylinder(x, y, 1.0, 0.0)
 end
 
+function Base.:(:)(initial::Cylinder, n::Int, final::Cylinder)
+    xs = range(initial.x, final.x, length = n)
+    ys = range(initial.y, final.y, length = n)
+    rs = range(initial.r, final.r, length = n)
+    cs = range(initial.c, final.c, length = n)
+    return Cylinder.(xs, ys, rs, cs)
+end
+
 function GLMakie.mesh!(ax::Axis3, cyl::Cylinder)
     GLMakie.mesh!(ax, GLMakie.GeometryBasics.Cylinder3{Float32}(Point3f(cyl.x, cyl.y, 0.), Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
 end
@@ -80,17 +88,19 @@ function interpolate(dp::DesignParameters, param::Int, t)
 end
 
 initial_design = Vector{Cylinder}([
+    Cylinder(-5.0, -6.0),
     Cylinder(-5.0, -3.0),
+    Cylinder(-5.0, 0.0),
     Cylinder(-5.0, 3.0),
+    Cylinder(-5.0, 6.0),
     ])
 
 dp = DesignParameters(initial_design)
 M = length(initial_design)
 
-
-# a = [0.5, 3.]
+# a = [3]
 # a = [RadiusAction(a[i]) for i ∈ 1:M]
-a = [[0.0, 0.0] [0.0, 0.0]]
+a = [[10.0, 10.0, 10.0, 10.0, 10.0] [0.0, 0.0, 0.0, 0.0, 0.0]]
 a = [PositionAction(a[i, :]...) for i ∈ 1:M]
 
 final_design = initial_design .+ a
@@ -159,13 +169,13 @@ domain = [
     [x, y, t], 
     [u(x, y, t)], 
     [
-        wavespeed => 4.0,
+        wavespeed => 2.0,
         collect(T .=> [0.0, t_max])...,
         collect(dp.initial .=> design_parameters(initial_design))...,
         collect(dp.final .=> design_parameters(final_design))...,
     ])
 
-n = 20
+n = 30
 disc = MOLFiniteDifference([x => n, y => n], t)
 prob = discretize(sys, disc)
 
@@ -180,21 +190,10 @@ prob = remake(
     )
 
 grid = get_discrete(sys, disc)
-iter = init(prob, Tsit5())
+iter = init(prob, Tsit5(); tstops = collect(0.0:0.05:t_max), advance_to_tstop = true)
 
-while iter.t <= t_max
-    display(iter.t)
-    step!(iter, 0.05, true)
-end
-
-# a = [3.0, 0.5]
-# a = [RadiusAction(a[i]) for i ∈ 1:M]
-# initial_design = final_design
-# final_design = initial_design .+ a
-
-# iter.T .= [5.0, 10.0]
-# iter.initial .= [design_parameters(final_design)...]
-# iter.final .= []
+reinit!(iter)
+solve!(iter)
 
 u_sol = iter.sol[grid[u(x, y, t)]]
 fig = Figure(resolution = (1920, 1080), fontsize = 20)
@@ -211,23 +210,21 @@ ax = Axis3(
 
 xlims!(ax, getbounds(x)...)
 ylims!(ax, getbounds(y)...)
-zlims!(ax, 0.0, 1.0)
+zlims!(ax, 0.0, 5.0)
 
 x_domain = grid[x]
 y_domain = grid[y]
 
+timesteps = size(u_sol, 1)
+
+interpolated_design = collect(zip([initial_design[i]:timesteps:final_design[i] for i ∈ 1:M]...))
+
 record(fig, "parameters.mp4", axes(u_sol, 1)) do i
     empty!(ax.scene)
 
-    for cyl ∈ initial_design
+    for cyl ∈ interpolated_design[i]
         mesh!(ax, cyl)
     end
-
-
-    for cyl ∈ final_design
-        mesh!(ax, cyl)
-    end
-
 
     surface!(ax, x_domain, y_domain, u_sol[i], colormap = :ice, shading = false)
 end

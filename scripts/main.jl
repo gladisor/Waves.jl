@@ -4,98 +4,106 @@ using GLMakie
 
 using Waves
 
-# abstract type AbstractDesign end
+struct Cylinder
+    x
+    y
+    r
+    c
+end
 
-# struct Cylinder <: AbstractDesign
-#     x
-#     y
-#     r
-#     c
+function Cylinder(x, y)
+    return Cylinder(x, y, 1.0, 0.0)
+end
+
+function GLMakie.mesh!(ax::Axis3, cyl::Cylinder)
+    GLMakie.mesh!(ax, GLMakie.GeometryBasics.Cylinder3{Float32}(Point3f(cyl.x, cyl.y, 0.), Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
+end
+
+struct ParameterizedDesign{D <: AbstractDesign}
+    design::D
+    initial::D
+    final::D
+    T::Symbolics.Arr
+end
+
+# struct DesignParameters{D <: AbstractDesign}
+#     design::D
+#     initial
+#     final
 # end
 
-# function Cylinder(x, y)
-#     return Cylinder(x, y, 1.0, 0.0)
-# end
+function Waves.wave_equation(wave::Wave{TwoDim}, initial::Cylinder, final::Cylinder, T::Symbolics.Arr)
 
-# function design_parameters(design::Cylinder)
-#     return [design.x, design.y, design.r, design.c]
-# end
+    C = (x, y, t) -> begin
+        t_norm = (t - T[1]) / (T[2] - T[1])
+        x_interp = initial.x + (final.x - initial.x) * t_norm
+        y_interp = initial.y + (final.y - initial.y) * t_norm
 
-# struct Configuration
-#     scatterers::Vector{Cylinder}
-# end
+        return IfElse.ifelse((x - x_interp) ^ 2 + (y - y_interp) ^ 2 < 1.0, 0.0, wave.speed)
+    end
 
-# function design_parameters(design::Configuration)
-#     return design_parameters.(design.scatterers)
-# end
+    return Waves.wave_equation(wave, C)
+end
 
-# struct Boat <: AbstractDesign
-#     x
-#     y
-#     θ
-# end
-
-# function design_parameters(design::Boat)
-#     return [design.x, design.y, design.θ]
-# end
-
+cyl = Cylinder(-5.0, 0.0)
 wave = Wave(dim = TwoDim(-10., 10., -10., 10.))
-@named sys = wave(
-    ic = (x, y) -> exp(-1.0 * (x ^ 2 + y ^ 2)),
-    speed = 2.0)
+@parameters x_pos, x_pos_f, y_pos, y_pos_f, T[1:2]
+initial = Cylinder(x_pos, y_pos)
+final = Cylinder(x_pos_f, y_pos_f)
 
-n = 30
-disc = MOLFiniteDifference([Pair.(Waves.dims(wave), n)...], wave.t)
-prob = discretize(sys, disc)
-grid = get_discrete(sys, disc)
+Waves.wave_equation(wave, initial, final, T)
 
-"""
-For some reason solve! is not stopping at the tstop but going all the way through
-"""
+# @named sys = wave(
+#     ic = (x, y) -> exp(-1.0 * (x ^ 2 + y ^ 2)),
+#     speed = 2.0)
 
-iter = init(
-    prob, 
-    Tsit5(), 
-    advance_to_tstop = true, 
-    # stop_at_next_tstop = true
-    saveat = 0.05
-    )
+# n = 30
+# disc = MOLFiniteDifference([Pair.(Waves.dims(wave), n)...], wave.t)
+# prob = discretize(sys, disc)
+# grid = get_discrete(sys, disc)
 
-add_tstop!(iter, 5.0)
+# """
+# For some reason solve! is not stopping at the tstop but going all the way through
+# """
 
-iter.p[1] = 2.0
-step!(iter)
-iter.p[1] = 0.5
-step!(iter)
+# iter = init(
+#     prob, 
+#     Tsit5(), 
+#     advance_to_tstop = true, 
+#     saveat = 0.05
+#     )
 
-for i ∈ iter
-    println(iter.t)
-end
+# add_tstop!(iter, 5.0)
 
-sol = iter.sol[grid[wave.u(Waves.dims(wave)..., wave.t)]]
+# iter.p[1] = 2.0
+# step!(iter)
+# iter.p[1] = 0.5
+# step!(iter)
 
-fig = Figure(resolution = (1920, 1080), fontsize = 20)
-ax = Axis3(
-    fig[1,1],
-    aspect = (1, 1, 1),
-    perspectiveness = 0.5,
-    title="3D Wave",
-    xlabel = "X",
-    ylabel = "Y",
-    zlabel = "Z",
-    )
+# sol = iter.sol[grid[wave.u(Waves.dims(wave)..., wave.t)]]
 
-xlims!(ax, getbounds(wave.dim.x)...)
-ylims!(ax, getbounds(wave.dim.y)...)
-zlims!(ax, 0.0, 3.0)
+# fig = Figure(resolution = (1920, 1080), fontsize = 20)
+# ax = Axis3(
+#     fig[1,1],
+#     aspect = (1, 1, 1),
+#     perspectiveness = 0.5,
+#     title="3D Wave",
+#     xlabel = "X",
+#     ylabel = "Y",
+#     zlabel = "Z",
+#     )
 
-record(fig, "3d.mp4", axes(sol, 1)) do i
-    empty!(ax.scene)
-    surface!(
-        ax, 
-        collect(grid[wave.dim.x]),
-        collect(grid[wave.dim.y]),
-        sol[i], 
-        colormap = :ice, 
-        shading = false)
-end
+# xlims!(ax, getbounds(wave.dim.x)...)
+# ylims!(ax, getbounds(wave.dim.y)...)
+# zlims!(ax, 0.0, 3.0)
+
+# record(fig, "3d.mp4", axes(sol, 1)) do i
+#     empty!(ax.scene)
+#     surface!(
+#         ax, 
+#         collect(grid[wave.dim.x]),
+#         collect(grid[wave.dim.y]),
+#         sol[i], 
+#         colormap = :ice, 
+#         shading = false)
+# end

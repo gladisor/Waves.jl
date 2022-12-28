@@ -1,4 +1,4 @@
-export Wave
+export Wave, wave_equation
 
 struct Wave{D <: AbstractDim}
     dim::D

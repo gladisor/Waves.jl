@@ -34,6 +34,11 @@ function Cylinder(x, y, r, c)
     return Cylinder(x, y, r, c, "")
 end
 
+function Base.range(start::Cylinder, stop::Cylinder, length::Int)
+    x = collect.(range.(design_parameters(start), design_parameters(stop), length))
+    return [Cylinder(ps...) for ps in collect(zip(x...))]
+end
+
 """
 Constructor for creating a purely parameterized Cylinder design. All attributes are
 parameters instead of taking on a value.
@@ -79,15 +84,18 @@ mutable struct ParameterizedDesign{D <: AbstractDesign}
     t_final::Num
 end
 
-function ParameterizedDesign(;design, initial, final)
+function ParameterizedDesign(design::AbstractDesign, initial::AbstractDesign, final::AbstractDesign)
     @parameters t_initial, t_final
     return ParameterizedDesign(design, initial, final, t_initial, t_final)
 end
 
-function wave_speed()
+function ParameterizedDesign(design::AbstractDesign)
+    @named initial = typeof(design)()
+    @named final = typeof(design)()
+    return ParameterizedDesign(design, initial, final)
 end
 
-function Waves.wave_equation(wave::Wave{TwoDim}, pd::ParameterizedDesign{Cylinder})
+function wave_speed(wave::Wave{TwoDim}, pd::ParameterizedDesign{Cylinder})::Function
 
     C = (x, y, t) -> begin
         t_norm = (t - pd.t_initial) / (pd.t_final - pd.t_initial)
@@ -96,29 +104,30 @@ function Waves.wave_equation(wave::Wave{TwoDim}, pd::ParameterizedDesign{Cylinde
 
         return IfElse.ifelse((x - x_interp) ^ 2 + (y - y_interp) ^ 2 < 1.0, 0.0, wave.speed)
     end
+    
+    return C
+end
 
-    return Waves.wave_equation(wave, C)
+function Waves.wave_equation(wave::Wave{TwoDim}, pd::ParameterizedDesign{Cylinder})
+    return Waves.wave_equation(wave, wave_speed(wave, pd))
 end
 
 design = Cylinder(-5.0, 0.0)
-@named initial = Cylinder()
-@named final = Cylinder()
-
-pd = ParameterizedDesign(
-    design = design,
-    initial = initial,
-    final = final)
-
+pd = ParameterizedDesign(design)
 action = Cylinder(10.0, 0.0, 0.0, 0.0)
 new_design = pd.design + action
 wave = Wave(dim = TwoDim(-10., 10., -10., 10.))
+t0 = 0.0
+tf = 10.0
+dt = (tf - t0) / 2
 
 ps = [
     wave.speed => 2.0,
     (design_parameters(pd.initial) .=> design_parameters(pd.design))...,
     (design_parameters(pd.final) .=> design_parameters(new_design))...,
-    pd.t_initial => 0.0,
-    pd.t_final => 1.0]
+    pd.t_initial => t0,
+    pd.t_final => tf
+    ]
 
 eq = Waves.wave_equation(wave, pd)
 
@@ -128,8 +137,12 @@ bcs = [
     ]
 
 @named sys = PDESystem(
-    eq, bcs, Waves.get_domain(wave, t_max = 5.0), [dims(wave)..., wave.t], 
-    [wave.u(dims(wave)..., wave.t)], ps)
+    eq, 
+    bcs, 
+    Waves.get_domain(wave, t_max = tf), 
+    [dims(wave)..., wave.t], 
+    [wave.u(dims(wave)..., wave.t)], 
+    ps)
 
 n = 30
 disc = MOLFiniteDifference([Pair.(Waves.dims(wave), n)...], wave.t)
@@ -137,41 +150,43 @@ prob = discretize(sys, disc)
 grid = get_discrete(sys, disc)
 iter = init(prob, Tsit5(), advance_to_tstop = true, saveat = 0.05)
 
-# # for i ∈ 3:5
-# #     add_tstop!(iter, iter.t + dt)
-# #     step!(iter)
-# #     iter.p[2:3] = iter.p[4:5]
-# #     iter.p[4:5] .= [cyls[i].x, cyls[i].y]
-# #     iter.p[end-1] = iter.p[end]
-# #     iter.p[end] = iter.t + dt
-# # end
+# add_tstop!(iter, iter.t + dt)
+step!(iter)
+# iter.p[2:3] .= design_parameters(new_design)[1:2]
+# iter.p[4:5] .= design_parameters(pd.design)[1:2]
+# iter.p[end-1] = iter.p[end]
+# iter.p[end] = iter.t + dt
+# add_tstop!(iter, iter.t + dt)
+# step!(iter)
 
-# # # step!(iter)
+sol = iter.sol[grid[wave.u(Waves.dims(wave)..., wave.t)]]
+cyls = range(pd.design, new_design, length(sol))
 
-# # sol = iter.sol[grid[wave.u(Waves.dims(wave)..., wave.t)]]
+fig = Figure(resolution = (1920, 1080), fontsize = 20)
+ax = Axis3(
+    fig[1,1],
+    aspect = (1, 1, 1),
+    perspectiveness = 0.5,
+    title="3D Wave",
+    xlabel = "X",
+    ylabel = "Y",
+    zlabel = "Z",
+    )
 
-# # fig = Figure(resolution = (1920, 1080), fontsize = 20)
-# # ax = Axis3(
-# #     fig[1,1],
-# #     aspect = (1, 1, 1),
-# #     perspectiveness = 0.5,
-# #     title="3D Wave",
-# #     xlabel = "X",
-# #     ylabel = "Y",
-# #     zlabel = "Z",
-# #     )
+xlims!(ax, getbounds(wave.dim.x)...)
+ylims!(ax, getbounds(wave.dim.y)...)
+zlims!(ax, 0.0, 5.0)
 
-# # xlims!(ax, getbounds(wave.dim.x)...)
-# # ylims!(ax, getbounds(wave.dim.y)...)
-# # zlims!(ax, 0.0, 3.0)
+record(fig, "3d.mp4", axes(sol, 1)) do i
+    empty!(ax.scene)
+    surface!(
+        ax, 
+        collect(grid[wave.dim.x]),
+        collect(grid[wave.dim.y]),
+        sol[i], 
+        colormap = :ice, 
+        shading = false)
 
-# # record(fig, "3d.mp4", axes(sol, 1)) do i
-# #     empty!(ax.scene)
-# #     surface!(
-# #         ax, 
-# #         collect(grid[wave.dim.x]),
-# #         collect(grid[wave.dim.y]),
-# #         sol[i], 
-# #         colormap = :ice, 
-# #         shading = false)
-# # end
+    mesh!(ax,
+        cyls[i])
+end

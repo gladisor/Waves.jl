@@ -114,7 +114,8 @@ end
 
 design = Cylinder(-5.0, 0.0)
 pd = ParameterizedDesign(design)
-action = Cylinder(10.0, 0.0, 0.0, 0.0)
+action = Cylinder(5.0, -4.0, 0.0, 0.0)
+action2 = Cylinder(0.0, 4.0, 0.0, 0.0)
 new_design = pd.design + action
 wave = Wave(dim = TwoDim(-10., 10., -10., 10.))
 t0 = 0.0
@@ -126,7 +127,7 @@ ps = [
     (design_parameters(pd.initial) .=> design_parameters(pd.design))...,
     (design_parameters(pd.final) .=> design_parameters(new_design))...,
     pd.t_initial => t0,
-    pd.t_final => tf
+    pd.t_final => t0 + dt
     ]
 
 eq = Waves.wave_equation(wave, pd)
@@ -150,17 +151,20 @@ prob = discretize(sys, disc)
 grid = get_discrete(sys, disc)
 iter = init(prob, Tsit5(), advance_to_tstop = true, saveat = 0.05)
 
-# add_tstop!(iter, iter.t + dt)
+reinit!(iter)
+add_tstop!(iter, iter.t + dt)
 step!(iter)
-# iter.p[2:3] .= design_parameters(new_design)[1:2]
-# iter.p[4:5] .= design_parameters(pd.design)[1:2]
-# iter.p[end-1] = iter.p[end]
-# iter.p[end] = iter.t + dt
-# add_tstop!(iter, iter.t + dt)
-# step!(iter)
-
+cyls = range(pd.design, new_design, length(iter.sol))
+pd.design = new_design
+new_design = pd.design + action2
+iter.p[2:5] .= design_parameters(pd.design)
+iter.p[6:9] .= design_parameters(new_design)
+iter.p[end-1] = iter.p[end]
+iter.p[end] = iter.t + dt
+add_tstop!(iter, iter.t + dt)
+step!(iter)
+cyls = vcat(cyls, range(pd.design, new_design, length(iter.sol) - length(cyls)))
 sol = iter.sol[grid[wave.u(Waves.dims(wave)..., wave.t)]]
-cyls = range(pd.design, new_design, length(sol))
 
 fig = Figure(resolution = (1920, 1080), fontsize = 20)
 ax = Axis3(
@@ -187,6 +191,5 @@ record(fig, "3d.mp4", axes(sol, 1)) do i
         colormap = :ice, 
         shading = false)
 
-    mesh!(ax,
-        cyls[i])
+    mesh!(ax, cyls[i])
 end

@@ -181,7 +181,7 @@ xlims!(ax, getbounds(wave.dim.x)...)
 ylims!(ax, getbounds(wave.dim.y)...)
 zlims!(ax, 0.0, 5.0)
 
-record(fig, "3d.mp4", axes(sol, 1)) do i
+record(fig, "animations/3d.mp4", axes(sol, 1)) do i
     empty!(ax.scene)
     surface!(
         ax, 

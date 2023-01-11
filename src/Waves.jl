@@ -2,7 +2,7 @@ module Waves
 
 using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
 using ModelingToolkit.Symbolics: CallWithMetadata
-using OrdinaryDiffEq: ODEIntegrator
+using OrdinaryDiffEq: ODEIntegrator, ODESolution
 using GLMakie, CairoMakie
 
 abstract type AbstractDim end

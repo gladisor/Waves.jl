@@ -1,13 +1,24 @@
+using ProgressMeter
+using Distributions
+
 using Waves
 
-design = ParameterizedDesign(Cylinder(-5.0, 0.0))
+data = Vector{WaveSol{OneDim}}()
 
-sim = WaveSim(
-    wave = Wave(dim = OneDim(-5.0, 5.0)),
-    ic = GaussianPulse(1.0),
-    t_max = 10.0,
-    speed = 2.0,
-    n = 30)
+loc = Uniform(-7.5, 7.5)
+@showprogress for i ∈ 1:10
+    sim = WaveSim(
+        wave = Wave(dim = OneDim(-10.0, 10.0)),
+        ic = GaussianPulse(intensity = 1.0, loc = [rand(loc)]),
+        t_max = 10.0,
+        speed = 2.0,
+        n = 30)
 
-Waves.step!(sim)
-render!(sim, path = "animations/1d.gif")
+    Waves.step!(sim)
+    sol = WaveSol(sim)
+    push!(data, sol)
+end
+
+for (i, sol) ∈ enumerate(data)
+    render!(sol, path = "vid$i.mp4")
+end

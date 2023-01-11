@@ -1,5 +1,9 @@
 export Wave, wave_equation, wave_speed, boundary_conditions, get_domain
 
+"""
+Structure which contains information about a wave of arbitrary dimensionality.
+It contains a speed parameter which must be specified in the simulator.
+"""
 struct Wave{D <: AbstractDim}
     dim::D
     speed::Num
@@ -22,6 +26,9 @@ function unpack(wave::Wave)
     return (dims(wave)..., wave.t, wave.u)
 end
 
+"""
+Wave equation in one dimention.
+"""
 function wave_equation(wave::Wave{OneDim}, C::Function)::Equation
     x, t, u = unpack(wave)
     Dxx = Differential(x)^2
@@ -29,6 +36,9 @@ function wave_equation(wave::Wave{OneDim}, C::Function)::Equation
     return Dtt(u(x, t)) ~ C(x, t) ^ 2 * Dxx(u(x, t))
 end
 
+"""
+Wave equation in two dimensions.
+"""
 function wave_equation(wave::Wave{TwoDim}, C::Function)::Equation
     x, y, t, u = unpack(wave)
     Dxx = Differential(x)^2
@@ -145,14 +155,29 @@ function get_domain(wave::Wave; t_max)
     return domain
 end
 
+"""
+Returns the spacial and temporal dimensions of the wave
+"""
 function spacetime(wave::Wave)::Vector{Num}
     return [dims(wave)..., wave.t]
 end
 
+"""
+Returns the calling signature of the wave equation for a particular dimension.
+
+```
+u(x, t)         # 1d
+u(x, y, t)      # 2d
+u(x, y, z, t)   # 3d
+```
+"""
 function signature(wave::Wave)
     return wave.u(dims(wave)..., wave.t)
 end
 
+"""
+Returns a discretizor for the wave at a particular discretization constant n.
+"""
 function wave_discretizer(wave::Wave, n::Int)
     return MOLFiniteDifference([Pair.(dims(wave), n)...], wave.t)
 end

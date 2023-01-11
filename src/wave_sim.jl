@@ -1,4 +1,4 @@
-export WaveSim, get_sol, render!, reset!
+export WaveSim, get_sol, render!, reset!, WaveSol
 
 mutable struct WaveSim{D <: AbstractDim}
     sys::PDESystem
@@ -18,7 +18,7 @@ function WaveSim(;wave::Wave, ic::InitialCondition, t_max::Real, speed::Real, n:
         [signature(wave)], 
         [wave.speed => speed])
 
-    disc = MOLFiniteDifference([Pair.(Waves.dims(wave), n)...], wave.t)
+    disc = MOLFiniteDifference([Pair.(dims(wave), n)...], wave.t)
     prob = discretize(sys, disc)
     grid = get_discrete(sys, disc)
     iter = init(prob, Tsit5(), advance_to_tstop = true, saveat = 0.05)
@@ -34,31 +34,50 @@ function Waves.step!(sim::WaveSim)
     step!(sim.iter)
 end
 
-function get_sol(sim::WaveSim)
-    return sim.iter.sol[sim.grid[signature(sim.wave)]]
-end
-
-function Waves.dims(sim::WaveSim)::Vector
-    return [collect(sim.grid[d]) for d ∈ dims(sim.wave)]
-end
-
 function Base.display(sim::WaveSim)
     display(typeof(sim))
 end
 
-function render!(sim::WaveSim{OneDim}; path::String)
+function reset!(sim::WaveSim)
+    reinit!(sim.iter)
+    return nothing
+end
+
+struct WaveSol{D <: AbstractDim}
+    wave::Wave{D}
+    grid::Dict
+    sol::ODESolution
+end
+
+function WaveSol(sim::WaveSim)
+    return WaveSol(sim.wave, sim.grid, sim.iter.sol)
+end
+
+function Base.display(sol::WaveSol)
+    display(typeof(sol))
+end
+
+function get_data(sol::WaveSol)
+    return sol.sol[sol.grid[signature(sol.wave)]]
+end
+
+function dims(sol::WaveSol)::Vector
+    return [collect(sol.grid[d]) for d ∈ dims(sol.wave)]
+end
+
+function render!(sol::WaveSol{OneDim}; path::String)
     fig = Figure(resolution = (1920, 1080), fontsize = 20)
     ax = Axis(fig[1, 1], title = "1D Wave", xlabel = "X", ylabel = "Y")
 
-    xlims!(ax, getbounds(sim.wave.dim.x)...)
+    xlims!(ax, getbounds(sol.wave.dim.x)...)
     ylims!(ax, -1.0, 1.0)
 
-    x = dims(sim)[1]
-    sol = get_sol(sim)
+    x = dims(sol)[1]
+    data = get_data(sol)
 
-    record(fig, path, axes(sol, 1)) do i
+    record(fig, path, axes(data, 1)) do i
         empty!(ax.scene)
-        lines!(ax, x, sol[i], linestyle = nothing, linewidth = 5, color = :blue)
+        lines!(ax, x, data[i], linestyle = nothing, linewidth = 5, color = :blue)
     end
 
     return nothing
@@ -74,18 +93,13 @@ function render!(sim::WaveSim{TwoDim}; path::String)
     ylims!(ax, getbounds(sim.wave.dim.y)...)
     zlims!(ax, 0.0, 5.0)
 
-    x, y = dims(sim)
-    sol = get_sol(sim)
+    x, y = dims(sol)
+    data = get_data(sol)
 
-    record(fig, path, axes(sol, 1)) do i
+    record(fig, path, axes(data, 1)) do i
         empty!(ax.scene)
-        surface!(ax, x, y, sol[i], colormap = :ice, shading = false)
+        surface!(ax, x, y, data[i], colormap = :ice, shading = false)
     end
 
-    return nothing
-end
-
-function reset!(sim::WaveSim)
-    reinit!(sim.iter)
     return nothing
 end

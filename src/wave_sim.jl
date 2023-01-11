@@ -1,4 +1,4 @@
-export WaveSim, get_sol, render!, reset!, WaveSol
+export WaveSim, get_data, render!, reset!, WaveSol
 
 mutable struct WaveSim{D <: AbstractDim}
     sys::PDESystem
@@ -9,7 +9,7 @@ mutable struct WaveSim{D <: AbstractDim}
     wave::Wave{D}
 end
 
-function WaveSim(;wave::Wave, ic::InitialCondition, t_max::Real, speed::Real, n::Int)
+function WaveSim(;wave::Wave, ic::InitialCondition, t_max::Real, speed::Real, n::Int, dt::Real)
     @named sys = PDESystem(
         wave_equation(wave),
         conditions(wave, ic),
@@ -21,7 +21,7 @@ function WaveSim(;wave::Wave, ic::InitialCondition, t_max::Real, speed::Real, n:
     disc = MOLFiniteDifference([Pair.(dims(wave), n)...], wave.t)
     prob = discretize(sys, disc)
     grid = get_discrete(sys, disc)
-    iter = init(prob, Tsit5(), advance_to_tstop = true, saveat = 0.05)
+    iter = init(prob, Tsit5(), advance_to_tstop = true, saveat = dt)
     return WaveSim(sys, disc, grid, prob, iter, wave)
 end
 
@@ -61,8 +61,8 @@ function get_data(sol::WaveSol)
     return sol.sol[sol.grid[signature(sol.wave)]]
 end
 
-function dims(sol::WaveSol)::Vector
-    return [collect(sol.grid[d]) for d ∈ dims(sol.wave)]
+function dims(s::Union{WaveSim, WaveSol})::Vector
+    return [collect(s.grid[d]) for d ∈ dims(s.wave)]
 end
 
 function render!(sol::WaveSol{OneDim}; path::String)

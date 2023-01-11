@@ -26,6 +26,6 @@ render!(sim, path = "animations/1d.gif")
 
 This simulator works for one, two, and three dimensional wave simulations.
 
-Solarized dark             |  Solarized Ocean
+Two Dimensions             |  One Dimension
 :-------------------------:|:-------------------------:
 ![](https://github.com/gladisor/Waves.jl/blob/main/animations/2d.gif)  |  ![](https://github.com/gladisor/Waves.jl/blob/main/animations/1d.gif)

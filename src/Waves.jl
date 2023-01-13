@@ -18,5 +18,6 @@ include("initial_conditions.jl")
 include("parameterized_design.jl")
 include("cylinder.jl")
 include("wave_sim.jl")
+include("wave_env.jl")
 
 end # module

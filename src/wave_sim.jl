@@ -7,22 +7,36 @@ mutable struct WaveSim{D <: AbstractDim}
     prob::ODEProblem
     iter::ODEIntegrator
     wave::Wave{D}
+    dt::Real
 end
 
-function WaveSim(;wave::Wave, ic::InitialCondition, t_max::Real, speed::Real, n::Int, dt::Real)
-    @named sys = PDESystem(
-        wave_equation(wave),
-        conditions(wave, ic),
-        get_domain(wave, t_max = t_max),
-        spacetime(wave), 
-        [signature(wave)], 
-        [wave.speed => speed])
+function WaveSim(;
+        wave::Wave, 
+        ic::InitialCondition, 
+        t_max::Real, 
+        speed::Real, 
+        n::Int, 
+        dt::Real,
+        design::Union{ParameterizedDesign, Nothing} = nothing)
 
-    disc = MOLFiniteDifference([Pair.(dims(wave), n)...], wave.t)
+    ps = [wave.speed => speed]
+
+    if isnothing(design)
+        eq = wave_equation(wave)
+    else
+        eq = wave_equation(wave, design)
+        ps = vcat(ps, design_parameters(design, design.design, 0.0, t_max))
+    end
+
+    @named sys = PDESystem(
+        eq, conditions(wave, ic), get_domain(wave, t_max = t_max),
+        spacetime(wave), [signature(wave)], ps)
+
+    disc = wave_discretizer(wave, n)
     prob = discretize(sys, disc)
     grid = get_discrete(sys, disc)
     iter = init(prob, Tsit5(), advance_to_tstop = true, saveat = dt)
-    return WaveSim(sys, disc, grid, prob, iter, wave)
+    return WaveSim(sys, disc, grid, prob, iter, wave, dt)
 end
 
 function Waves.step!(sim::WaveSim, dt::Real)
@@ -66,39 +80,44 @@ function dims(s::Union{WaveSim, WaveSol})::Vector
 end
 
 function render!(sol::WaveSol{OneDim}; path::String)
-    fig = Figure(resolution = (1920, 1080), fontsize = 20)
-    ax = Axis(fig[1, 1], title = "1D Wave", xlabel = "X", ylabel = "Y")
+    fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
+    ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X", ylabel = "Y")
 
-    xlims!(ax, getbounds(sol.wave.dim.x)...)
-    ylims!(ax, -1.0, 1.0)
+    GLMakie.xlims!(ax, getbounds(sol.wave.dim.x)...)
+    GLMakie.ylims!(ax, -1.0, 1.0)
 
     x = dims(sol)[1]
     data = get_data(sol)
 
-    record(fig, path, axes(data, 1)) do i
-        empty!(ax.scene)
-        lines!(ax, x, data[i], linestyle = nothing, linewidth = 5, color = :blue)
+    GLMakie.record(fig, path, axes(data, 1)) do i
+        GLMakie.empty!(ax.scene)
+        GLMakie.lines!(ax, x, data[i], linestyle = nothing, linewidth = 5, color = :blue)
     end
 
     return nothing
 end
 
-function render!(sim::WaveSim{TwoDim}; path::String)
-    fig = Figure(resolution = (1920, 1080), fontsize = 20)
-    
-    ax = Axis3(fig[1,1], aspect = (1, 1, 1), perspectiveness = 0.5,
-        title = "2D Wave", xlabel = "X", ylabel = "Y", zlabel = "Z")
+function Waves.render!(
+        sol::WaveSol{TwoDim}; 
+        path::String, 
+        design::Union{Vector{<: AbstractDesign}, Nothing} = nothing)
+        
+    fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
+    ax = GLMakie.Axis3(fig[1,1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X", ylabel = "Y", zlabel = "Z")
 
-    xlims!(ax, getbounds(sim.wave.dim.x)...)
-    ylims!(ax, getbounds(sim.wave.dim.y)...)
-    zlims!(ax, 0.0, 5.0)
+    GLMakie.xlims!(ax, getbounds(sol.wave.dim.x)...)
+    GLMakie.ylims!(ax, getbounds(sol.wave.dim.y)...)
+    GLMakie.zlims!(ax, 0.0, 5.0)
 
     x, y = dims(sol)
     data = get_data(sol)
 
-    record(fig, path, axes(data, 1)) do i
-        empty!(ax.scene)
-        surface!(ax, x, y, data[i], colormap = :ice, shading = false)
+    GLMakie.record(fig, path, axes(data, 1)) do i
+        GLMakie.empty!(ax.scene)
+        GLMakie.surface!(ax, x, y, data[i], colormap = :ice, shading = false)
+        if !isnothing(design)
+            GLMakie.mesh!(ax, design[i])
+        end
     end
 
     return nothing

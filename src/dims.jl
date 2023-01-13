@@ -1,4 +1,4 @@
-export AbstractDim, OneDim, TwoDim, ThreeDim, dims
+export OneDim, TwoDim, ThreeDim, dims
 
 struct OneDim <: AbstractDim
     x::Num

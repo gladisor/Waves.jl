@@ -12,7 +12,8 @@ sim = WaveSim(
     ic = GaussianPulse(intensity = 1.0),
     t_max = 10.0,
     speed = 2.0,
-    n = 30)
+    n = 30,
+    dt = 0.05)
 
 Waves.step!(sim)
 sol = WaveSol(sim)

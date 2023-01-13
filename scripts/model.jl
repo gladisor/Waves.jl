@@ -11,16 +11,12 @@ Flux.@functor WaveNet
 
 Flux.trainable(wn::WaveNet) = (wn.encoder, wn.Ψ)
 
-function WaveNet(sim::WaveSim{OneDim};
-        in_size, enc_h_size, enc_n_hidden, z_size,
-        Φ_h_size, Φ_n_hidden, Ψ_h_size, Ψ_n_hidden, σ)
-
+function WaveNet(
+        sim::WaveSim{OneDim}, 
+        encoder;
+        z_size, Φ_h_size, Φ_n_hidden, Ψ_h_size, Ψ_n_hidden, σ)
+    
     x = dims(sim)[1]
-
-    encoder = Chain(
-        Dense(in_size, enc_h_size, σ),
-        [Dense(enc_h_size, enc_h_size, σ) for _ ∈ enc_n_hidden]...,
-        Dense(enc_h_size, z_size))
 
     Φ = Chain(
         Dense(1, Φ_h_size, σ),
@@ -35,6 +31,17 @@ function WaveNet(sim::WaveSim{OneDim};
         Dense(Ψ_h_size, length(Φ_θ), bias = false))
 
     return WaveNet(x, encoder, Ψ, restructure)
+end
+
+function WaveNet(sim::WaveSim{OneDim};
+        in_size, enc_h_size, enc_n_hidden, z_size, σ, kwargs...)
+
+    encoder = Chain(
+        Dense(in_size, enc_h_size, σ),
+        [Dense(enc_h_size, enc_h_size, σ) for _ ∈ enc_n_hidden]...,
+        Dense(enc_h_size, z_size))
+
+    return WaveNet(sim, encoder; z_size = z_size, σ = σ, kwargs...)
 end
 
 function (wn::WaveNet)(x)

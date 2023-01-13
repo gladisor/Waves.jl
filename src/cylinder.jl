@@ -1,8 +1,7 @@
 export Cylinder
 
 """
-Structure which holds the information about a cylindrical scatterer with a constant
-internal wavespeed: c
+Structure which holds the information about a cylindrical scatterer.
 """
 struct Cylinder <: AbstractDesign
     x
@@ -23,12 +22,11 @@ function Cylinder(x, y; name = "")
     return Cylinder(x, y, 1.0, 0.0, name)
 end
 
-
 function Cylinder(x, y, r, c)
     return Cylinder(x, y, r, c, "")
 end
 
-function Base.range(start::Cylinder, stop::Cylinder, length::Int)
+function Base.range(start::Cylinder, stop::Cylinder, length::Int) #::Vector{Cylinder}
     x = collect.(range.(design_parameters(start), design_parameters(stop), length))
     return [Cylinder(ps...) for ps in collect(zip(x...))]
 end
@@ -66,9 +64,17 @@ function Base.:+(cyl1::Cylinder, cyl2::Cylinder)
     return Cylinder(cyl1.x + cyl2.x, cyl1.y + cyl2.y, cyl1.r + cyl2.r, cyl1.c + cyl2.c, "")
 end
 
-function GLMakie.mesh!(ax::Axis3, cyl::Cylinder)
-    GLMakie.mesh!(ax, GLMakie.GeometryBasics.Cylinder3{Float32}(Point3f(cyl.x, cyl.y, 0.), Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
+function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
+    GLMakie.mesh!(
+        ax, 
+        GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, 0.), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
 end
+
+# function interpolate(initial, final, t)
+#     return initial + (final - initial) * t
+# end
+
+# interpolate.(design_parameters(design.initial), design_parameters(design.final), t)
 
 function Waves.wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::Function
 
@@ -76,11 +82,10 @@ function Waves.wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylind
         t_norm = (t - design.t_initial) / (design.t_final - design.t_initial)
         x_interp = design.initial.x + (design.final.x - design.initial.x) * t_norm
         y_interp = design.initial.y + (design.final.y - design.initial.y) * t_norm
+        r_interp = design.initial.r + (design.final.r - design.initial.r) * t_norm
+        c_interp = design.initial.c + (design.final.c - design.initial.c) * t_norm
 
-        return IfElse.ifelse(
-            (x - x_interp) ^ 2 + (y - y_interp) ^ 2 < (design.final.r - design.initial.r) * t_norm, 
-            (design.final.c - design.initial.c) * t_norm, 
-            wave.speed)
+        return IfElse.ifelse((x - x_interp) ^ 2 + (y - y_interp) ^ 2 < r_interp, c_interp, wave.speed)
     end
     
     return C

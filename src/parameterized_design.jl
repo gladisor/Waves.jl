@@ -1,4 +1,4 @@
-export ParameterizedDesign
+export ParameterizedDesign, design_parameters
 
 mutable struct ParameterizedDesign{D <: AbstractDesign}
     design::D
@@ -21,4 +21,23 @@ end
 
 function Waves.wave_equation(wave::Wave, design::ParameterizedDesign)::Equation
     return wave_equation(wave, wave_speed(wave, design))
+end
+
+function Base.:+(pd::ParameterizedDesign, action::AbstractDesign)
+    return pd.design + action
+end
+
+function design_parameters(::AbstractDesign)::Vector end
+
+function design_parameters(design::ParameterizedDesign, new_design::AbstractDesign, t0, tf)
+    [
+        (design_parameters(design.initial) .=> design_parameters(design.design))...,
+        (design_parameters(design.final) .=> design_parameters(new_design))...,
+        design.t_initial => t0,
+        design.t_final => tf
+    ]
+end
+
+function design_parameters(design::ParameterizedDesign)
+    return design_parameters(design.design)
 end

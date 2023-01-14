@@ -57,27 +57,45 @@ function reset!(sim::WaveSim)
     return nothing
 end
 
-struct WaveSol{D <: AbstractDim}
-    wave::Wave{D}
-    grid::Dict
-    sol::ODESolution
+function get_data(sim::WaveSim)
+    return sim.iter.sol[sim.grid[signature(sim.wave)]]
 end
 
+function state(sim::WaveSim)
+    return sim.iter[sim.grid[Waves.signature(sim.wave)]]
+end
+
+function dims(sim::WaveSim)::Vector
+    return [collect(sim.grid[d]) for d ∈ dims(sim.wave)]
+end
+
+struct WaveSol{D <: AbstractDim}
+    wave::Wave{D}
+    # grid::Dict
+    # sol::ODESolution
+    dims::Vector
+    data::AbstractArray
+end
+
+# function WaveSol(sim::WaveSim)
+#     return WaveSol(sim.wave, sim.grid, sim.iter.sol)
+# end
+
 function WaveSol(sim::WaveSim)
-    return WaveSol(sim.wave, sim.grid, sim.iter.sol)
+    return WaveSol(sim.wave, dims(sim), get_data(sim))
 end
 
 function Base.display(sol::WaveSol)
     display(typeof(sol))
 end
 
-function get_data(sol::WaveSol)
-    return sol.sol[sol.grid[signature(sol.wave)]]
-end
+# function get_data(sol::WaveSol)
+#     return sol.sol[sol.grid[signature(sol.wave)]]
+# end
 
-function dims(s::Union{WaveSim, WaveSol})::Vector
-    return [collect(s.grid[d]) for d ∈ dims(s.wave)]
-end
+# function dims(s::Union{WaveSim, WaveSol})::Vector
+#     return [collect(s.grid[d]) for d ∈ dims(s.wave)]
+# end
 
 function render!(sol::WaveSol{OneDim}; path::String)
     fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
@@ -86,8 +104,10 @@ function render!(sol::WaveSol{OneDim}; path::String)
     GLMakie.xlims!(ax, getbounds(sol.wave.dim.x)...)
     GLMakie.ylims!(ax, -1.0, 1.0)
 
-    x = dims(sol)[1]
-    data = get_data(sol)
+    # x = dims(sol)[1]
+    # data = get_data(sol)
+    x = sol.dims[1]
+    data = sol.data
 
     GLMakie.record(fig, path, axes(data, 1)) do i
         GLMakie.empty!(ax.scene)
@@ -109,8 +129,10 @@ function Waves.render!(
     GLMakie.ylims!(ax, getbounds(sol.wave.dim.y)...)
     GLMakie.zlims!(ax, 0.0, 5.0)
 
-    x, y = dims(sol)
-    data = get_data(sol)
+    # x, y = dims(sol)
+    # data = get_data(sol)
+    x, y = sol.dims
+    data = sol.data
 
     GLMakie.record(fig, path, axes(data, 1)) do i
         GLMakie.empty!(ax.scene)

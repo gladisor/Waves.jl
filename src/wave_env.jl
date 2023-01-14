@@ -11,7 +11,7 @@ function Waves.reset!(env::WaveEnv)
 end
 
 function state(env::WaveEnv)
-    return env.sim.iter[env.sim.grid[Waves.signature(env.sim.wave)]]
+    return state(env.sim)
 end
 
 function Base.step(env::WaveEnv, action::AbstractDesign)

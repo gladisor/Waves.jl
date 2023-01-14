@@ -7,18 +7,12 @@ First install all dependancies using the instantiate comand in the REPL. To run 
 ```
 using Waves
 
+
 grid_size = 5.0
-design = ParameterizedDesign(Cylinder(-3.0, -3.0, 0.5, 0.2))
 
-sim = WaveSim(
-    wave = Wave(dim = TwoDim(-grid_size, grid_size, -grid_size, grid_size)),
-    design = design, 
-    ic = GaussianPulse(intensity = 5.0, loc = [2.5, 2.5]),
-    t_max = 20.0,
-    speed = 1.0, 
-    n = 30, 
-    dt = 0.05)
-
+wave = Wave(dim = OneDim(-grid_size, grid_size))
+pulse = GaussianPulse(intensity = 1.0)
+sim = WaveSim(wave = wave, ic = pulse, t_max = 10.0, speed = 1.0, n = 30, dt = 0.05)
 Waves.step!(sim)
 sol = WaveSol(sim)
 ```
@@ -26,7 +20,7 @@ sol = WaveSol(sim)
 Once a simulation has been run you can generate an animation using the render command.
 
 ```
-render!(sol, path = "animations/1d.gif")
+render!(sol, path = "1d.gif")
 ```
 
 This simulator works for one, two, and three dimensional wave simulations. In order to use a higher dimension change the dim argument in the Wave constructor.
@@ -38,6 +32,12 @@ Two Dimensions             |  One Dimension
 The goal of this project is to develop an environment in which Reinforcement Learning agents can learn to control acoustic waves. We have created an object which allows for interactive control with the wave simulator through applying actions to a design. An example of random control in this environment is shown below.
 
 ```
+wave = Wave(dim = TwoDim(-grid_size, grid_size, -grid_size, grid_size))
+design = ParameterizedDesign(Cylinder(-3.0, -3.0, 0.5, 0.0))
+pulse = GaussianPulse(intensity = 5.0, loc = [2.5, 2.5])
+
+sim = WaveSim(wave = wave, design = design, ic = pulse, t_max = 10.0, speed = 1.0, n = 30, dt = 0.05)
+
 env = WaveEnv(sim, design, 20)
 
 reset!(env)

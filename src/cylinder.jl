@@ -67,7 +67,7 @@ end
 function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
     GLMakie.mesh!(
         ax, 
-        GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, 0.), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
+        GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
 end
 
 # function interpolate(initial, final, t)

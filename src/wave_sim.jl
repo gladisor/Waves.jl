@@ -89,6 +89,11 @@ function Base.display(sol::WaveSol)
     display(typeof(sol))
 end
 
+function Base.:-(sol::WaveSol, other::WaveSol)
+    data = sol.data .- other.data
+    return WaveSol(sol.wave, sol.dims, data)
+end
+
 # function get_data(sol::WaveSol)
 #     return sol.sol[sol.grid[signature(sol.wave)]]
 # end
@@ -104,8 +109,6 @@ function render!(sol::WaveSol{OneDim}; path::String)
     GLMakie.xlims!(ax, getbounds(sol.wave.dim.x)...)
     GLMakie.ylims!(ax, -1.0, 1.0)
 
-    # x = dims(sol)[1]
-    # data = get_data(sol)
     x = sol.dims[1]
     data = sol.data
 
@@ -129,8 +132,6 @@ function Waves.render!(
     GLMakie.ylims!(ax, getbounds(sol.wave.dim.y)...)
     GLMakie.zlims!(ax, 0.0, 5.0)
 
-    # x, y = dims(sol)
-    # data = get_data(sol)
     x, y = sol.dims
     data = sol.data
 

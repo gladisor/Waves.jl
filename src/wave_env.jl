@@ -6,6 +6,12 @@ mutable struct WaveEnv{Dm <: AbstractDim, Dn <: AbstractDesign}
     design_steps::Int
 end
 
+function WaveEnv(;design::AbstractDesign, design_steps::Int, kwargs...)
+    design = ParameterizedDesign(design)
+    sim = WaveSim(design = design; kwargs...)
+    return WaveEnv(sim, design, design_steps)
+end
+
 function Waves.reset!(env::WaveEnv)
     reset!(env.sim)
 end
@@ -17,22 +23,29 @@ end
 function Base.step(env::WaveEnv, action::AbstractDesign)
     t0 = env.sim.iter.t
     tf = t0 + env.design_steps * env.sim.dt
-    env.sim.iter.p[end-1] = t0
-    env.sim.iter.p[end] = tf
+
+    set_t0!(env.sim, t0)
+    set_tf!(env.sim, tf)
     add_tstop!(env.sim.iter, tf)
 
     new_design = env.design + action
     steps = range(env.design.design, new_design, env.design_steps)
-    env.sim.iter.p[2:end-2] .= vcat(design_parameters(env.design), design_parameters(new_design))
+    dp = vcat(design_parameters(env.design), design_parameters(new_design))
+    set_design_params!(env.sim, dp)
+    
     env.design.design = new_design
     Waves.step!(env.sim)
     return steps
 end
 
 function is_terminated(env::WaveEnv)
-    return env.sim.iter.t >= env.sim.prob.tspan[end]
+    return current_time(env.sim) >= get_tmax(env.sim)
 end
 
 function Base.display(env::WaveEnv)
     println(typeof(env))
+end
+
+function WaveSol(env::WaveEnv)
+    return WaveSol(env.sim)
 end

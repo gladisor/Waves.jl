@@ -13,7 +13,7 @@ end
 function WaveSim(;
         wave::Wave, 
         ic::InitialCondition, 
-        t_max::Real, 
+        tmax::Real, 
         speed::Real, 
         n::Int, 
         dt::Real,
@@ -25,11 +25,11 @@ function WaveSim(;
         eq = wave_equation(wave)
     else
         eq = wave_equation(wave, design)
-        ps = vcat(ps, design_parameters(design, design.design, 0.0, t_max))
+        ps = vcat(ps, design_parameters(design, design.design, 0.0, tmax))
     end
 
     @named sys = PDESystem(
-        eq, conditions(wave, ic), get_domain(wave, t_max = t_max),
+        eq, conditions(wave, ic), get_domain(wave, tmax = tmax),
         spacetime(wave), [signature(wave)], ps)
 
     disc = wave_discretizer(wave, n)
@@ -71,15 +71,9 @@ end
 
 struct WaveSol{D <: AbstractDim}
     wave::Wave{D}
-    # grid::Dict
-    # sol::ODESolution
     dims::Vector
     data::AbstractArray
 end
-
-# function WaveSol(sim::WaveSim)
-#     return WaveSol(sim.wave, sim.grid, sim.iter.sol)
-# end
 
 function WaveSol(sim::WaveSim)
     return WaveSol(sim.wave, dims(sim), get_data(sim))
@@ -93,14 +87,6 @@ function Base.:-(sol::WaveSol, other::WaveSol)
     data = sol.data .- other.data
     return WaveSol(sol.wave, sol.dims, data)
 end
-
-# function get_data(sol::WaveSol)
-#     return sol.sol[sol.grid[signature(sol.wave)]]
-# end
-
-# function dims(s::Union{WaveSim, WaveSol})::Vector
-#     return [collect(s.grid[d]) for d ∈ dims(s.wave)]
-# end
 
 function render!(sol::WaveSol{OneDim}; path::String)
     fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
@@ -130,7 +116,7 @@ function Waves.render!(
 
     GLMakie.xlims!(ax, getbounds(sol.wave.dim.x)...)
     GLMakie.ylims!(ax, getbounds(sol.wave.dim.y)...)
-    GLMakie.zlims!(ax, 0.0, 5.0)
+    GLMakie.zlims!(ax, -1.0, 4.0)
 
     x, y = sol.dims
     data = sol.data
@@ -144,4 +130,32 @@ function Waves.render!(
     end
 
     return nothing
+end
+
+function set_t0!(sim::WaveSim, t0)
+    sim.iter.p[end-1] = t0
+    return nothing
+end
+
+function set_tf!(sim::WaveSim, tf)
+    sim.iter.p[end] = tf
+    return nothing
+end
+
+function set_design_params!(sim::WaveSim, dp)
+    sim.iter.p[2:end-2] .= dp
+    return nothing
+end
+
+function set_wave_speed!(sim::WaveSim, speed)
+    sim.iter.p[1] = speed
+    return nothing
+end
+
+function get_tmax(sim::WaveSim)
+    return sim.prob.tspan[end]
+end
+
+function current_time(sim::WaveSim)
+    return sim.iter.t
 end

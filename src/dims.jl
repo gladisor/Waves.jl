@@ -33,6 +33,9 @@ function ThreeDim(x_min, x_max, y_min, y_max, z_min, z_max)
     return ThreeDim(x, y, z)
 end
 
+OneDim(grid_size) = OneDim(-grid_size, grid_size)
+TwoDim(grid_size) = TwoDim(-grid_size, grid_size, -grid_size, grid_size)
+ThreeDim(grid_size) = ThreeDim(-grid_size, grid_size, -grid_size, grid_size, -grid_size, grid_size)
 
 dims(dim::OneDim)::Tuple = (dim.x,)
 dims(dim::TwoDim)::Tuple = (dim.x, dim.y)

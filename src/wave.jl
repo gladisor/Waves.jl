@@ -144,14 +144,14 @@ function boundary_conditions(wave::Wave)::Vector{Equation}
     return vcat(dirichlet(wave), neumann(wave), [time_condition(wave)])
 end
 
-function get_domain(wave::Wave; t_max)
+function get_domain(wave::Wave; tmax)
     domain = []
 
     for d ∈ dims(wave)
         push!(domain, d ∈ getbounds(d))
     end
 
-    push!(domain, wave.t ∈ (0.0, t_max))
+    push!(domain, wave.t ∈ (0.0, tmax))
     return domain
 end
 

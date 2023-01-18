@@ -9,13 +9,14 @@ struct Wave{D <: AbstractDim}
     speed::Num
     t::Num
     u::CallWithMetadata
+    free::Bool
 end
 
-function Wave(;dim)
+function Wave(;dim, free = false)
     @parameters speed
     @parameters t
     @variables u(..)
-    return Wave(dim, speed, t, u)
+    return Wave(dim, speed, t, u, free)
 end
 
 function dims(wave::Wave)::Tuple
@@ -121,6 +122,35 @@ function neumann(wave::Wave{TwoDim})::Vector{Equation}
         ]
 end
 
+function absorbing_condition(wave::Wave{OneDim})
+    x, t, u = Waves.unpack(wave)
+    x_min, x_max = getbounds(x)
+
+    Dx = Differential(x)
+    Dt = Differential(t)
+
+    return [
+        Dt(u(x_min, t)) - wave.speed * Dx(u(x_min, t)) ~ 0., ## works
+        Dt(u(x_max, t)) + wave.speed * Dx(u(x_max, t)) ~ 0., ## works
+        ]
+end
+
+function absorbing_condition(wave::Wave{TwoDim})
+    x, y, t, u = Waves.unpack(wave)
+    x_min, x_max = getbounds(x)
+    y_min, y_max = getbounds(y)
+
+    Dx = Differential(x)
+    Dy = Differential(y)
+    Dt = Differential(t)
+
+    return [
+        Dt(u(x_min, y, t)) - wave.speed * Dx(u(x_min, y, t)) ~ 0.,
+        Dt(u(x_max, y, t)) + wave.speed * Dx(u(x_max, y, t)) ~ 0.,
+        Dt(u(x, y_min, t)) - wave.speed * Dy(u(x, y_min, t)) ~ 0.,
+        Dt(u(x, y_max, t)) + wave.speed * Dy(u(x, y_max, t)) ~ 0.]
+end
+
 function time_condition(wave::Wave{OneDim})::Equation
     x, t, u = unpack(wave)
     Dt = Differential(t)
@@ -141,7 +171,12 @@ end
 The default set of boundary conditions for an acoustic wave.
 """
 function boundary_conditions(wave::Wave)::Vector{Equation}
-    return vcat(dirichlet(wave), neumann(wave), [time_condition(wave)])
+    if wave.free
+        walls = absorbing_condition(wave)
+    else
+        walls = vcat(dirichlet(wave), neumann(wave))
+    end
+    return vcat(walls, [time_condition(wave)])
 end
 
 function get_domain(wave::Wave; tmax)

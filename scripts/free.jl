@@ -38,3 +38,11 @@ sol_sc = sol_tot - sol_inc
 render!(sol_sc, design = steps, path = "wave_sc.mp4")
 
 render!(sol_inc, path = "wave_inc.mp4")
+
+function energy(x::AbstractArray)
+    return sum(x .^ 2)
+end
+
+function energy(sol::WaveSol)
+    return map(energy, sol.data)
+end

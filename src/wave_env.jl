@@ -6,8 +6,7 @@ mutable struct WaveEnv{Dm <: AbstractDim, Dn <: AbstractDesign}
     design_steps::Int
 end
 
-function WaveEnv(;design::AbstractDesign, design_steps::Int, kwargs...)
-    design = ParameterizedDesign(design)
+function WaveEnv(;design::ParameterizedDesign, design_steps::Int, kwargs...)
     sim = WaveSim(design = design; kwargs...)
     return WaveEnv(sim, design, design_steps)
 end

@@ -1,4 +1,4 @@
-export WaveSim, get_data, render!, reset!, WaveSol
+export WaveSim, get_data, render!, reset!, WaveSol, energy, plot_energy!
 
 mutable struct WaveSim{D <: AbstractDim}
     sys::PDESystem
@@ -69,14 +69,44 @@ function dims(sim::WaveSim)::Vector
     return [collect(sim.grid[d]) for d ∈ dims(sim.wave)]
 end
 
+
+function set_t0!(sim::WaveSim, t0)
+    sim.iter.p[end-1] = t0
+    return nothing
+end
+
+function set_tf!(sim::WaveSim, tf)
+    sim.iter.p[end] = tf
+    return nothing
+end
+
+function set_design_params!(sim::WaveSim, dp)
+    sim.iter.p[2:end-2] .= dp
+    return nothing
+end
+
+function set_wave_speed!(sim::WaveSim, speed)
+    sim.iter.p[1] = speed
+    return nothing
+end
+
+function get_tmax(sim::WaveSim)
+    return sim.prob.tspan[end]
+end
+
+function current_time(sim::WaveSim)
+    return sim.iter.t
+end
+
 struct WaveSol{D <: AbstractDim}
     wave::Wave{D}
     dims::Vector
+    tspan::Tuple
     data::AbstractArray
 end
 
 function WaveSol(sim::WaveSim)
-    return WaveSol(sim.wave, dims(sim), get_data(sim))
+    return WaveSol(sim.wave, dims(sim), sim.prob.tspan, get_data(sim))
 end
 
 function Base.display(sol::WaveSol)
@@ -85,7 +115,7 @@ end
 
 function Base.:-(sol::WaveSol, other::WaveSol)
     data = sol.data .- other.data
-    return WaveSol(sol.wave, sol.dims, data)
+    return WaveSol(sol.wave, sol.dims, sol.tspan, data)
 end
 
 function render!(sol::WaveSol{OneDim}; path::String)
@@ -132,30 +162,31 @@ function Waves.render!(
     return nothing
 end
 
-function set_t0!(sim::WaveSim, t0)
-    sim.iter.p[end-1] = t0
+function energy(x::AbstractArray)
+    return sum(x .^ 2)
+end
+
+function energy(sol::WaveSol)
+    return map(energy, sol.data)
+end
+
+function plot_energy!(sol_inc::WaveSol, sol_sc::WaveSol; path)
+    inc_energy = energy(sol_inc)
+    sc_energy = energy(sol_sc)
+    tick_length = length(inc_energy)
+    old_ticks = collect(1:100:tick_length)
+    new_ticks = collect(range(0, sol_inc.tspan[end], length = length(old_ticks)))
+
+    fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 50)
+    ax = GLMakie.Axis(fig[1, 1], 
+        title = "Scattered Wave Energy Over Time",
+        xlabel = "Time", ylabel = "Wave Energy: Σx²",
+        xticks = (old_ticks,  string.(new_ticks)))
+
+    GLMakie.lines!(ax, inc_energy, linewidth = 8, label = "Incident")
+    GLMakie.lines!(ax, sc_energy, linewidth = 8, label = "Scattered")
+
+    GLMakie.Legend(fig[1, 2], ax, "Wave")
+    GLMakie.save(path, fig)
     return nothing
-end
-
-function set_tf!(sim::WaveSim, tf)
-    sim.iter.p[end] = tf
-    return nothing
-end
-
-function set_design_params!(sim::WaveSim, dp)
-    sim.iter.p[2:end-2] .= dp
-    return nothing
-end
-
-function set_wave_speed!(sim::WaveSim, speed)
-    sim.iter.p[1] = speed
-    return nothing
-end
-
-function get_tmax(sim::WaveSim)
-    return sim.prob.tspan[end]
-end
-
-function current_time(sim::WaveSim)
-    return sim.iter.t
 end

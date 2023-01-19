@@ -1,4 +1,4 @@
-export Cylinder
+export Cylinder, random_position!
 
 """
 Structure which holds the information about a cylindrical scatterer.
@@ -70,23 +70,35 @@ function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
         GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
 end
 
-# function interpolate(initial, final, t)
-#     return initial + (final - initial) * t
-# end
+function interpolate(initial::Num, final::Num, t::Num)
+    return initial + (final - initial) * t
+end
 
-# interpolate.(design_parameters(design.initial), design_parameters(design.final), t)
+function interpolate(initial::Cylinder, final::Cylinder, t::Num)
+    ps = interpolate.(design_parameters(initial), design_parameters(final), t)
+    return Cylinder(ps...)
+end
+
+function Base.:∈(xy::Tuple, cyl::Cylinder)
+    x, y = xy
+    return ((x - cyl.x)^2 + (y - cyl.y)^2) < cyl.r ^ 2
+end
 
 function Waves.wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::Function
 
     C = (x, y, t) -> begin
-        t_norm = (t - design.t_initial) / (design.t_final - design.t_initial)
-        x_interp = design.initial.x + (design.final.x - design.initial.x) * t_norm
-        y_interp = design.initial.y + (design.final.y - design.initial.y) * t_norm
-        r_interp = design.initial.r + (design.final.r - design.initial.r) * t_norm
-        c_interp = design.initial.c + (design.final.c - design.initial.c) * t_norm
-
-        return IfElse.ifelse((x - x_interp) ^ 2 + (y - y_interp) ^ 2 < r_interp, c_interp, wave.speed)
+        cyl = interpolate(design.initial, design.final, get_t_norm(design, t))
+        return IfElse.ifelse((x, y) ∈ cyl, cyl.c, wave.speed)
     end
     
     return C
+end
+
+function random_position!(cyl::Cylinder, dim::TwoDim)
+    x_min, x_max = getbounds(dim.x)
+    y_min, y_max = getbounds(dim.y)
+
+    x = rand(Uniform(x_min + cyl.r, x_max - cyl.r))
+    y = rand(Uniform(y_min + cyl.r, y_max - cyl.r))
+    return Cylinder(x, y, cyl.r, cyl.c)
 end

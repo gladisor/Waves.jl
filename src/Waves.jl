@@ -6,6 +6,7 @@ using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
 using ModelingToolkit.Symbolics: CallWithMetadata
 using OrdinaryDiffEq: ODEIntegrator, ODESolution
 import GLMakie
+using Distributions: Uniform
 # using GLMakie, CairoMakie
 
 abstract type AbstractDim end

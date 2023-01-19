@@ -13,9 +13,9 @@ function ParameterizedDesign(design::AbstractDesign, initial::AbstractDesign, fi
     return ParameterizedDesign(design, initial, final, t_initial, t_final)
 end
 
-function ParameterizedDesign(design::AbstractDesign)
-    @named initial = typeof(design)()
-    @named final = typeof(design)()
+function ParameterizedDesign(design::AbstractDesign; kwargs...)
+    @named initial = typeof(design)(;kwargs...)
+    @named final = typeof(design)(;kwargs...)
     return ParameterizedDesign(design, initial, final)
 end
 
@@ -40,4 +40,8 @@ end
 
 function design_parameters(design::ParameterizedDesign)
     return design_parameters(design.design)
+end
+
+function get_t_norm(design::ParameterizedDesign, t::Real)
+    return (t - design.t_initial) / (design.t_final - design.t_initial)
 end

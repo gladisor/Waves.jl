@@ -42,6 +42,10 @@ function design_parameters(design::ParameterizedDesign)
     return design_parameters(design.design)
 end
 
-function get_t_norm(design::ParameterizedDesign, t::Real)
+function get_t_norm(design::ParameterizedDesign, t::Num)
     return (t - design.t_initial) / (design.t_final - design.t_initial)
+end
+
+function interpolate(initial::Num, final::Num, t::Num)
+    return initial + (final - initial) * t
 end

@@ -1,17 +1,12 @@
-export WaveEnv, state, is_terminated
+export WaveEnv, state, is_terminated, perturb
 
-mutable struct WaveEnv{Dm <: AbstractDim, Dn <: AbstractDesign}
+Base.Base.@kwdef mutable struct WaveEnv{Dm <: AbstractDim, Dn <: AbstractDesign}
     sim::WaveSim{Dm}
     design::ParameterizedDesign{Dn}
     design_steps::Int
 end
 
-function WaveEnv(;design::ParameterizedDesign, design_steps::Int, kwargs...)
-    sim = WaveSim(design = design; kwargs...)
-    return WaveEnv(sim, design, design_steps)
-end
-
-function Waves.reset!(env::WaveEnv)
+function reset!(env::WaveEnv)
     reset!(env.sim)
 end
 
@@ -19,7 +14,7 @@ function state(env::WaveEnv)
     return state(env.sim)
 end
 
-function Base.step(env::WaveEnv, action::AbstractDesign)
+function perturb(env::WaveEnv, action::AbstractDesign)
     t0 = env.sim.iter.t
     tf = t0 + env.design_steps * env.sim.dt
 

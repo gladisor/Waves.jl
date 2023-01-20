@@ -12,14 +12,15 @@ end
 
 function WaveSim(;
         wave::Wave, 
+        design::Union{ParameterizedDesign, Nothing} = nothing,
         ic::InitialCondition, 
+        open::Bool,
         tmax::Real, 
-        speed::Real, 
+        ambient_speed::Real, 
         n::Int, 
-        dt::Real,
-        design::Union{ParameterizedDesign, Nothing} = nothing)
+        dt::Real)
 
-    ps = [wave.speed => speed]
+    ps = [wave.speed => ambient_speed]
 
     if isnothing(design)
         eq = wave_equation(wave)
@@ -28,9 +29,17 @@ function WaveSim(;
         ps = vcat(ps, design_parameters(design, design.design, 0.0, tmax))
     end
 
-    @named sys = PDESystem(
-        eq, conditions(wave, ic), get_domain(wave, tmax = tmax),
-        spacetime(wave), [signature(wave)], ps)
+    bcs = [
+        wave.u(dims(wave)..., 0.0) ~ ic(wave)
+        ]
+
+    if open
+        bcs = vcat(bcs, open_boundary(wave))
+    else
+        bcs = vcat(bcs, closed_boundary(wave))
+    end
+
+    @named sys = PDESystem(eq, bcs, get_domain(wave, tmax = tmax), spacetime(wave), [signature(wave)], ps)
 
     disc = wave_discretizer(wave, n)
     prob = discretize(sys, disc)
@@ -68,7 +77,6 @@ end
 function dims(sim::WaveSim)::Vector
     return [collect(sim.grid[d]) for d ∈ dims(sim.wave)]
 end
-
 
 function set_t0!(sim::WaveSim, t0)
     sim.iter.p[end-1] = t0

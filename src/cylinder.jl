@@ -1,4 +1,4 @@
-export Cylinder, random_position!
+export Cylinder
 
 """
 Structure which holds the information about a cylindrical scatterer.
@@ -8,7 +8,6 @@ struct Cylinder <: AbstractDesign
     y
     r
     c
-    name
 end
 
 """
@@ -18,12 +17,8 @@ Constructor for Cylinder which only specifies x and y position.
 cyl = Cylinder(0.0, 0.0)
 ```
 """
-function Cylinder(x, y; name = "")
-    return Cylinder(x, y, 1.0, 0.0, name)
-end
-
-function Cylinder(x, y, r, c)
-    return Cylinder(x, y, r, c, "")
+function Cylinder(x, y)
+    return Cylinder(x, y, 1.0, 0.0)
 end
 
 function Base.range(start::Cylinder, stop::Cylinder, length::Int) #::Vector{Cylinder}
@@ -46,7 +41,7 @@ function Cylinder(;name)
     c = Symbol(name, "_c")
 
     ps = @parameters $x, $y, $r, $c
-    return Cylinder(ps..., name)
+    return Cylinder(ps...)
 end
 
 """
@@ -61,17 +56,30 @@ Defines addition between two Cylindrical scatterers. Simply adds each parameter 
 assigns an empty string as name.
 """
 function Base.:+(cyl1::Cylinder, cyl2::Cylinder)
-    return Cylinder(cyl1.x + cyl2.x, cyl1.y + cyl2.y, cyl1.r + cyl2.r, cyl1.c + cyl2.c, "")
+    return Cylinder(cyl1.x + cyl2.x, cyl1.y + cyl2.y, cyl1.r + cyl2.r, cyl1.c + cyl2.c)
+end
+
+function perturb(cyl::Cylinder, action::Cylinder, dim::TwoDim)
+    x_min, x_max = getbounds(dim.x)
+    y_min, y_max = getbounds(dim.y)
+    new_cyl = cyl + action
+    x = clamp(new_cyl.x + new_cyl.r, x_min, x_max)
+    y = clamp(new_cyl.y + new_cyl.r, y_min, y_max)
+    return Cylinder(x, y, new_cyl.r, new_cyl.c)
+end
+
+function reset!(cyl::Cylinder, dim::TwoDim)
+    x_min, x_max = getbounds(dim.x)
+    y_min, y_max = getbounds(dim.y)
+    x = rand(Uniform(x_min + cyl.r, x_max - cyl.r))
+    y = rand(Uniform(y_min + cyl.r, y_max - cyl.r))
+    return Cylinder(x, y, cyl.r, cyl.c)
 end
 
 function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
     GLMakie.mesh!(
         ax, 
         GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
-end
-
-function interpolate(initial::Num, final::Num, t::Num)
-    return initial + (final - initial) * t
 end
 
 function interpolate(initial::Cylinder, final::Cylinder, t::Num)
@@ -84,7 +92,7 @@ function Base.:∈(xy::Tuple, cyl::Cylinder)
     return ((x - cyl.x)^2 + (y - cyl.y)^2) < cyl.r ^ 2
 end
 
-function Waves.wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::Function
+function wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::Function
 
     C = (x, y, t) -> begin
         cyl = interpolate(design.initial, design.final, get_t_norm(design, t))
@@ -92,13 +100,4 @@ function Waves.wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylind
     end
     
     return C
-end
-
-function random_position!(cyl::Cylinder, dim::TwoDim)
-    x_min, x_max = getbounds(dim.x)
-    y_min, y_max = getbounds(dim.y)
-
-    x = rand(Uniform(x_min + cyl.r, x_max - cyl.r))
-    y = rand(Uniform(y_min + cyl.r, y_max - cyl.r))
-    return Cylinder(x, y, cyl.r, cyl.c)
 end

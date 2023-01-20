@@ -9,14 +9,13 @@ struct Wave{D <: AbstractDim}
     speed::Num
     t::Num
     u::CallWithMetadata
-    free::Bool
 end
 
-function Wave(;dim, free = false)
+function Wave(;dim)
     @parameters speed
     @parameters t
     @variables u(..)
-    return Wave(dim, speed, t, u, free)
+    return Wave(dim, speed, t, u)
 end
 
 function dims(wave::Wave)::Tuple
@@ -170,13 +169,12 @@ end
 """
 The default set of boundary conditions for an acoustic wave.
 """
-function boundary_conditions(wave::Wave)::Vector{Equation}
-    if wave.free
-        walls = absorbing_condition(wave)
-    else
-        walls = vcat(dirichlet(wave), neumann(wave))
-    end
-    return vcat(walls, [time_condition(wave)])
+function open_boundary(wave::Wave)::Vector{Equation}
+    return vcat(absorbing_condition(wave), [time_condition(wave)])
+end
+
+function closed_boundary(wave::Wave)::Vector{Equation}
+    return vcat(dirichlet(wave), neumann(wave), [time_condition(wave)])
 end
 
 function get_domain(wave::Wave; tmax)

@@ -1,11 +1,11 @@
-export GaussianPulse
+export GaussianPulse, Silence
 
 struct GaussianPulse <: InitialCondition
     intensity::Real
     loc::Vector
 end
 
-function GaussianPulse(;intensity, loc = zeros(3))
+function GaussianPulse(intensity; loc = zeros(3))
     return GaussianPulse(intensity, loc)
 end
 

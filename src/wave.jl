@@ -1,4 +1,4 @@
-export Wave, wave_equation, wave_speed, boundary_conditions, get_domain
+export Wave, open_boundary, closed_boundary
 
 """
 Structure which contains information about a wave of arbitrary dimensionality.
@@ -63,7 +63,7 @@ end
 When there is no design present in the spacial domain of the wave then
 the wave speed scalar function takes on the default value of the wave.
 """
-function Waves.wave_equation(wave::Wave)::Equation
+function wave_equation(wave::Wave)::Equation
     return wave_equation(wave, wave_speed(wave))
 end
 
@@ -150,16 +150,16 @@ function absorbing_condition(wave::Wave{TwoDim})
         Dt(u(x, y_max, t)) + wave.speed * Dy(u(x, y_max, t)) ~ 0.]
 end
 
+"""
+Our initial assumption that the rate of change of the wave displacement over time is zero over the
+entire spacial domain of the wave.
+"""
 function time_condition(wave::Wave{OneDim})::Equation
     x, t, u = unpack(wave)
     Dt = Differential(t)
     return Dt(u(x, 0.0)) ~ 0.
 end
 
-"""
-Our initial assumption that the rate of change of the wave displacement over time is zero over the
-entire spacial domain of the wave.
-"""
 function time_condition(wave::Wave{TwoDim})::Equation
     x, y, t, u = unpack(wave)
     Dt = Differential(t)
@@ -167,12 +167,15 @@ function time_condition(wave::Wave{TwoDim})::Equation
 end
 
 """
-The default set of boundary conditions for an acoustic wave.
+Simulates an open ended space without wall reflections.
 """
 function open_boundary(wave::Wave)::Vector{Equation}
     return vcat(absorbing_condition(wave), [time_condition(wave)])
 end
 
+"""
+Simulates a closed region where waves reflect off walls.
+"""
 function closed_boundary(wave::Wave)::Vector{Equation}
     return vcat(dirichlet(wave), neumann(wave), [time_condition(wave)])
 end

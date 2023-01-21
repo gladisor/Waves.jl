@@ -20,6 +20,10 @@ function Base.:-(sol::WaveSol, other::WaveSol)::WaveSol
     return WaveSol(sol.wave, sol.dims, sol.tspan, data)
 end
 
+function Base.length(sol::WaveSol)
+    return length(sol.data)
+end
+
 function render!(sol::WaveSol{OneDim}; path::String)
     fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
     ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X", ylabel = "Y")

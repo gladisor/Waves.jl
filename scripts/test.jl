@@ -1,26 +1,39 @@
 using Waves
-import ModelingToolkit
+using Waves: WaveBoundary, spacetime, unpack, OpenBoundary, ClosedBoundary
+using ModelingToolkit: getbounds
 
-function plane_wave(wave::Wave{TwoDim})
-    _, y, t, u = Waves.unpack(wave)
-    x_min, _ = ModelingToolkit.getbounds(wave.dim.x)
-    bcs = open_boundary(wave)
-    bcs[1] = u(x_min, y, t) ~ exp(-10*(t-1.1)^2)
-    return bcs
-end
-
-gs = 5.0
+gs = 10.0
 dim = TwoDim(-gs, gs, -gs, gs)
+# dim = OneDim(-gs, gs)
 wave = Wave(dim = dim)
 
-@time sim = WaveSim(
-    wave = wave, 
-    # ic = GaussianPulse(1.0), 
-    ic = Silence(),
-    boundary = plane_wave,
-    ambient_speed = 2.0, tmax = 10.0, n = 21, dt = 0.05)
+design = ParameterizedDesign(Cylinder(0.0, 0.0, 0.5, 0.0))
+kwargs = Dict(
+    :wave => wave, 
+    :ic => Silence(), 
+    :boundary => PlaneWave(), 
+    :ambient_speed => 2.0, :tmax => 10.0, 
+    :n => 21, :dt => 0.05)
 
-@time Waves.propagate!(sim)
-@time sol = WaveSol(sim)
-@time render!(sol, path = "vid.mp4")
-@time plot_energy!(sol_inc = sol, path = "inc.png")
+@time sim_tot = WaveSim(
+    # design = design
+    ;kwargs...)
+@time sim_inc = WaveSim(;kwargs...)
+
+@time Waves.propagate!(sim_tot)
+@time Waves.propagate!(sim_inc)
+
+@time sol_tot = WaveSol(sim_tot)
+@time sol_inc = WaveSol(sim_inc)
+
+steps = range(design.design, design.design, length(sol_tot))
+sol_sc = sol_tot - sol_inc
+
+@time render!(sol_tot, 
+    # design = steps, 
+    path = "sol_tot.mp4")
+
+@time render!(sol_sc, 
+    # design = steps, 
+    path = "sol_sc.mp4")
+@time Waves.plot_energy!(sol_inc = sol_inc, sol_sc = sol_sc, path = "inc.png")

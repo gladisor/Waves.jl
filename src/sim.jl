@@ -7,7 +7,7 @@ mutable struct WaveSim{D <: AbstractDim}
     dt::Real
 end
 
-function WaveSim(;wave::Wave, ic::InitialCondition, tmax::Real, n::Int, dt::Real, ambient_speed::Real = 1.0, design::Union{ParameterizedDesign, Nothing} = nothing, boundary::Function = open_boundary)
+function WaveSim(;wave::Wave, ic::InitialCondition, tmax::Real, n::Int, dt::Real, ambient_speed::Real = 1.0, design::Union{ParameterizedDesign, Nothing} = nothing, boundary::WaveBoundary = OpenBoundary())
 
     ps = [wave.speed => ambient_speed]
 

@@ -13,9 +13,9 @@ function ParameterizedDesign(design::AbstractDesign, initial::AbstractDesign, fi
     return ParameterizedDesign(design, initial, final, t_initial, t_final)
 end
 
-function ParameterizedDesign(design::AbstractDesign; kwargs...)
-    @named initial = typeof(design)(;kwargs...)
-    @named final = typeof(design)(;kwargs...)
+function ParameterizedDesign(design::AbstractDesign)
+    @named initial = typeof(design)()
+    @named final = typeof(design)()
     return ParameterizedDesign(design, initial, final)
 end
 

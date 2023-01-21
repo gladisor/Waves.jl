@@ -5,8 +5,12 @@ struct GaussianPulse <: InitialCondition
     loc::Vector
 end
 
-function GaussianPulse(intensity; loc = zeros(3))
+function GaussianPulse(intensity::Real; loc::Vector = zeros(3))
     return GaussianPulse(intensity, loc)
+end
+
+function GaussianPulse()
+    return GaussianPulse(1.0)
 end
 
 function (pulse::GaussianPulse)(wave::Wave{OneDim})

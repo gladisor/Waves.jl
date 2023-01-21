@@ -7,15 +7,16 @@ using ModelingToolkit.Symbolics: CallWithMetadata
 using OrdinaryDiffEq: ODEIntegrator, ODESolution
 import GLMakie
 using Distributions: Uniform
-# using GLMakie, CairoMakie
 
 abstract type AbstractDim end
 abstract type AbstractDesign end
 abstract type InitialCondition end
+abstract type WaveBoundary end
 
 include("dims.jl")
 include("wave.jl")
 include("initial_conditions.jl")
+include("boundary.jl")
 include("parameterized_design.jl")
 include("cylinder.jl")
 include("sim.jl")

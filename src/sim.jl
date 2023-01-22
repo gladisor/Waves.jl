@@ -1,4 +1,4 @@
-export WaveSim
+export WaveSim, propagate!
 
 mutable struct WaveSim{D <: AbstractDim}
     wave::Wave{D}
@@ -34,11 +34,11 @@ function propagate!(sim::WaveSim)
     return nothing
 end
 
-function propagate!(sim::WaveSim, dt::Real)
-    add_tstop!(sim.iter, sim.iter.t + dt)
-    propagate!(sim)
-    return nothing
-end
+# function propagate!(sim::WaveSim, dt::Real)
+#     # add_tstop!(sim.iter, sim.iter.t + dt)
+#     propagate!(sim)
+#     return nothing
+# end
 
 function Base.display(sim::WaveSim)
     println(typeof(sim))
@@ -54,7 +54,7 @@ function get_data(sim::WaveSim)
 end
 
 function state(sim::WaveSim)
-    return sim.iter[sim.grid[Waves.signature(sim.wave)]]
+    return sim.iter[sim.grid[signature(sim.wave)]]
 end
 
 function dims(sim::WaveSim)::Vector

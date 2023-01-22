@@ -21,6 +21,6 @@ include("parameterized_design.jl")
 include("cylinder.jl")
 include("sim.jl")
 include("sol.jl")
-# include("env.jl")
+include("env.jl")
 
 end # module

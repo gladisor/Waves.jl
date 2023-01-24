@@ -34,12 +34,6 @@ function propagate!(sim::WaveSim)
     return nothing
 end
 
-# function propagate!(sim::WaveSim, dt::Real)
-#     # add_tstop!(sim.iter, sim.iter.t + dt)
-#     propagate!(sim)
-#     return nothing
-# end
-
 function Base.display(sim::WaveSim)
     println(typeof(sim))
 end

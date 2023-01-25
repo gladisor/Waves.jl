@@ -14,7 +14,7 @@ k = ω / c
 
 function σₓ(x)
     x_pml = abs(x) - pml_start
-    return IfElse.ifelse(x_pml > 0.0, x_pml / pml_width, 0.0)^2
+    return IfElse.ifelse(x_pml > 0.0, x_pml / pml_width, 0.0)^3
 end
 
 function Waves.wave_equation(wave::Wave{OneDim}, C::Function)

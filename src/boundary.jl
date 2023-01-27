@@ -1,4 +1,4 @@
-export OpenBoundary, ClosedBoundary, PlaneWave
+export OpenBoundary, ClosedBoundary, PlaneWave, MinimalBoundary
 
 struct OpenBoundary <: WaveBoundary end
 
@@ -26,4 +26,10 @@ function (boundary::PlaneWave)(wave::Wave)
     bcs = open_boundary(wave)
     bcs[1] = wave.u(x_min, spacetime(wave)[2:end]...) ~ exp(-boundary.intensity*(wave.t-boundary.shift)^2)
     return bcs
+end
+
+struct MinimalBoundary <: WaveBoundary end
+
+function (boundary::MinimalBoundary)(wave::Wave)
+    return [Waves.dirichlet(wave)..., Waves.time_condition(wave)]
 end

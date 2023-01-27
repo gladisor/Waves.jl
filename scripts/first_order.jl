@@ -1,5 +1,5 @@
 using Waves
-using Waves: get_domain, spacetime, signature, wave_discretizer, wave_equation, unpack
+using Waves: get_domain, spacetime, signature, wave_discretizer, wave_equation, unpack, WaveBoundary
 using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
 import GLMakie
 
@@ -13,19 +13,17 @@ function σₓ(x)
     return IfElse.ifelse(x_pml > 0.0, x_pml / pml_width, 0.0)
 end
 
-dim = OneDim(size = gs)
+dim = TwoDim(size = gs)
 wave = Wave(dim = dim)
 
 kwargs = Dict(
     :wave => wave, 
     :ic => GaussianPulse(), 
-    :boundary => ClosedBoundary(), 
+    :boundary => MinimalBoundary(), 
     :ambient_speed => c, 
-    :tmax => 20.0, :n => 100, :dt => 0.05)
+    :tmax => 20.0, :n => 21, :dt => 0.1)
 
-ps = [
-    wave.speed => kwargs[:ambient_speed]
-]
+ps = [wave.speed => kwargs[:ambient_speed]]
 
 eq = wave_equation(wave)
 @variables v(..), w(..)
@@ -43,25 +41,12 @@ eqs = [
     ]
 
 bcs = [
-    # for full displacement field
-    u(x, 0.) ~ kwargs[:ic](wave), 
-    u(x_min, t) ~ 0., 
-    u(x_max, t) ~ 0., 
-    # Dx(u(x_min, t)) ~ 0.,
-    # Dx(u(x_max, t)) ~ 0.,
+    u(x, 0.0) ~ kwargs[:ic](wave),
+    # Dt(u(x, 0.0)) ~ 0.0,
+    u(x_min, t) ~ 0.0,
+    u(x_max, t) ~ 0.0,
 
-    # for time partial derivative field
-    # v(x_min, t) ~ 0.,
-    # v(x_max, t) ~ 0.,
-    # Dx(v(x_min, t)) ~ 0.,
-    # Dx(v(x_max, t)) ~ 0.,
-    v(x, 0.) ~ 0.,
-    w(x_min, t) ~ 0.,
-    w(x_max, t) ~ 0.
-    # w(x_min, t) ~ 0.0,
-    # w(x_max, t) ~ 0.0,
-    # Dx(w(x_min, t)) ~ 0.0,
-    # Dx(w(x_max, t)) ~ 0.0,
+    v(x, 0.0) ~ 0.0
     ]
 
 @named sys = PDESystem(
@@ -69,7 +54,9 @@ bcs = [
     bcs, 
     get_domain(wave, tmax = kwargs[:tmax]), 
     spacetime(wave), 
-    [u(x, t), v(x, t), 
+    [
+        u(x, t), 
+        v(x, t), 
         w(x, t)
         ],
     ps)
@@ -77,22 +64,25 @@ bcs = [
 disc = wave_discretizer(wave, kwargs[:n])
 iter = init(discretize(sys, disc), Midpoint(), advance_to_tstop = true, saveat = kwargs[:dt])
 sim = WaveSim(wave, get_discrete(sys, disc), iter, kwargs[:dt])
+
+sim = WaveSim(;kwargs...)
 propagate!(sim)
 sol = WaveSol(sim)
+render!(sol, path = "vid.mp4")
 
-fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
-ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X", ylabel = "Y")
+# fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 20)
+# ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X", ylabel = "Y")
 
-∂t = sim.iter.sol[sim.grid[v(x, t)]]
-∂x = sim.iter.sol[sim.grid[w(x, t)]]
-x_axis = collect(sim.grid[x])
+# # ∂t = sim.iter.sol[sim.grid[v(x, t)]]
+# # ∂x = sim.iter.sol[sim.grid[w(x, t)]]
+# x_axis = collect(sim.grid[x])
 
-GLMakie.xlims!(ax, -gs, gs)
-GLMakie.ylims!(ax, -1.0, 1.0)
+# GLMakie.xlims!(ax, -gs, gs)
+# GLMakie.ylims!(ax, -1.0, 1.0)
 
-GLMakie.record(fig, "der.mp4", axes(sol.data, 1)) do i
-    GLMakie.empty!(ax.scene)
-    GLMakie.lines!(ax, x_axis, sol.data[i], linestyle = nothing, linewidth = 5, color = :blue)
-    GLMakie.lines!(ax, x_axis, ∂t[i], linestyle = nothing, linewidth = 5, color = :orange)
-    # GLMakie.lines!(ax, x_axis, ∂x[i], linestyle = nothing, linewidth = 5, color = :green)
-end
+# GLMakie.record(fig, "der.mp4", axes(sol.data, 1)) do i
+#     GLMakie.empty!(ax.scene)
+#     GLMakie.lines!(ax, x_axis, sol.data[i], linestyle = nothing, linewidth = 5, color = :blue)
+#     GLMakie.lines!(ax, x_axis, ∂t[i], linestyle = nothing, linewidth = 5, color = :orange)
+#     GLMakie.lines!(ax, x_axis, ∂x[i], linestyle = nothing, linewidth = 5, color = :green)
+# end

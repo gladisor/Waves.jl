@@ -85,13 +85,13 @@ function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
     GLMakie.mesh!(ax, GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
 end
 
-"""
-Overrides interpolation of design parameters of two cylindrical scatterers
-"""
-function interpolate(initial::Cylinder, final::Cylinder, t::Num)
-    ps = interpolate.(design_parameters(initial), design_parameters(final), t)
-    return Cylinder(ps...)
-end
+# """
+# Overrides interpolation of design parameters of two cylindrical scatterers
+# """
+# function interpolate(initial::Cylinder, final::Cylinder, t::Num)
+#     ps = interpolate.(design_parameters(initial), design_parameters(final), t)
+#     return Cylinder(ps...)
+# end
 
 """
 Checks if a point in two dimensions is withing the scatterer
@@ -101,18 +101,18 @@ function Base.:∈(xy::Tuple, cyl::Cylinder)
     return ((x - cyl.x)^2 + (y - cyl.y)^2) < cyl.r ^ 2
 end
 
-"""
-Defines the wave_speed function when a Cylinder is present in the dimensional space.
-"""
-function wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::Function
+# """
+# Defines the wave_speed function when a Cylinder is present in the dimensional space.
+# """
+# function wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::Function
 
-    C = (x, y, t) -> begin
-        cyl = interpolate(design.initial, design.final, get_t_norm(design, t))
-        return IfElse.ifelse((x, y) ∈ cyl, cyl.c, wave.speed)
-    end
+#     C = (x, y, t) -> begin
+#         cyl = interpolate(design.initial, design.final, get_t_norm(design, t))
+#         return IfElse.ifelse((x, y) ∈ cyl, cyl.c, wave.speed)
+#     end
     
-    return C
-end
+#     return C
+# end
 
 function Base.:/(cyl::Cylinder, n::Real)
     return Cylinder(cyl.x/n, cyl.y/n, cyl.r, cyl.c)

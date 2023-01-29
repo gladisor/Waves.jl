@@ -29,7 +29,7 @@ end
 """
 Wave equation in one dimention.
 """
-function wave_equation(wave::Wave{OneDim}, C::Function)::Equation
+function wave_equation(wave::Wave{OneDim}, C)::Equation
     x, t, u = unpack(wave)
     Dxx = Differential(x)^2
     Dtt = Differential(t)^2
@@ -39,7 +39,7 @@ end
 """
 Wave equation in two dimensions.
 """
-function wave_equation(wave::Wave{TwoDim}, C::Function)::Equation
+function wave_equation(wave::Wave{TwoDim}, C)::Equation
     x, y, t, u = unpack(wave)
     Dxx = Differential(x)^2
     Dyy = Differential(y)^2

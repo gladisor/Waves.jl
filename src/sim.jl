@@ -7,22 +7,18 @@ mutable struct WaveSim{D <: AbstractDim}
     dt::Real
 end
 
-function WaveSim(;wave::Wave, ic::InitialCondition, tmax::Real, n::Int, dt::Real, ambient_speed::Real = 1.0, design::Union{ParameterizedDesign, Nothing} = nothing, boundary::WaveBoundary = OpenBoundary())
+function WaveSim(;wave::Wave, ic::InitialCondition, tmax::Real, n::Int, dt::Real, ambient_speed::Real = 1.0, design::Union{Design, Nothing} = nothing, boundary::WaveBoundary = OpenBoundary())
 
     ps = [wave.speed => ambient_speed]
 
-    if isnothing(design)
-        eq = wave_equation(wave)
-    else
-        eq = wave_equation(wave, design)
+    if !isnothing(design)
         ps = vcat(ps, design_parameters(design, design.design, 0.0, tmax))
     end
 
-    bcs = [
-        wave.u(dims(wave)..., 0.0) ~ ic(wave), 
-        boundary(wave)...
-        ]
+    C = WaveSpeed(wave, design)
+    eq = wave_equation(wave, C)
 
+    bcs = [wave.u(dims(wave)..., 0.0) ~ ic(wave), boundary(wave)...]
     @named sys = PDESystem(eq, bcs, get_domain(wave, tmax = tmax), spacetime(wave), [signature(wave)], ps)
     disc = wave_discretizer(wave, n)
     iter = init(discretize(sys, disc), Tsit5(), advance_to_tstop = true, saveat = dt)

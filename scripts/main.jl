@@ -91,25 +91,24 @@ gs = 5.0
 dim = TwoDim(size = gs)
 wave = Wave(dim = dim)
 
-M = 3
+M = 4
 
 design = Design(Configuration(
-    [-3.0, 0.0, 3.0], 
-    [0.0, 0.0, 0.0], 
-    [0.5, 0.5, 0.5], 
-    [0.0, 0.0, 0.0]), M = M)
+    [-2.0, -2.0, -2.0, -4.0], 
+    [-3.0, 0.0, 3.0, 3.0], 
+    [0.5, 0.5, 0.5, 0.5], 
+    [0.1, 0.1, 0.1, 0.1]), M = M)
 
 new_design = Configuration(
-    [-3.0, 0.0, 3.0], 
-    [4.0, 4.0, 4.0], 
-    [0.5, 0.5, 0.5], 
-    [0.0, 0.0, 0.0])
+    [2.0, 2.0, 2.0, 4.0], 
+    [-3.0, 0.0, 3.0, 3.0], 
+    [0.5, 0.5, 0.5, 0.5], 
+    [0.1, 0.1, 0.1, 0.1])
 
 C = WaveSpeed(wave, design)
 
 x, y, t, u = Waves.unpack(wave)
-Dx = Differential(x); Dxx = Differential(x)^2
-Dy = Differential(y); Dyy = Differential(y)^2
+Dx = Differential(x); Dxx = Differential(x)^2; Dy = Differential(y); Dyy = Differential(y)^2
 Dt = Differential(t); Dtt = Differential(t)^2
 
 kwargs = Dict(

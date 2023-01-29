@@ -46,6 +46,9 @@ function get_t_norm(design::ParameterizedDesign, t::Num)
     return (t - design.t_initial) / (design.t_final - design.t_initial)
 end
 
+"""
+Interpolates between initial and final. Time t is expected to be between 0.0 and 1.0
+"""
 function interpolate(initial::Num, final::Num, t::Num)
     return initial + (final - initial) * t
 end

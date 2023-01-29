@@ -1,87 +1,136 @@
 using Waves
-using Waves: get_domain, spacetime, signature, wave_discretizer, wave_equation, unpack
 using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
+using Distributions: Uniform
+import GLMakie
 
-gs = 5.0
-c = 1.0
-
-pml_width = 2.0
-pml_start = gs - pml_width
-c = 1.0
-ω = 1.0
-k = ω / c
-
-function σₓ(x)
-    x_pml = abs(x) - pml_start
-    return IfElse.ifelse(x_pml > 0.0, x_pml / pml_width, 0.0)
+mutable struct Design{D <: AbstractDesign}
+    design::D
+    initial::D
+    final::D
+    ti::Num
+    tf::Num
 end
 
+function Design(design::AbstractDesign; kwargs...)
+    @named initial = typeof(design)(;kwargs...)
+    @named final = typeof(design)(;kwargs...)
+    @parameters ti, tf
+    return Design(design, initial, final, ti, tf)
+end
 
-dim = OneDim(size = gs)
+function Waves.design_parameters(design::Design)
+    return Waves.design_parameters(design.design)
+end
+
+function Waves.design_parameters(design::Design, new_design::AbstractDesign, ti, tf)
+    return [
+        (design_parameters(design.initial) .=> design_parameters(design))...,
+        (design_parameters(design.final) .=> design_parameters(new_design))...,
+        design.ti => ti,
+        design.tf => tf
+    ]
+end
+
+function Waves.wave_speed(wave::Wave{TwoDim}, design::Design{Cylinder})::Function
+
+    C = (x, y, t) -> begin
+        t′ = (t - design.ti) / (design.tf - design.ti)
+        x′, y′, r′, c′ = Waves.interpolate.(design_parameters(design.initial), design_parameters(design.final), t′)
+        inside = (x - x′) ^ 2 + (y - y′) ^ 2 < r′ ^ 2
+        inside * c′ + (1 - inside) * wave.speed
+    end
+    
+    return C
+end
+
+function Waves.wave_equation(wave::Wave, design::Design)::Equation
+    return Waves.wave_equation(wave, Waves.wave_speed(wave, design))
+end
+
+include("configuration.jl")
+
+mutable struct WaveSpeed{Dm <: AbstractDim, Dz <: Union{Design{<: AbstractDesign}, Nothing}}
+    wave::Wave{Dm}
+    design::Dz
+end
+
+function WaveSpeed(wave::Wave)
+    return WaveSpeed(wave, nothing)
+end
+
+function (C::WaveSpeed{TwoDim, Nothing})(x, y, t)
+    return C.wave.speed
+end
+
+function (C::WaveSpeed{TwoDim, Design{Cylinder}})(x, y, t)
+    design = C.design
+
+    t′ = (t - design.ti) / (design.tf - design.ti)
+    x′, y′, r′, c′ = Waves.interpolate.(design_parameters(design.initial), design_parameters(design.final), t′)
+    inside = (x - x′) ^ 2 + (y - y′) ^ 2 < r′^2
+    return inside * c′ + (1 - inside) * wave.speed
+end
+
+function (C::WaveSpeed{TwoDim, Design{Configuration}})(x, y, t)
+    design = C.design
+
+    t′ = (t - design.ti) / (design.tf - design.ti)
+    x′ = Waves.interpolate.(design.initial.x, design.final.x, t′)
+    y′ = Waves.interpolate.(design.initial.y, design.final.y, t′)
+    r′ = Waves.interpolate.(design.initial.r, design.final.r, t′)
+    c′ = Waves.interpolate.(design.initial.c, design.final.c, t′)
+
+    inside = @. (x - x′) ^ 2 + (y - y′) ^ 2 < r′^2
+    count = sum(inside)
+
+    # return IfElse.ifelse(count > 0.0, (inside' * c′) / count, wave.speed)
+    return inside' * c′ + (1 - sum(inside)) * wave.speed
+end
+
+gs = 5.0
+dim = TwoDim(size = gs)
 wave = Wave(dim = dim)
+
+M = 3
+
+design = Design(Configuration(
+    [-3.0, 0.0, 3.0], 
+    [0.0, 0.0, 0.0], 
+    [0.5, 0.5, 0.5], 
+    [0.0, 0.0, 0.0]), M = M)
+
+new_design = Configuration(
+    [-3.0, 0.0, 3.0], 
+    [4.0, 4.0, 4.0], 
+    [0.5, 0.5, 0.5], 
+    [0.0, 0.0, 0.0])
+
+C = WaveSpeed(wave, design)
+
+x, y, t, u = Waves.unpack(wave)
+Dx = Differential(x); Dxx = Differential(x)^2
+Dy = Differential(y); Dyy = Differential(y)^2
+Dt = Differential(t); Dtt = Differential(t)^2
 
 kwargs = Dict(
     :wave => wave, 
-    :ic => GaussianPulse(), 
-    :boundary => ClosedBoundary(), 
-    :ambient_speed => c, 
-    :tmax => 20.0, :n => 100, :dt => 0.05)
+    :ic => GaussianPulse(1.0, loc = [2.5, 2.5]), :boundary => MinimalBoundary(), 
+    :ambient_speed => 1.0, :tmax => 20.0, :n => 21, :dt => 0.05)
 
-ps = [
-    wave.speed => kwargs[:ambient_speed]
-]
+ps = [wave.speed => kwargs[:ambient_speed]]
 
-eq = wave_equation(wave)
-@variables v(..), w(..)
-x, t, u = unpack(wave)
-Dx = Differential(x)
-Dxx = Differential(x)^2
-Dt = Differential(t)
-Dtt = Differential(t)^2
+C = WaveSpeed(wave, design)
+eq = Dtt(u(x, y, t)) ~ C(x, y, t) ^ 2 * (Dxx(u(x, y, t)) + Dyy(u(x, y, t)))
+ps = vcat(ps, Waves.design_parameters(design, new_design, 0.0, kwargs[:tmax]))
 
-x, t, u = unpack(wave)
-x_min, x_max = getbounds(x)
+bcs = [wave.u(dims(wave)..., 0.0) ~ kwargs[:ic](wave), kwargs[:boundary](wave)...]
 
-bcs = [
-    u(x, 0.) ~ kwargs[:ic](wave), 
-    u(x_min, t) ~ 0., 
-    u(x_max, t) ~ 0., 
-    Dx(u(x_min, t)) ~ 0., v(x_min, t) ~ 0.,
-    Dx(u(x_max, t)) ~ 0., v(x_max, t) ~ 0.,
-    Dt(u(x, 0.)) ~ 0., w(x, 0.) ~ 0., v(x, 0.) ~ 0.,
-    # w(x, 0.0) ~ 0.0,
-    # v(x_min, t) ~ 0.0,
-    # v(x_max, t) ~ 0.0,
-    # v(x_min, t) ~ 0.0,
-    # v(x_max, t) ~ 0.0,
-    # w(x_min, t) ~ 0.0,
-    # w(x_max, t) ~ 0.0,
-    # Dx(v(x_min, t)) ~ 0.0,
-    # Dx(v(x_max, t)) ~ 0.0,
-    # Dx(w(x_min, t)) ~ 0.0,
-    # Dx(w(x_max, t)) ~ 0.0
-    ]
+println("Build sys"); @time @named sys = PDESystem(eq, bcs, Waves.get_domain(wave, tmax = kwargs[:tmax]), Waves.spacetime(wave), [Waves.signature(wave)], ps)
+disc = Waves.wave_discretizer(wave, kwargs[:n])
+println("Build iter"); @time iter = init(discretize(sys, disc), Midpoint(), advance_to_tstop = true, saveat = kwargs[:dt])
+println("Build sim"); @time sim = WaveSim(wave, get_discrete(sys, disc), iter, kwargs[:dt])
+println("propagate!"); @time propagate!(sim)
 
-eqs = [
-    v(x, t) ~ Dx(u(x, t)),
-    w(x, t) ~ Dt(u(x, t)),
-    Dt(w(x, t)) ~ Dx(v(x, t))
-    # Dx(u(x, t)) ~ v(x, t),
-    # Dt(w(x, t)) ~ c^2 * Dx(v(x, t))
-    # Dtt(u(x, t)) ~ Dxx(u(x, t))
-]
-
-@named sys = PDESystem(
-    eqs, 
-    bcs, 
-    get_domain(wave, tmax = kwargs[:tmax]), 
-    spacetime(wave), 
-    [u(x, t), v(x, t), w(x, t)], 
-    ps)
-
-disc = wave_discretizer(wave, kwargs[:n])
-iter = init(discretize(sys, disc), Midpoint(), advance_to_tstop = true, saveat = kwargs[:dt])
-sim = WaveSim(wave, get_discrete(sys, disc), iter, kwargs[:dt])
-
-propagate!(sim)
-render!(WaveSol(sim), path = "simple.mp4")
+sol = WaveSol(sim)
+steps = range(design.design, new_design, length(sol))
+println("render!"); @time render!(sol, design = steps, path = "2d.mp4")

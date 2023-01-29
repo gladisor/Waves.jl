@@ -113,3 +113,7 @@ function wave_speed(wave::Wave{TwoDim}, design::ParameterizedDesign{Cylinder})::
     
     return C
 end
+
+function Base.:/(cyl::Cylinder, n::Real)
+    return Cylinder(cyl.x/n, cyl.y/n, cyl.r, cyl.c)
+end

@@ -13,7 +13,7 @@ function σₓ(x)
     return IfElse.ifelse(x_pml > 0.0, x_pml / pml_width, 0.0)
 end
 
-dim = TwoDim(size = gs)
+dim = OneDim(size = gs)
 wave = Wave(dim = dim)
 
 kwargs = Dict(
@@ -34,19 +34,16 @@ Dt = Differential(t); Dtt = Differential(t)^2
 x_min, x_max = getbounds(x)
 
 eqs = [
-    v(x, t) ~ Dt(u(x, t)),
-    w(x, t) ~ Dx(u(x, t)),
-    # Dt(v(x, t)) ~ Dxx(u(x, t))
-    Dt(v(x, t)) ~ Dx(w(x, t))
+    # Dt(u(x, t)) ~ Dx(v(x, t)),
+    # Dt(v(x, t)) ~ Dx(u(x, t))
+
+    v(x, t) ~ Dx(u(x, t)),
+    # w(x, t) ~ Dx(u(x, t)),
+    Dtt(u(x, t)) ~ Dx(v(x, t)),
     ]
 
 bcs = [
-    u(x, 0.0) ~ kwargs[:ic](wave),
-    # Dt(u(x, 0.0)) ~ 0.0,
-    u(x_min, t) ~ 0.0,
-    u(x_max, t) ~ 0.0,
 
-    v(x, 0.0) ~ 0.0
     ]
 
 @named sys = PDESystem(
@@ -57,7 +54,7 @@ bcs = [
     [
         u(x, t), 
         v(x, t), 
-        w(x, t)
+        # w(x, t)
         ],
     ps)
 
@@ -65,7 +62,7 @@ disc = wave_discretizer(wave, kwargs[:n])
 iter = init(discretize(sys, disc), Midpoint(), advance_to_tstop = true, saveat = kwargs[:dt])
 sim = WaveSim(wave, get_discrete(sys, disc), iter, kwargs[:dt])
 
-sim = WaveSim(;kwargs...)
+# sim = WaveSim(;kwargs...)
 propagate!(sim)
 sol = WaveSol(sim)
 render!(sol, path = "vid.mp4")

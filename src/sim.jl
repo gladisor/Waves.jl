@@ -12,7 +12,7 @@ function WaveSim(;wave::Wave, ic::InitialCondition, tmax::Real, n::Int, dt::Real
     ps = [wave.speed => ambient_speed]
 
     if !isnothing(design)
-        ps = vcat(ps, design_parameters(design, design.design, 0.0, tmax))
+        ps = vcat(ps, Waves.design_parameters(design, design.design, 0.0, tmax))
     end
 
     C = WaveSpeed(wave, design)
@@ -51,7 +51,7 @@ function dims(sim::WaveSim)::Vector
     return [collect(sim.grid[d]) for d ∈ dims(sim.wave)]
 end
 
-function set_t0!(sim::WaveSim, t0)
+function set_ti!(sim::WaveSim, t0)
     sim.iter.p[end-1] = t0
     return nothing
 end

@@ -1,4 +1,5 @@
 export WaveEnv, reset!, state, is_terminated
+
 Base.@kwdef mutable struct WaveEnv{Dim <: AbstractDim, Design <: AbstractDesign}
     sim::WaveSim{Dim}
     design::ParameterizedDesign{Design}

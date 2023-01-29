@@ -1,3 +1,5 @@
+export Configuration
+
 struct Configuration <: AbstractDesign
     x
     y
@@ -48,4 +50,24 @@ function GLMakie.mesh!(ax::GLMakie.Axis3, config::Configuration)
     end
     
     return nothing
+end
+
+function (C::WaveSpeed{TwoDim, Design{Configuration}})(x, y, t)
+    design = C.design
+
+    t′ = (t - design.ti) / (design.tf - design.ti)
+    x′ = Waves.interpolate.(design.initial.x, design.final.x, t′)
+    y′ = Waves.interpolate.(design.initial.y, design.final.y, t′)
+    r′ = Waves.interpolate.(design.initial.r, design.final.r, t′)
+    c′ = Waves.interpolate.(design.initial.c, design.final.c, t′)
+
+    inside = @. (x - x′) ^ 2 + (y - y′) ^ 2 < r′^2
+    any_inside = min(sum(inside), 1.0)
+
+    # return IfElse.ifelse(count > 0.0, (inside' * c′) / count, wave.speed)
+    return inside' * c′ + (1 - any_inside) * C.wave.speed
+end
+
+function Design(config::Configuration)
+    return Design(config, M = length(config.x))
 end

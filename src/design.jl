@@ -34,3 +34,11 @@ Interpolates between initial and final. Time t is expected to be between 0.0 and
 function interpolate(initial::Num, final::Num, t::Num)
     return initial + (final - initial) * t
 end
+
+function reset!(design::Design, dim::AbstractDim; kwargs...)
+    design.design = typeof(design.design)(dim; kwargs...)
+end
+
+# function Base.:+(design::Design, action::AbstractDesign)
+#     return design.design + action
+# end

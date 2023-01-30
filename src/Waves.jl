@@ -23,6 +23,6 @@ include("cylinder.jl")
 include("configuration.jl")
 include("sim.jl")
 include("sol.jl")
-# include("env.jl")
+include("env.jl")
 
 end # module

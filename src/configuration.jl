@@ -63,11 +63,36 @@ function (C::WaveSpeed{TwoDim, Design{Configuration}})(x, y, t)
 
     inside = @. (x - x′) ^ 2 + (y - y′) ^ 2 < r′^2
     any_inside = min(sum(inside), 1.0)
-
     # return IfElse.ifelse(count > 0.0, (inside' * c′) / count, wave.speed)
     return inside' * c′ + (1 - any_inside) * C.wave.speed
 end
 
+"""
+Override Design constructor for cleaner parameterization
+"""
 function Design(config::Configuration)
     return Design(config, M = length(config.x))
+end
+
+function Base.:+(config::Configuration, action::Configuration)
+    return Configuration(
+            config.x .+ action.x, 
+            config.y .+ action.y, 
+            config.r .+ action.r, 
+            config.c .+ action.c
+        )
+end
+
+function Base.:/(config::Configuration, n::Real)
+    return Configuration(config.x ./ n, config.y ./ n, config.r ./ n, config.c ./ n)
+end
+
+function perturb(config::Configuration, action::Configuration, dim::TwoDim)
+    x_min, x_max = getbounds(dim.x)
+    y_min, y_max = getbounds(dim.y)
+    new_config = config + action
+
+    x = clamp.(new_config.x, x_min .+ new_config.r, x_max .- new_config.r)
+    y = clamp(new_config.y, y_min .+ new_config.r, y_max .- new_config.r)
+    return Configuration(x, y, new_config.r, new_config.c)
 end

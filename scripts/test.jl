@@ -1,55 +1,44 @@
 using Waves
-using ModelingToolkit, MethodOfLines, OrdinaryDiffEq, IfElse
+import GLMakie
 
-gs = 20.0
-dim = OneDim(size = gs)
-wave = Wave(dim = dim)
-
-x, t, u = Waves.unpack(wave)
-x_min, x_max = getbounds(x)
-Dx = Differential(x)
-Dxx = Differential(x)^2
-Dt = Differential(t)
-Dtt = Differential(t)^2
-
-@variables v(..), w(..)
-
-ps = [wave.speed => 2.0]
-
-
-pml_width = 10.0
-pml_start = gs - pml_width
-
-function σₓ(x)
-    x_pml = abs(x) - pml_start
-    return IfElse.ifelse(x_pml > 0.0, x_pml / pml_width, 0.0)
+function energy(sim::WaveSim)
+    return sum(state(sim) .^ 2)
 end
 
-eq = [
-    v(x, t) ~ Dt(u(x, t)),
-    Dt(v(x, t)) + σₓ(x) * v(x, t) ~ Dxx(u(x, t))
-    # Dtt(u(x, t)) + σₓ(x) * Dt(u(x, t)) ~ wave.speed * Dxx(u(x, t))
-]
+function Waves.reset!(env::WaveEnv{TwoDim, Configuration})
+    reset!(env, M = length(env.design.design.x))
+end
 
-bcs = [
-    u(x, 0.0) ~ exp(-x^2),
-    v(x, 0.0) ~ 0.0,
-    # Dx(u(x_min, t)) ~ Dt(u(x_min, t)),
-    # Dx(u(x_max, t)) ~ Dt(u(x_max, t)),
-    # Dt(u(x, 0.0)) ~ 0.0,
-    ]
+gs = 5.0
+dim = TwoDim(size = gs)
+wave = Wave(dim = dim)
+design0 = Configuration([0.0], [0.0], [0.5], [0.0])
+design = Design(design0)
+kwargs = Dict(:wave => wave, :ic => GaussianPulse(1.0, loc = [2.5, 2.5]), :boundary => OpenBoundary(), :ambient_speed => 1.0, :tmax => 20.0, :n => 21, :dt => 0.05)
 
-@named sys = PDESystem(
-    eq, 
-    bcs, 
-    Waves.get_domain(wave, tmax = 40.0), 
-    Waves.spacetime(wave), 
-    [u(x, t), v(x, t)], ps)
+@time sim = WaveSim(;design = design, kwargs...)
+sim_inc = WaveSim(;kwargs...)
+propagate!(sim_inc)
+sol_inc = WaveSol(sim_inc)
 
-disc = Waves.wave_discretizer(wave, 100)
-iter = init(discretize(sys, disc), Tsit5(), advance_to_tstop = true, saveat = 0.05)
-sim = WaveSim(wave, get_discrete(sys, disc), iter, 0.05)
-propagate!(sim)
+env = WaveEnv(sim, design, 20)
+reset!(env)
+env.design.design = Configuration([0.0], [0.0], [0.5], [0.15])
 
-sol = WaveSol(sim)
-render!(sol, path = "1d.mp4")
+trajectory = Vector{Configuration}([env.design.design])
+
+while !is_terminated(env)
+    action = Configuration(dim, M = 1, r = 0.0) / 5
+    steps = Waves.perturb(env, action)
+    [push!(trajectory, s) for s ∈ steps]
+end
+
+sol_tot = WaveSol(env)
+sol = sol_tot - sol_inc
+render!(sol, design = trajectory, path = "env_sc.mp4")
+E = map(x -> sum(x.^2), sol.data)
+fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 50)
+ax = GLMakie.Axis(fig[1, 1], title = "Energy", xlabel = "Time", ylabel = "Wave Energy")
+GLMakie.lines!(ax, E, linewidth = 8, label = "Energy")
+GLMakie.Legend(fig[1, 2], ax, "Wave")
+GLMakie.save("energy.png", fig)

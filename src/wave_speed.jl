@@ -9,7 +9,7 @@ function WaveSpeed(wave::Wave)
     return WaveSpeed(wave, nothing)
 end
 
-function (C::WaveSpeed{TwoDim, Nothing})(x, t)
+function (C::WaveSpeed{OneDim, Nothing})(x, t)
     return C.wave.speed
 end
 

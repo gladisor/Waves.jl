@@ -8,7 +8,7 @@ dim = TwoDim(size = gs)
 wave = Wave(dim = dim)
 
 # design = Design(Configuration([0.0], [-3.0], [0.5], [0.0]))
-kwargs = Dict(:wave => wave, :ic => GaussianPulse(1.0, loc = [2.5, 2.5]), :boundary => OpenBoundary(), :ambient_speed => 1.0, :tmax => 20.0, :n => 21, :dt => 0.05)
+kwargs = Dict(:wave => wave, :ic => GaussianPulse(1.0, loc = [2.5, 2.5]), :boundary => OpenBoundary(), :ambient_speed => 1.0, :tmax => 20.0, :n => 21, :dt => 0.1)
 design = nothing
 
 ps = [wave.speed => kwargs[:ambient_speed]]
@@ -18,7 +18,8 @@ if !isnothing(design)
 end
 
 C = WaveSpeed(wave, nothing)
-@variables v(..), energy(..)
+@variables v(..)
+@variables (∇(..))[1:2]
 
 x, y, t, u = Waves.unpack(wave)
 Dx = Differential(x); Dxx = Differential(x) ^ 2
@@ -26,33 +27,67 @@ Dy = Differential(y); Dyy = Differential(y) ^ 2
 Dt = Differential(t)
 
 eq = [
-    v(x, y, t) ~ Dt(u(x, y, t))
-    Dt(v(x, y, t)) ~ C(x, y, t) ^ 2 * (Dxx(u(x, y, t)) + Dyy(u(x, y, t)))
-
-    # wave_equation(wave, C),
-    # energy(x, y, t) ~ (Dxx(Dt(u(x, y, t))) + Dyy(Dt(u(x, y, t)))),
+    v(x, y, t) ~ Dt(u(x, y, t)),
+    Dt(v(x, y, t)) ~ C(x, y, t) ^ 2 * (Dxx(u(x, y, t)) + Dyy(u(x, y, t))),
+    # ∇(x, y, t)[1] ~ Dx(u(x, y, t)),
+    # ∇(x, y, t)[2] ~ Dy(u(x, y, t)),
     ]
 
 bcs = [
     wave.u(dims(wave)..., 0.0) ~ kwargs[:ic](wave), 
     kwargs[:boundary](wave)...,
-    v(x, y, 0.0) ~ 0.]
-    
+    v(x, y, 0.0) ~ 0.
+    ]
+
+println("Building PDESystem")
 @named sys = PDESystem(
     eq, bcs, get_domain(wave, tmax = kwargs[:tmax]), spacetime(wave), 
     [
         signature(wave), 
-        v(x, y, t)
-        # energy(x, y, t),
+        v(x, y, t),
+        # (∇(x, y, t)),
     ], ps)
 
 disc = wave_discretizer(wave, kwargs[:n])
-@time iter = init(discretize(sys, disc), Tsit5(), advance_to_tstop = true, saveat = kwargs[:dt])
+println("Discretizing")
+@time prob = discretize(sys, disc)
+println("Building Iterator")
+
+@time iter = init(
+    prob, 
+    Tsit5(), 
+    advance_to_tstop = true, 
+    saveat = kwargs[:dt]
+    )
 
 println("Build sim")
 @time sim = WaveSim(wave, get_discrete(sys, disc), iter, kwargs[:dt])
 propagate!(sim)
-sol = WaveSol(sim)
+
+function extract(sim::WaveSim{TwoDim}, field::Matrix{Num})
+    field_values = zeros(size(field)..., length(sim.iter.sol.t))
+
+    for i ∈ axes(field, 1)
+        for j ∈ axes(field, 2)
+            field_values[i, j, :] .= sim.iter.sol[field[i, j]]
+        end
+    end
+
+    return field_values
+end
+
+displacement = extract(sim, sim.grid[u(x, y, t)]);
+gradient = extract(sim, sim.grid[v(x, y, t)])
+
+sol = WaveSol(
+    wave,
+    Waves.dims(sim),
+    Waves.tspan(sim),
+    [gradient[:, :, i] for i ∈ axes(gradient, 3)],
+    sim.iter.sol
+    )
+
+# sol = WaveSol(sim)
 render!(sol, path = "vid.mp4")
 
 # env = WaveEnv(sim, design, 20)

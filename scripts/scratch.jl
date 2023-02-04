@@ -1,28 +1,6 @@
 using DifferentialEquations
 import GLMakie
 
-function forward_diff(u::Vector, dx::Float64)::Vector
-
-    dx_u = zeros(size(u))
-
-    for i ∈ 1:(length(u) - 1)
-        dx_u[i] = (u[i + 1] - u[i]) / dx
-    end
-
-    return dx_u
-end
-
-function backward_diff(u::Vector, dx::Float64)::Vector
-
-    dx_u = zeros(size(u))
-
-    for i ∈ 2:length(u)
-        dx_u[i] = (u[i] - u[i - 1]) / dx
-    end
-
-    return dx_u
-end
-
 function centered_diff(u::Vector, dx::Float64)::Vector
 
     du = zeros(size(u))
@@ -45,20 +23,10 @@ function second_centered_diff(u::Vector, dx::Float64)::Vector
         du[i] = (u[i + 1] - 2 * u[i] + u[i - 1]) / (dx ^ 2)
     end
 
-    # du[1] = (u[3] - 2 * u[2] + u[1]) / (dx ^ 2)
-    # du[end] = (u[end] - 2 * u[end-1] + u[end-2]) / (dx ^ 2)
+    du[1] = (u[3] - 2 * u[2] + u[1]) / (dx ^ 2)
+    du[end] = (u[end] - 2 * u[end-1] + u[end-2]) / (dx ^ 2)
 
     return du
-end
-
-function diff_xx(u::Vector, dx::Float64)::Vector
-    dxx_u = zeros(size(u))
-
-    for i ∈ 2:(length(u) - 1)
-        dxx_u[i] = (u[i + 1] - 2 * u[i] + u[i - 1]) / dx^2
-    end
-
-    return dxx_u
 end
 
 function render!(sol, x, n; path)
@@ -86,12 +54,10 @@ function wave!(du, u, p, t)
 end
 
 function split_wave!(du, u, p, t)
-    du[:, 1] .= centered_diff(u[:, 2], dx)
-    du[:, 2] .= centered_diff(u[:, 1], dx)
-end
+    C, pml = p
 
-function heat!(du, u, p, t)
-    du[:, 1] .= second_centered_diff(u[:, 1], dx)
+    du[:, 1] .= centered_diff(u[:, 2], dx) .- u[:, 1] .* pml
+    du[:, 2] .= centered_diff(u[:, 1], dx) .- u[:, 2] .* pml
 end
 
 gs = 10.0
@@ -102,9 +68,16 @@ u = gaussian_pulse(x)
 v = zeros(size(u))
 
 u0 = hcat(u, v)
-tspan = (0.0, 10.0)
-p = [1.0]
+tspan = (0.0, 20.0)
+
+pml_width = 3.0
+pml_start = gs - pml_width
+pml = abs.(x)
+pml[pml .< pml_start] .= 0.0
+pml[pml .> 0.0] .= (pml[pml .> 0.0] .- pml_start) ./ pml_width
+p = [1.0, pml]
 
 prob = ODEProblem(split_wave!, u0, tspan, p)
 sol = solve(prob, RK4())
-render!(sol, x, 100, path = "vid.mp4")
+render!(sol, x, 200, path = "vid.mp4")
+

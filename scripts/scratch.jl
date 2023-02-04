@@ -1,33 +1,41 @@
 using DifferentialEquations
 import GLMakie
 
-function centered_diff(u::Vector, dx::Float64)::Vector
-
+function ∇(u::Vector, Δ::Float64)::Vector
     du = zeros(size(u))
 
     for i ∈ 2:(size(u, 1) - 1)
-        du[i] = (u[i + 1] - u[i - 1]) / (2 * dx)
+        du[i] = (u[i + 1] - u[i - 1]) / (2 * Δ)
     end
 
-    du[1] = (u[2] - u[1]) / dx
-    du[end] = (u[end] - u[end - 1]) / dx
-
+    du[1] = (u[2] - u[1]) / Δ
+    du[end] = (u[end] - u[end - 1]) / Δ
 
     return du
 end
 
-function second_centered_diff(u::Vector, dx::Float64)::Vector
-    du = zeros(size(u))
+function ∇ₓ(u::Matrix, Δ::Float64)::Matrix
+    dx_u = zeros(size(u))
 
-    for i ∈ 2:(size(u, 1) - 1)
-        du[i] = (u[i + 1] - 2 * u[i] + u[i - 1]) / (dx ^ 2)
+    for i ∈ axes(u, 1)
+        dx_u[i, :] .= ∇(u[i, :], Δ)
     end
 
-    du[1] = (u[3] - 2 * u[2] + u[1]) / (dx ^ 2)
-    du[end] = (u[end] - 2 * u[end-1] + u[end-2]) / (dx ^ 2)
-
-    return du
+    return dx_u
 end
+
+# function second_centered_diff(u::Vector, dx::Float64)::Vector
+#     du = zeros(size(u))
+
+#     for i ∈ 2:(size(u, 1) - 1)
+#         du[i] = (u[i + 1] - 2 * u[i] + u[i - 1]) / (dx ^ 2)
+#     end
+
+#     du[1] = (u[3] - 2 * u[2] + u[1]) / (dx ^ 2)
+#     du[end] = (u[end] - 2 * u[end-1] + u[end-2]) / (dx ^ 2)
+
+#     return du
+# end
 
 function render!(sol, x, n; path)
 
@@ -54,30 +62,73 @@ function wave!(du, u, p, t)
 end
 
 function split_wave!(du, u, p, t)
-    C, pml = p
+    Δ, C, pml = p
 
-    du[:, 1] .= centered_diff(u[:, 2], dx) .- u[:, 1] .* pml
-    du[:, 2] .= centered_diff(u[:, 1], dx) .- u[:, 2] .* pml
+    U = u[:, 1]
+    V = u[:, 2]
+
+    du[:, 1] .= C * ∇(V, Δ) .- U .* pml
+    du[:, 2] .= ∇(U, Δ) .- V .* pml
 end
 
-gs = 10.0
+struct Point{D}
+    dim::D
+end
+
+function gaussian_pulse(x::Vector, x′::Float64, intensity::Float64)::Vector
+    return exp.( - intensity * (x .- x′) .^ 2)
+end
+
+function gaussian_pulse(x::Vector, y::Vector, x′::Float64, y′::Float64, intensity::Float64)
+
+    u = zeros(length(x), length(y))
+
+    for i ∈ axes(x, 1)
+        for j ∈ axes(y, 1)
+            u[i, j] = exp(- intensity * ((x[i] - x′) ^ 2 + (y[j] - y′) ^ 2))
+        end
+    end
+
+    return u
+end
+
+function plot(x::Vector, y::Vector, u::Matrix)
+    fig = GLMakie.Figure(resolution = (1920, 1080))
+    ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
+    GLMakie.xlims!(ax, x[1], x[end])
+    GLMakie.ylims!(ax, y[1], y[end])
+    GLMakie.zlims!(ax, -1.0, 5.0)
+    GLMakie.surface!(ax, x, y, u, colormap = :ice)
+    return fig
+end
+
+gs = 5.0
 dx = 0.1
-x = collect(-gs:dx:gs)
-gaussian_pulse(x) = exp.(- x .^ 2)
-u = gaussian_pulse(x)
+Δ = 0.1
+x = collect(-gs:Δ:gs)
+y = collect(-gs:Δ:gs)
+
+# u = gaussian_pulse(x, 0.0, 1.0)
+# u′ = ∇(u, Δ)
+u = gaussian_pulse(x, y, 0.0, 0.0, 1.0)
 v = zeros(size(u))
+# u0 = hcat(u, v)
 
-u0 = hcat(u, v)
-tspan = (0.0, 20.0)
+fig = plot(x, y, u)
+GLMakie.save("surf.png", fig)
 
-pml_width = 3.0
-pml_start = gs - pml_width
-pml = abs.(x)
-pml[pml .< pml_start] .= 0.0
-pml[pml .> 0.0] .= (pml[pml .> 0.0] .- pml_start) ./ pml_width
-p = [1.0, pml]
+# tspan = (0.0, 20.0)
 
-prob = ODEProblem(split_wave!, u0, tspan, p)
-sol = solve(prob, RK4())
-render!(sol, x, 200, path = "vid.mp4")
+# pml_width = 1.0
+# pml_start = gs - pml_width
+# pml = abs.(x)
+# pml[pml .< pml_start] .= 0.0
+# pml[pml .> 0.0] .= (pml[pml .> 0.0] .- pml_start) ./ pml_width
+# pml = 30 * pml .^ 2
+
+# p = [Δ, 4.0, pml]
+
+# prob = ODEProblem(split_wave!, u0, tspan, p)
+# sol = solve(prob, RK4())
+# render!(sol, x, 200, path = "vid.mp4")
 

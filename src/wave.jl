@@ -29,10 +29,11 @@ end
 """
 Wave equation in one dimention.
 """
-function wave_equation(wave::Wave{OneDim}, C)::Equation
+function wave_equation(wave::Wave{OneDim}, C)
     x, t, u = unpack(wave)
-    Dxx = Differential(x)^2
+    Dx = Differential(x); Dxx = Differential(x)^2
     Dtt = Differential(t)^2
+
     return Dtt(u(x, t)) ~ C(x, t) ^ 2 * Dxx(u(x, t))
 end
 
@@ -68,12 +69,11 @@ function wave_equation(wave::Wave)::Equation
 end
 
 function dirichlet(wave::Wave{OneDim})::Vector{Equation}
-    x, t, u = unpack(wave)
-    x_min, x_max = getbounds(x)
+    x_min, x_max = getbounds(wave.dim.x)
 
     return [
-        u(x_min, t) ~ 0.,
-        u(x_max, t) ~ 0.]
+        wave.u(x_min, wave.t) ~ 0.,
+        wave.u(x_max, wave.t) ~ 0.]
 end
 
 """
@@ -93,13 +93,12 @@ function dirichlet(wave::Wave{TwoDim})::Vector{Equation}
 end
 
 function neumann(wave::Wave{OneDim})::Vector{Equation}
-    x, t, u = unpack(wave)
-    Dx = Differential(x)
-    x_min, x_max = getbounds(x)
+    Dx = Differential(wave.dim.x)
+    x_min, x_max = getbounds(wave.dim.x)
 
     return [
-        Dx(u(x_min, t)) ~ 0.,
-        Dx(u(x_max, t)) ~ 0.]
+        Dx(wave.u(x_min, wave.t)) ~ 0.,
+        Dx(wave.u(x_max, wave.t)) ~ 0.]
 end
 
 """
@@ -122,15 +121,14 @@ function neumann(wave::Wave{TwoDim})::Vector{Equation}
 end
 
 function absorbing_condition(wave::Wave{OneDim})
-    x, t, u = Waves.unpack(wave)
-    x_min, x_max = getbounds(x)
+    x_min, x_max = getbounds(wave.dim.x)
 
-    Dx = Differential(x)
-    Dt = Differential(t)
+    Dx = Differential(wave.dim.x)
+    Dt = Differential(wave.t)
 
     return [
-        Dt(u(x_min, t)) - wave.speed * Dx(u(x_min, t)) ~ 0., ## works
-        Dt(u(x_max, t)) + wave.speed * Dx(u(x_max, t)) ~ 0., ## works
+        Dt(wave.u(x_min, wave.t)) - wave.speed * Dx(wave.u(x_min, wave.t)) ~ 0., ## works
+        Dt(wave.u(x_max, wave.t)) + wave.speed * Dx(wave.u(x_max, wave.t)) ~ 0., ## works
         ]
 end
 
@@ -155,9 +153,8 @@ Our initial assumption that the rate of change of the wave displacement over tim
 entire spacial domain of the wave.
 """
 function time_condition(wave::Wave{OneDim})::Equation
-    x, t, u = unpack(wave)
-    Dt = Differential(t)
-    return Dt(u(x, 0.0)) ~ 0.
+    Dt = Differential(wave.t)
+    return Dt(wave.u(wave.dim.x, 0.0)) ~ 0.
 end
 
 function time_condition(wave::Wave{TwoDim})::Equation

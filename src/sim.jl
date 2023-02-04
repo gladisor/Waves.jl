@@ -7,7 +7,12 @@ mutable struct WaveSim{D <: AbstractDim}
     dt::Real
 end
 
-function WaveSim(;wave::Wave, ic::InitialCondition, tmax::Real, n::Int, dt::Real, ambient_speed::Real = 1.0, design::Union{Design, Nothing} = nothing, boundary::WaveBoundary = OpenBoundary())
+function WaveSim(;
+        wave::Wave, ic::InitialCondition, 
+        tmax::Real, n::Int, dt::Real, 
+        ambient_speed::Real = 1.0, 
+        design::Union{Design, Nothing} = nothing, 
+        boundary::WaveBoundary = OpenBoundary())
 
     ps = [wave.speed => ambient_speed]
 
@@ -39,8 +44,30 @@ function reset!(sim::WaveSim)
     return nothing
 end
 
+function extract(sim::WaveSim{OneDim}, field::Vector{Num})
+    field_values = zeros(size(field)..., length(sim.iter.sol.t))
+
+    for i ∈ axes(field, 1)
+        field_values[i, :] .= sim.iter.sol[field[i]]
+    end
+
+    return [field_values[:, i] for i ∈ axes(field_values, 2)]
+end
+
+function extract(sim::WaveSim{TwoDim}, field::Matrix{Num})
+    field_values = zeros(size(field)..., length(sim.iter.sol.t))
+
+    for i ∈ axes(field, 1)
+        for j ∈ axes(field, 2)
+            field_values[i, j, :] .= sim.iter.sol[field[i, j]]
+        end
+    end
+
+    return [field_values[:, :, i] for i ∈ axes(field_values, 3)]
+end
+
 function get_data(sim::WaveSim)
-    return sim.iter.sol[sim.grid[signature(sim.wave)]]
+    return extract(sim, sim.grid[Waves.signature(sim.wave)[1]])
 end
 
 function state(sim::WaveSim)

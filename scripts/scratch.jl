@@ -62,7 +62,7 @@ function split_wave!(du::Matrix{Float64}, u::Matrix{Float64}, p, t)
     U = u[:, 1]
     V = u[:, 2]
 
-    du[:, 1] .= sqrt.(C) .* ∇(V, Δ) .- U .* pml
+    du[:, 1] .= C .* ∇(V, Δ) .- U .* pml
     du[:, 2] .= ∇(U, Δ) .- V .* pml
 end
 
@@ -171,13 +171,25 @@ function scatterer(x, x′)
     return max.(-(x .- x′) .^ 10 .+ 1.0, 0.0)
 end
 
+function scatterer(x::Vector, y::Vector, x_pos, y_pos, r)
+    C = zeros(length(x), length(y))
+
+    for i ∈ axes(C, 1)
+        for j ∈ axes(C, 2)
+            C[i, j] = ((x[i] - x_pos) ^ 2 + (y[j] - y_pos) ^ 2) <= r ^ 2
+        end
+    end
+
+    return C
+end
+
 gs = 10.0
 Δ = 0.1
 
 pml_width = 2.0
 pml_scale = 10.0
 
-pulse_intensity = 10.0
+pulse_intensity = 5.0
 pulse_x = 5.0
 pulse_y = 5.0
 
@@ -193,9 +205,10 @@ u0 = cat(u, v, dims = (ndims(u) + 1))
 tspan = (0.0, tmax)
 
 # C = 1.0 .- (scatterer(x, -10.0) .+ scatterer(x, 10.0))
-C = ones(size(u))
+C = (ones(size(u)) .- scatterer(x, y, 0.0, 0.0, 1.0)) * 2
+# C[50:60, 50:60] .= 0.0
+
 p = [Δ, C, pml]
 @time prob = ODEProblem(split_wave!, u0, tspan, p)
 @time sol = solve(prob, RK4())
 render!(sol, x, y, 200, path = "vid.mp4")
-# @time render2d!(sol, x, y, 200, path = "vid2d.mp4")

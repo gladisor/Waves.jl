@@ -1,6 +1,10 @@
 using DifferentialEquations
 import GLMakie
 
+"""
+Obtains the first derivative of a a one dimensional function using central differences for
+points in the interior and forward / backward differences for the boundary points.
+"""
 function ∇(u::Vector, Δ::Float64)::Vector
     du = zeros(size(u))
 
@@ -8,13 +12,23 @@ function ∇(u::Vector, Δ::Float64)::Vector
         du[i] = (u[i + 1] - u[i - 1]) / (2 * Δ)
     end
 
+    # for i ∈ 3:(size(u, 1) - 2) ## second order centeral difference
+    #     du[i] = (-u[i + 2] + 8 * u[i + 1] - 8 * u[i - 1] + u[i - 2]) / (12 * Δ)
+    # end
+
     du[1] = (u[2] - u[1]) / Δ
+    # du[2] = (u[3] - u[1]) / (2 * Δ)
+    # du[end - 1] = (u[end] - u[end - 2]) / (2 * Δ)
     du[end] = (u[end] - u[end - 1]) / Δ
 
     return du
 end
 
-function ∇ₓ(u::Matrix, Δ::Float64)::Matrix
+"""
+Computes the first derivative of the rows of a matrix. This is assumed to be the x axis of
+the two dimensional function.
+"""
+function ∇x(u::Matrix, Δ::Float64)::Matrix
     dx_u = zeros(size(u))
 
     for i ∈ axes(u, 1)
@@ -24,18 +38,48 @@ function ∇ₓ(u::Matrix, Δ::Float64)::Matrix
     return dx_u
 end
 
-# function second_centered_diff(u::Vector, dx::Float64)::Vector
-#     du = zeros(size(u))
+"""
+Obtains the first derivative of the columns of the matrix. This is assumed to be the y axis
+of the function.
+"""
+function ∇y(u::Matrix, Δ::Float64)::Matrix
+    dy_u = zeros(size(u))
 
-#     for i ∈ 2:(size(u, 1) - 1)
-#         du[i] = (u[i + 1] - 2 * u[i] + u[i - 1]) / (dx ^ 2)
-#     end
+    for i ∈ axes(u, 2)
+        dy_u[:, i] .= ∇(u[:, i], Δ)
+    end
 
-#     du[1] = (u[3] - 2 * u[2] + u[1]) / (dx ^ 2)
-#     du[end] = (u[end] - 2 * u[end-1] + u[end-2]) / (dx ^ 2)
+    return dy_u
+end
 
-#     return du
-# end
+"""
+The split_wave! formulation of the second order wave equation. This specific function is for the
+one dimensional case.
+"""
+function split_wave!(du::Matrix{Float64}, u::Matrix{Float64}, p, t)
+    Δ, C, pml = p
+
+    U = u[:, 1]
+    V = u[:, 2]
+
+    du[:, 1] .= sqrt.(C) .* ∇(V, Δ) .- U .* pml
+    du[:, 2] .= ∇(U, Δ) .- V .* pml
+end
+
+"""
+This is the split_wave! formulation of the second order acoustic wave equation for a two dimensional plane.
+"""
+function split_wave!(du::Array{Float64, 3}, u::Array{Float64, 3}, p, t)
+    Δ, C, pml = p
+
+    U = u[:, :, 1]
+    Vx = u[:, :, 2]
+    Vy = u[:, :, 3]
+
+    du[:, :, 1] .= C .* (∇x(Vx, Δ) .+ ∇y(Vy, Δ)) .- U .* pml
+    du[:, :, 2] .= ∇x(U, Δ) .- Vx .* pml
+    du[:, :, 3] .= ∇y(U, Δ) .- Vy .* pml
+end
 
 function render!(sol, x, n; path)
 
@@ -55,24 +99,23 @@ function render!(sol, x, n; path)
     return nothing
 end
 
-function wave!(du, u, p, t)
-    C = p[1]
-    du[:, 2] .= second_centered_diff(u[:, 1], dx) # dt v
-    du[:, 1] .= C^2 * u[:, 2] # dt u
-end
+function render!(sol, x, y, n; path)
 
-function split_wave!(du, u, p, t)
-    Δ, C, pml = p
+    fig = GLMakie.Figure(resolution = (1920, 1080))
+    ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
 
-    U = u[:, 1]
-    V = u[:, 2]
+    GLMakie.xlims!(x[1], x[end])
+    GLMakie.ylims!(y[1], y[end])
+    GLMakie.zlims!(-1.0, 4.0)
 
-    du[:, 1] .= C * ∇(V, Δ) .- U .* pml
-    du[:, 2] .= ∇(U, Δ) .- V .* pml
-end
+    dt = (sol.prob.tspan[end] - sol.prob.tspan[1]) / n
 
-struct Point{D}
-    dim::D
+    GLMakie.record(fig, path, 1:n) do i
+        GLMakie.empty!(ax.scene)
+        GLMakie.surface!(ax, x, y, sol(i * dt)[:, :, 1], colormap = :ice, linewidth = 2)
+    end
+
+    return nothing
 end
 
 function gaussian_pulse(x::Vector, x′::Float64, intensity::Float64)::Vector
@@ -92,6 +135,15 @@ function gaussian_pulse(x::Vector, y::Vector, x′::Float64, y′::Float64, inte
     return u
 end
 
+function plot(x::Vector, u::Vector)
+    fig = GLMakie.Figure(resolution = (1920, 1080))
+    ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X (m)", ylabel = "Displacement (m)")
+    GLMakie.xlims!(ax, x[1], x[end])
+    GLMakie.ylims!(ax, -1.0, 1.0)
+    GLMakie.lines!(ax, x, u, color = :blue)
+    return fig
+end
+
 function plot(x::Vector, y::Vector, u::Matrix)
     fig = GLMakie.Figure(resolution = (1920, 1080))
     ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
@@ -102,33 +154,48 @@ function plot(x::Vector, y::Vector, u::Matrix)
     return fig
 end
 
-gs = 5.0
-dx = 0.1
+"""
+Assuming an x axis which is symmetric build a vector which contains zeros in the
+interior and slowly scales from zero to one at the edges.
+"""
+function build_pml(x::Vector, width::Float64)   
+    start = maximum(x) - width ## define the starting x value of the pml
+    pml = abs.(x) 
+    pml[pml .< start] .= 0.0 ## sets points which are in the interior to be zero
+    pml[pml .> 0.0] .= (pml[pml .> 0.0] .- start) ./ width ## scales the points between zero and one
+    pml = pml .^ 2 ## squishes the function to be applied more gradually
+    return pml
+end
+
+function scatterer(x, x′)
+    return max.(-(x .- x′) .^ 10 .+ 1.0, 0.0)
+end
+
+gs = 10.0
 Δ = 0.1
+
+pml_width = 2.0
+pml_scale = 10.0
+
+pulse_intensity = 10.0
+pulse_x = 5.0
+pulse_y = 5.0
+
 x = collect(-gs:Δ:gs)
 y = collect(-gs:Δ:gs)
+tmax = 20.0
 
-# u = gaussian_pulse(x, 0.0, 1.0)
-# u′ = ∇(u, Δ)
-u = gaussian_pulse(x, y, 0.0, 0.0, 1.0)
-v = zeros(size(u))
-# u0 = hcat(u, v)
+pml = build_pml(x, pml_width) * pml_scale
+pml = (pml .+ pml') ./ 2
+u = gaussian_pulse(x, y, pulse_x, pulse_y, pulse_intensity)
+v = zeros(size(u)..., 2)
+u0 = cat(u, v, dims = (ndims(u) + 1))
+tspan = (0.0, tmax)
 
-fig = plot(x, y, u)
-GLMakie.save("surf.png", fig)
-
-# tspan = (0.0, 20.0)
-
-# pml_width = 1.0
-# pml_start = gs - pml_width
-# pml = abs.(x)
-# pml[pml .< pml_start] .= 0.0
-# pml[pml .> 0.0] .= (pml[pml .> 0.0] .- pml_start) ./ pml_width
-# pml = 30 * pml .^ 2
-
-# p = [Δ, 4.0, pml]
-
-# prob = ODEProblem(split_wave!, u0, tspan, p)
-# sol = solve(prob, RK4())
-# render!(sol, x, 200, path = "vid.mp4")
-
+# C = 1.0 .- (scatterer(x, -10.0) .+ scatterer(x, 10.0))
+C = ones(size(u))
+p = [Δ, C, pml]
+@time prob = ODEProblem(split_wave!, u0, tspan, p)
+@time sol = solve(prob, RK4())
+render!(sol, x, y, 200, path = "vid.mp4")
+# @time render2d!(sol, x, y, 200, path = "vid2d.mp4")

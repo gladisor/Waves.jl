@@ -135,6 +135,18 @@ function gaussian_pulse(x::Vector, y::Vector, x′::Float64, y′::Float64, inte
     return u
 end
 
+function plane_wave(x::Vector, y::Vector, x_pos::Float64, intensity::Float64)
+    u0 = zeros(length(x), length(y))
+
+    for i ∈ axes(u0, 1)
+        for j ∈ axes(u0, 2)
+            u0[i, j] = exp(- intensity * (x[i] - x_pos) ^ 2)
+        end
+    end
+
+    return u0
+end
+
 function plot(x::Vector, u::Vector)
     fig = GLMakie.Figure(resolution = (1920, 1080))
     ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X (m)", ylabel = "Displacement (m)")
@@ -183,32 +195,86 @@ function scatterer(x::Vector, y::Vector, x_pos, y_pos, r)
     return C
 end
 
-gs = 10.0
+abstract type Scatterer end
+
+struct Cylinder <: Scatterer
+    x
+    y
+    r
+    c
+end
+
+function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
+    GLMakie.mesh!(ax, GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
+end
+
+using Waves
+using Waves: AbstractDim, TwoDim
+
+function gaussian_pulse(dim::TwoDim, x, y, intensity)
+
+    u = zeros(length(dim.x), length(dim.y))
+
+    for i ∈ axes(u, 1)
+        for j ∈ axes(u, 2)
+            u[i, j] = exp(- intensity * ((dim.x[i] - x) ^ 2 + (dim.y[j] - y) ^ 2))
+        end
+    end
+
+    return u
+end
+
+struct Wave{D <: AbstractDim}
+    dim::D
+    u::AbstractArray{Float64}
+end
+
+function plot(wave::Wave{TwoDim})
+    dim = wave.dim
+    fig = GLMakie.Figure(resolution = (1920, 1080))
+    ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
+    GLMakie.xlims!(ax, dim.x[1], dim.x[end])
+    GLMakie.ylims!(ax, dim.y[1], dim.y[end])
+    GLMakie.zlims!(ax, -1.0, 5.0)
+    GLMakie.surface!(ax, dim.x, dim.y, wave.u, colormap = :ice)
+    return fig
+end
+
+function save(fig::GLMakie.Figure, path::String)
+    GLMakie.save(path, fig)
+end
+
+cyl = Cylinder(0.0, 0.0, 1.0, 0.0)
+
+gs = 5.0
 Δ = 0.1
+dim = TwoDim(gs, Δ)
+u0 = gaussian_pulse(dim, 0.0, 0.0, 1.0)
+wave = Wave(dim, u0)
 
-pml_width = 2.0
-pml_scale = 10.0
+save(plot(wave), "initial.png")
 
-pulse_intensity = 5.0
-pulse_x = 5.0
-pulse_y = 5.0
+# pml_width = 2.0
+# pml_scale = 10.0
 
-x = collect(-gs:Δ:gs)
-y = collect(-gs:Δ:gs)
-tmax = 20.0
+# pulse_intensity = 5.0
+# pulse_x = 2.5
+# pulse_y = 2.5
+# tmax = 20.0
+# x = collect(-gs:Δ:gs)
+# y = collect(-gs:Δ:gs)
+# pml = build_pml(x, pml_width) * pml_scale
+# pml = (pml .+ pml') ./ 2
+# # u = gaussian_pulse(x, y, pulse_x, pulse_y, pulse_intensity)
+# u = plane_wave(x, y, pulse_x, pulse_intensity)
+# v = zeros(size(u)..., 2)
+# u0 = cat(u, v, dims = (ndims(u) + 1))
+# tspan = (0.0, tmax)
 
-pml = build_pml(x, pml_width) * pml_scale
-pml = (pml .+ pml') ./ 2
-u = gaussian_pulse(x, y, pulse_x, pulse_y, pulse_intensity)
-v = zeros(size(u)..., 2)
-u0 = cat(u, v, dims = (ndims(u) + 1))
-tspan = (0.0, tmax)
+# # C = (ones(size(u)) .- scatterer(x, y, 0.0, 0.0, 1.0)) * 2
+# C = ones(size(u)) * 2
 
-# C = 1.0 .- (scatterer(x, -10.0) .+ scatterer(x, 10.0))
-C = (ones(size(u)) .- scatterer(x, y, 0.0, 0.0, 1.0)) * 2
-# C[50:60, 50:60] .= 0.0
-
-p = [Δ, C, pml]
-@time prob = ODEProblem(split_wave!, u0, tspan, p)
-@time sol = solve(prob, RK4())
-render!(sol, x, y, 200, path = "vid.mp4")
+# p = [Δ, C, pml]
+# @time prob = ODEProblem(split_wave!, u0, tspan, p)
+# @time sol = solve(prob, RK4())
+# render!(sol, x, y, 200, path = "vid.mp4")

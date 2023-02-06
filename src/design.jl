@@ -1,8 +1,8 @@
 export DesignInterpolator
 
 struct DesignInterpolator
-    initial::Scatterer
-    Δ::Scatterer
+    initial::AbstractDesign
+    Δ::AbstractDesign
     ti::Float64
     tf::Float64
 end

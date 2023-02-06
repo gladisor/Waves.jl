@@ -1,5 +1,17 @@
 export gaussian_pulse
 
+function gaussian_pulse(dim::OneDim, x, intensity)
+    u = zeros(size(dim))
+
+    for i ∈ axes(u, 1)
+        u[i] = exp(-intensity * (dim.x[i] - x) ^ 2)
+    end
+
+    v = zeros(size(u))
+    u0 = cat(u, v, dims = (ndims(u) + 1))
+    return u0
+end
+
 function gaussian_pulse(dim::TwoDim, x, y, intensity)
 
     u = zeros(size(dim))
@@ -11,8 +23,8 @@ function gaussian_pulse(dim::TwoDim, x, y, intensity)
     end
 
     v = zeros(size(u)..., 2)
-
-    return u, v
+    u0 = cat(u, v, dims = (ndims(u) + 1))
+    return u0
 end
 
 function gaussian_pulse(dim::ThreeDim, x, y, z, intensity)
@@ -27,6 +39,6 @@ function gaussian_pulse(dim::ThreeDim, x, y, z, intensity)
     end
 
     v = zeros(size(u)..., 3)
-
-    return u, v
+    u0 = cat(u, v, dims = (ndims(u) + 1))
+    return u0
 end

@@ -1,3 +1,5 @@
+export split_wave!
+
 """
 Obtains the first derivative of a a one dimensional function using central differences for
 points in the interior and forward / backward differences for the boundary points.
@@ -23,7 +25,17 @@ function ∇x(u::Matrix, Δ::Float64)::Matrix
     dx_u = zeros(size(u))
 
     for i ∈ axes(u, 1)
-        dx_u[i, :] .= ∇(u[i, :], Δ)
+        dx_u[:, i] .= ∇(u[:, i], Δ)
+    end
+
+    return dx_u
+end
+
+function ∇x(u::Array{Float64, 3}, Δ::Float64)::Array{Float64, 3}
+    dx_u = zeros(size(u))
+
+    for i ∈ axes(u, 3)
+        dx_u[:, :, i] .= ∇x(u[:, :, i], Δ)
     end
 
     return dx_u
@@ -37,8 +49,71 @@ function ∇y(u::Matrix, Δ::Float64)::Matrix
     dy_u = zeros(size(u))
 
     for i ∈ axes(u, 2)
-        dy_u[:, i] .= ∇(u[:, i], Δ)
+        dy_u[i, :] .= ∇(u[i, :], Δ)
     end
 
     return dy_u
+end
+
+function ∇y(u::Array{Float64, 3}, Δ::Float64)::Array{Float64, 3}
+    dy_u = zeros(size(u))
+
+    for i ∈ axes(u, 3)
+        dy_u[i, :, :] .= ∇y(u[i, :, :], Δ)
+    end
+
+    return dy_u
+end
+
+function ∇z(u::Array{Float64, 3}, Δ::Float64)::Array{Float64, 3}
+    dz_u = zeros(size(u))
+
+    for i ∈ axes(u, 3)
+        dz_u[i, :, :] .= ∇x(u[i, :, :], Δ)
+    end
+
+    return dz_u
+end
+
+"""
+The split_wave! formulation of the second order wave equation. This specific function is for the
+one dimensional case.
+"""
+function split_wave!(du::Matrix{Float64}, u::Matrix{Float64}, p, t)
+    Δ, C, pml = p
+
+    U = u[:, 1]
+    V = u[:, 2]
+
+    du[:, 1] .= C(t) .* ∇(V, Δ) .- U .* pml
+    du[:, 2] .= ∇(U, Δ) .- V .* pml
+end
+
+"""
+This is the split_wave! formulation of the second order acoustic wave equation for a two dimensional plane.
+"""
+function split_wave!(du::Array{Float64, 3}, u::Array{Float64, 3}, p, t)
+    Δ, C, pml = p
+
+    U = u[:, :, 1]
+    Vx = u[:, :, 2]
+    Vy = u[:, :, 3]
+
+    du[:, :, 1] .= C(t) .* (∇x(Vx, Δ) .+ ∇y(Vy, Δ)) .- U .* pml
+    du[:, :, 2] .= ∇x(U, Δ) .- Vx .* pml
+    du[:, :, 3] .= ∇y(U, Δ) .- Vy .* pml
+end
+
+function split_wave!(du::Array{Float64, 4}, u::Array{Float64, 4}, p, t)
+    Δ, C, pml = p
+
+    U = u[:, :, :, 1]
+    Vx = u[:, :, :, 2]
+    Vy = u[:, :, :, 3]
+    Vz = u[:, :, :, 4]
+
+    du[:, :, :, 1] .= C(t) .* (∇x(Vx, Δ) .+ ∇y(Vy, Δ) .+ ∇z(Vz, Δ)) .- U .* pml
+    du[:, :, :, 2] .= ∇x(U, Δ) .- Vx .* pml
+    du[:, :, :, 3] .= ∇y(U, Δ) .- Vy .* pml
+    du[:, :, :, 4] .= ∇z(U, Δ) .- Vz.* pml
 end

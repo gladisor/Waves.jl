@@ -43,3 +43,27 @@ end
 function ThreeDim(grid_size::Float64, Δ::Float64)
     return ThreeDim(-grid_size, grid_size, -grid_size, grid_size, -grid_size, grid_size, Δ)
 end
+
+function Base.size(dim::OneDim)
+    return size(dim.x)
+end
+
+function Base.size(dim::TwoDim)
+    return (length(dim.x), length(dim.y))
+end
+
+function Base.size(dim::ThreeDim)
+    return (length(dim.x), length(dim.y), length(dim.z))
+end
+
+function grid(dim::TwoDim)
+    g = Matrix{Tuple}(undef, size(dim)...)
+
+    for i ∈ axes(g, 1)
+        for j ∈ axes(g, 2)
+            g[i, j] = (dim.x[i], dim.y[j])
+        end
+    end
+
+    return g
+end

@@ -1,8 +1,12 @@
-using DifferentialEquations
-import GLMakie
+using Distributed
 
-using Waves
-using Waves: AbstractDim, TwoDim
+@everywhere begin
+    using DifferentialEquations
+    import GLMakie
+
+    using Waves
+    using Waves: AbstractDim, TwoDim
+end
 
 """
 Obtains the first derivative of a a one dimensional function using central differences for
@@ -103,20 +107,25 @@ function render!(sol, x, n; path)
     return nothing
 end
 
-function render!(sol, x, y, n; path)
+function render!(sol, dim; path, dt = 0.1, design = nothing)
 
     fig = GLMakie.Figure(resolution = (1920, 1080))
     ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
 
-    GLMakie.xlims!(x[1], x[end])
-    GLMakie.ylims!(y[1], y[end])
+    GLMakie.xlims!(dim.x[1], dim.x[end])
+    GLMakie.ylims!(dim.y[1], dim.y[end])
     GLMakie.zlims!(-1.0, 4.0)
 
-    dt = (sol.prob.tspan[end] - sol.prob.tspan[1]) / n
+
+    n = Int(round((sol.prob.tspan[end] - sol.prob.tspan[1]) / dt))
 
     GLMakie.record(fig, path, 1:n) do i
+        t = dt * i
         GLMakie.empty!(ax.scene)
-        GLMakie.surface!(ax, x, y, sol(i * dt)[:, :, 1], colormap = :ice, linewidth = 2)
+        if !isnothing(design)
+            plot!(fig, design(t))
+        end
+        GLMakie.surface!(ax, dim.x, dim.y, sol(t)[:, :, 1], colormap = :ice, linewidth = 2)
     end
 
     return nothing
@@ -138,7 +147,7 @@ function plot(x::Vector, u::Vector)
     fig = GLMakie.Figure(resolution = (1920, 1080))
     ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X (m)", ylabel = "Displacement (m)")
     GLMakie.xlims!(ax, x[1], x[end])
-    GLMakie.ylims!(ax, -1.0, 1.0)
+    # GLMakie.ylims!(ax, -1.0, 1.0)
     GLMakie.lines!(ax, x, u, color = :blue)
     return fig
 end
@@ -290,24 +299,27 @@ pml_scale = 10.0
 
 tspan = (0.0, 20.0)
 
-cyli = Cylinder(-3.0, 3.0, 1.0, 0.0)
-cylf = Cylinder(3.0, -3.0, 1.0, 0.0)
+cyli = Cylinder(-3.0, 0.0, 2.0, 0.0)
+cylf = Cylinder(3.0, 0.0, 2.0, 0.0)
 design = DesignInterpolator(cyli, cylf - cyli, tspan...)
 C = t -> speed(dim, design(t))
 pml = build_pml(dim, pml_width) * pml_scale
-u, v = gaussian_pulse(dim, 2.5, 2.5, 1.0)
+u, v = gaussian_pulse(dim, 8.0, 0.0, 1.0)
 u0 = cat(u, v, dims = (ndims(u) + 1))
 p = [Δ, C, pml]
 
 @time prob = ODEProblem(split_wave!, u0, tspan, p)
-@time sol = solve(prob, Midpoint())
-render!(sol, dim.x, dim.y, 200, path = "vid.mp4")
+@time sol = solve(prob, Midpoint(thread = OrdinaryDiffEq.True()))
+render!(sol, dim, path = "vid.mp4", design = design)
+
+g = grid(dim)
+mask = map(xy -> xy[1]^2 + xy[2]^2 <= 9, g)
 
 flux = Float64[]
 for t ∈ range(tspan..., 200)
     push!(
         flux, 
-        sum(∇x(∇x(sol(t)[:, :, 1], Δ), Δ) .+ ∇y(∇y(sol(t)[:, :, 1], Δ), Δ))
+        sum((∇x(∇x(sol(t)[:, :, 1], Δ), Δ) .+ ∇y(∇y(sol(t)[:, :, 1], Δ), Δ)) .* mask)
         )
 end
 

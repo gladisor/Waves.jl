@@ -1,4 +1,4 @@
-export OneDim, TwoDim, ThreeDim, dims
+export OneDim, TwoDim, ThreeDim, dims, grid
 
 struct OneDim <: AbstractDim
     x::Vector{Float64}

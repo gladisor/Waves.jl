@@ -1,12 +1,7 @@
-using Distributed
+using DifferentialEquations
+import GLMakie
 
-@everywhere begin
-    using DifferentialEquations
-    import GLMakie
-
-    using Waves
-    using Waves: AbstractDim, TwoDim
-end
+using Waves
 
 """
 Obtains the first derivative of a a one dimensional function using central differences for
@@ -19,13 +14,7 @@ function ∇(u::Vector, Δ::Float64)::Vector
         du[i] = (u[i + 1] - u[i - 1]) / (2 * Δ)
     end
 
-    # for i ∈ 3:(size(u, 1) - 2) ## second order centeral difference
-    #     du[i] = (-u[i + 2] + 8 * u[i + 1] - 8 * u[i - 1] + u[i - 2]) / (12 * Δ)
-    # end
-
     du[1] = (u[2] - u[1]) / Δ
-    # du[2] = (u[3] - u[1]) / (2 * Δ)
-    # du[end - 1] = (u[end] - u[end - 2]) / (2 * Δ)
     du[end] = (u[end] - u[end - 1]) / Δ
 
     return du
@@ -39,7 +28,17 @@ function ∇x(u::Matrix, Δ::Float64)::Matrix
     dx_u = zeros(size(u))
 
     for i ∈ axes(u, 1)
-        dx_u[i, :] .= ∇(u[i, :], Δ)
+        dx_u[:, i] .= ∇(u[:, i], Δ)
+    end
+
+    return dx_u
+end
+
+function ∇x(u::Array{Float64, 3}, Δ::Float64)::Array{Float64, 3}
+    dx_u = zeros(size(u))
+
+    for i ∈ axes(u, 3)
+        dx_u[:, :, i] .= ∇x(u[:, :, i], Δ)
     end
 
     return dx_u
@@ -53,10 +52,30 @@ function ∇y(u::Matrix, Δ::Float64)::Matrix
     dy_u = zeros(size(u))
 
     for i ∈ axes(u, 2)
-        dy_u[:, i] .= ∇(u[:, i], Δ)
+        dy_u[i, :] .= ∇(u[i, :], Δ)
     end
 
     return dy_u
+end
+
+function ∇y(u::Array{Float64, 3}, Δ::Float64)::Array{Float64, 3}
+    dy_u = zeros(size(u))
+
+    for i ∈ axes(u, 3)
+        dy_u[i, :, :] .= ∇y(u[i, :, :], Δ)
+    end
+
+    return dy_u
+end
+
+function ∇z(u::Array{Float64, 3}, Δ::Float64)::Array{Float64, 3}
+    dz_u = zeros(size(u))
+
+    for i ∈ axes(u, 3)
+        dz_u[i, :, :] .= ∇x(u[i, :, :], Δ)
+    end
+
+    return dz_u
 end
 
 """
@@ -77,250 +96,102 @@ end
 This is the split_wave! formulation of the second order acoustic wave equation for a two dimensional plane.
 """
 function split_wave!(du::Array{Float64, 3}, u::Array{Float64, 3}, p, t)
-    display(t)
     Δ, C, pml = p
 
     U = u[:, :, 1]
     Vx = u[:, :, 2]
     Vy = u[:, :, 3]
 
-    du[:, :, 1] .= (1.0 .- C(t)) .* (∇x(Vx, Δ) .+ ∇y(Vy, Δ)) .- U .* pml
+    du[:, :, 1] .= C(t) .* (∇x(Vx, Δ) .+ ∇y(Vy, Δ)) .- U .* pml
     du[:, :, 2] .= ∇x(U, Δ) .- Vx .* pml
     du[:, :, 3] .= ∇y(U, Δ) .- Vy .* pml
 end
 
-function render!(sol, x, n; path)
+function split_wave!(du::Array{Float64, 4}, u::Array{Float64, 4}, p, t)
+    Δ, C, pml = p
 
-    fig = GLMakie.Figure()
-    ax = GLMakie.Axis(fig[1, 1])
+    U = u[:, :, :, 1]
+    Vx = u[:, :, :, 2]
+    Vy = u[:, :, :, 3]
+    Vz = u[:, :, :, 4]
 
-    GLMakie.xlims!(x[1], x[end])
-    GLMakie.ylims!(-1.0, 1.0)
+    du[:, :, :, 1] .= C(t) .* (∇x(Vx, Δ) .+ ∇y(Vy, Δ) .+ ∇z(Vz, Δ)) .- U .* pml
+    du[:, :, :, 2] .= ∇x(U, Δ) .- Vx .* pml
+    du[:, :, :, 3] .= ∇y(U, Δ) .- Vy .* pml
+    du[:, :, :, 4] .= ∇z(U, Δ) .- Vz.* pml
+end
 
-    dt = (sol.prob.tspan[end] - sol.prob.tspan[1]) / n
+using Waves: AbstractDim
 
-    GLMakie.record(fig, path, 1:n) do i
-        GLMakie.empty!(ax.scene)
-        GLMakie.lines!(ax, x, sol(i * dt)[:, 1], color = :blue, linewidth = 2)
+struct WaveSpeed{D <: AbstractDim}
+    dim::D
+    C0::AbstractArray
+    design::Union{DesignInterpolator, Nothing}
+end
+
+function WaveSpeed(dim::AbstractDim, C0::Float64, design::Union{DesignInterpolator, Nothing} = nothing)
+    return WaveSpeed(dim, ones(size(dim)) * C0, design)
+end
+
+function (C::WaveSpeed)(t::Float64)
+    if isnothing(C.design)
+        return C.C0
+    else
+        return C.C0 .- speed(C.dim, C.design(t))
     end
-
-    return nothing
 end
 
-function render!(sol, dim; path, dt = 0.1, design = nothing)
-
-    fig = GLMakie.Figure(resolution = (1920, 1080))
-    ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
-
-    GLMakie.xlims!(dim.x[1], dim.x[end])
-    GLMakie.ylims!(dim.y[1], dim.y[end])
-    GLMakie.zlims!(-1.0, 4.0)
-
-
-    n = Int(round((sol.prob.tspan[end] - sol.prob.tspan[1]) / dt))
-
-    GLMakie.record(fig, path, 1:n) do i
-        t = dt * i
-        GLMakie.empty!(ax.scene)
-        if !isnothing(design)
-            plot!(fig, design(t))
-        end
-        GLMakie.surface!(ax, dim.x, dim.y, sol(t)[:, :, 1], colormap = :ice, linewidth = 2)
-    end
-
-    return nothing
-end
-
-function plane_wave(x::Vector, y::Vector, x_pos::Float64, intensity::Float64)
-    u0 = zeros(length(x), length(y))
-
-    for i ∈ axes(u0, 1)
-        for j ∈ axes(u0, 2)
-            u0[i, j] = exp(- intensity * (x[i] - x_pos) ^ 2)
-        end
-    end
-
-    return u0
-end
-
-function plot(x::Vector, u::Vector)
-    fig = GLMakie.Figure(resolution = (1920, 1080))
-    ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X (m)", ylabel = "Displacement (m)")
-    GLMakie.xlims!(ax, x[1], x[end])
-    # GLMakie.ylims!(ax, -1.0, 1.0)
-    GLMakie.lines!(ax, x, u, color = :blue)
-    return fig
-end
-
-"""
-Assuming an x axis which is symmetric build a vector which contains zeros in the
-interior and slowly scales from zero to one at the edges.
-"""
-function build_pml(x::Vector, width::Float64)
-    start = maximum(x) - width ## define the starting x value of the pml
-    pml = abs.(x) 
-    pml[pml .< start] .= 0.0 ## sets points which are in the interior to be zero
-    pml[pml .> 0.0] .= (pml[pml .> 0.0] .- start) ./ width ## scales the points between zero and one
-    pml = pml .^ 2 ## squishes the function to be applied more gradually
-    return pml
-end
-
-function build_pml(dim::TwoDim, width::Float64)
-    x, y = abs.(dim.x), abs.(dim.y)
+function build_pml(dim::ThreeDim, width::Float64)
+    x, y, z = abs.(dim.x), abs.(dim.y), abs.(dim.z)
 
     start_x = x[end] - width
     start_y = y[end] - width
+    start_z = z[end] - width
 
-    pml = zeros(length(x), length(y))
+    pml = zeros(size(dim))
 
     for i ∈ axes(pml, 1)
         for j ∈ axes(pml, 2)
-            depth = maximum([x[i] - start_x, y[j] - start_y, 0.0]) / 2
-            pml[i, j] = depth
+            for k ∈ axes(pml, 3)
+                depth = maximum([x[i] - start_x, y[j] - start_y, z[k] - start_z, 0.0]) / width
+                pml[i, j, k] = depth
+            end
         end
     end
 
     return pml .^ 2
 end
 
-abstract type Scatterer end
-
-struct Cylinder <: Scatterer
-    x
-    y
-    r
-    c
-end
-
-function GLMakie.mesh!(ax::GLMakie.Axis3, cyl::Cylinder)
-    GLMakie.mesh!(ax, GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
-end
-
-function Base.:∈(xy::Tuple, cyl::Cylinder)
-    return ((xy[1] - cyl.x) ^ 2 + (xy[2] - cyl.y) ^ 2) <= cyl.r ^ 2
-end
-
-function Base.:+(cyl1::Cylinder, cyl2::Cylinder)
-    return Cylinder(cyl1.x + cyl2.x, cyl1.y + cyl2.y, cyl1.r + cyl2.r, cyl1.c + cyl2.c)
-end
-
-function Base.:-(cyl1::Cylinder, cyl2::Cylinder)
-    return Cylinder(cyl1.x - cyl2.x, cyl1.y - cyl2.y, cyl1.r - cyl2.r, cyl1.c - cyl2.c)
-end
-
-function Base.:*(cyl::Cylinder, m::Float64)
-    return Cylinder(cyl.x * m, cyl.y * m, cyl.r * m, cyl.c * m)
-end
-
-function Base.:*(m::Float64, cyl::Cylinder)
-    return cyl * m
-end
-
-function speed(dim::TwoDim, cyl::Cylinder)
-    C = zeros(size(dim))
-
-    for i ∈ axes(C, 1)
-        for j ∈ axes(C, 2)
-            if (dim.x[i], dim.y[j]) ∈ cyl
-                C[i, j] = 0.8
-            end
-        end
-    end
-
-    return C
-end
-
-function gaussian_pulse(dim::TwoDim, x, y, intensity)
-
-    u = zeros(length(dim.x), length(dim.y))
-
-    for i ∈ axes(u, 1)
-        for j ∈ axes(u, 2)
-            u[i, j] = exp(- intensity * ((dim.x[i] - x) ^ 2 + (dim.y[j] - y) ^ 2))
-        end
-    end
-
-    v = zeros(size(u)..., 2)
-
-    return u, v
-end
-
-struct Wave{D <: AbstractDim}
-    dim::D
-    u::AbstractArray{Float64}
-end
-
-function plot(dim::TwoDim)
-    fig = GLMakie.Figure(resolution = (1920, 1080))
-    ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
-    GLMakie.xlims!(ax, dim.x[1], dim.x[end])
-    GLMakie.ylims!(ax, dim.y[1], dim.y[end])
-    GLMakie.zlims!(ax, -1.0, 5.0)
-    return fig
-end
-
-function plot!(fig::GLMakie.Figure, wave::Wave{TwoDim})
-    GLMakie.surface!(fig.content[1], wave.dim.x, wave.dim.y, wave.u, colormap = :ice)
-end
-
-function plot(wave::Wave{TwoDim})
-    dim = wave.dim
-    fig = plot(dim)
-    plot!(fig, wave)
-    return fig
-end
-
-function save(fig::GLMakie.Figure, path::String)
-    GLMakie.save(path, fig)
-end
-
-function plot!(fig::GLMakie.Figure, cyl::Cylinder)
-    GLMakie.mesh!(fig.content[1], cyl)
-end
-
-struct DesignInterpolator
-    initial::Scatterer
-    Δ::Scatterer
-    ti::Float64
-    tf::Float64
-end
-
-function (interp::DesignInterpolator)(t::Float64)
-    t = (t - interp.ti) / (interp.tf - interp.ti)
-    return interp.initial + t * interp.Δ
-end
-
-gs = 10.0
-Δ = 0.2
-
-dim = TwoDim(gs, Δ)
+gs = 5.0
+Δ = 0.5
 pml_width = 2.0
 pml_scale = 10.0
-
+dim = ThreeDim(gs, Δ)
 tspan = (0.0, 20.0)
 
-cyli = Cylinder(-3.0, 0.0, 2.0, 0.0)
-cylf = Cylinder(3.0, 0.0, 2.0, 0.0)
-design = DesignInterpolator(cyli, cylf - cyli, tspan...)
-C = t -> speed(dim, design(t))
+# cyli = Cylinder(-3.0, 0.0, 2.0, 0.0)
+# cylf = Cylinder(3.0, 0.0, 2.0, 0.0)
+# design = DesignInterpolator(cyli, cylf - cyli, tspan...)
+
+C = WaveSpeed(dim, 1.0, nothing)
+u, v = gaussian_pulse(dim, 0.0, 0.0, 0.0, 1.0)
 pml = build_pml(dim, pml_width) * pml_scale
-u, v = gaussian_pulse(dim, 8.0, 0.0, 1.0)
 u0 = cat(u, v, dims = (ndims(u) + 1))
 p = [Δ, C, pml]
 
 @time prob = ODEProblem(split_wave!, u0, tspan, p)
 @time sol = solve(prob, Midpoint(thread = OrdinaryDiffEq.True()))
-render!(sol, dim, path = "vid.mp4", design = design)
+render!(sol, dim, path = "vid3d.mp4")
 
-g = grid(dim)
-mask = map(xy -> xy[1]^2 + xy[2]^2 <= 9, g)
+# g = grid(dim)
+# mask = map(xy -> xy[1]^2 + xy[2]^2 <= 9, g)
 
-flux = Float64[]
-for t ∈ range(tspan..., 200)
-    push!(
-        flux, 
-        sum((∇x(∇x(sol(t)[:, :, 1], Δ), Δ) .+ ∇y(∇y(sol(t)[:, :, 1], Δ), Δ)) .* mask)
-        )
-end
+# flux = Float64[]
+# for t ∈ range(tspan..., 200)
+#     push!(
+#         flux, 
+#         sum((∇x(∇x(sol(t)[:, :, 1], Δ), Δ) .+ ∇y(∇y(sol(t)[:, :, 1], Δ), Δ)) .* mask)
+#         )
+# end
 
-save(plot(collect(range(tspan..., 200)), flux), "flux.png")
+# save(plot(collect(range(tspan..., 200)), flux), "flux.png")

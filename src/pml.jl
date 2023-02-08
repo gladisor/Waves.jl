@@ -7,18 +7,19 @@ interior and slowly scales from zero to one at the edges.
 function build_pml(dim::TwoDim, width::Float64)
     x, y = abs.(dim.x), abs.(dim.y)
 
-    start_x = x[end] - width
-    start_y = y[end] - width
+    start_x = min(x[1], x[end]) - width
+    start_y = min(y[1], y[end]) - width
 
-    pml = zeros(length(x), length(y))
+    pml = zeros(size(dim))
 
     for i ∈ axes(pml, 1)
         for j ∈ axes(pml, 2)
-            depth = maximum([x[i] - start_x, y[j] - start_y, 0.0]) / 2
+            depth = maximum([x[i] - start_x, y[j] - start_y, 0.0]) ./ width
             pml[i, j] = depth
         end
     end
 
+    clamp!(pml, 0.0, 1.0)
     return pml .^ 2
 end
 

@@ -78,7 +78,7 @@ function render!(sol, dim::TwoDim; path, dt = 0.1, design = nothing)
     return nothing
 end
 
-function Waves.render!(sol, dim::ThreeDim; path::String, dt = 0.1, design = nothing)
+function render!(sol, dim::ThreeDim; path::String, dt = 0.1, design = nothing)
 
     fig = plot(dim)
     n = Int(round((sol.prob.tspan[end] - sol.prob.tspan[1]) / dt))

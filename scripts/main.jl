@@ -40,6 +40,11 @@ end
 #     return WaveSol(dim, t, u)
 # end
 
+function Base.:-(sol1::WaveSol, sol2::WaveSol)
+    u = [u1 .- u2 for (u1, u2) in zip(sol1.u, sol2.u)]
+    return WaveSol(sol1.dim, sol1.t, u)
+end
+
 function render!(sol::WaveSol; path::String)
     fig = plot(sol.dim)
 
@@ -135,6 +140,9 @@ C = WaveSpeed(dim, C0, design)
 pml = build_pml(dim, pml_width) * pml_scale
 
 prob = ODEProblem(split_wave!, u0, tspan, [Δ, C, pml])
+prob_inc = ODEProblem(split_wave!, u0, tspan, [Δ, WaveSpeed(dim, C0), pml])
+sol_inc = solve(prob_inc, Midpoint())
+
 iter = init(prob, Midpoint(), advance_to_tstop = true)
 
 env = WaveEnv(iter, C)
@@ -151,7 +159,9 @@ designs = Vector{DesignInterpolator}()
     push!(designs, env.C.design)
 end
 
-u = Array{Float64, 3}[]
+u_tot = Array{Float64, 3}[]
+u_inc = Array{Float64, 3}[]
+
 times = Float64[]
 design_steps = Cylinder[]
 
@@ -159,23 +169,54 @@ for i ∈ axes(designs, 1)
     design = designs[i]
     t = collect(design.ti:0.1:design.tf)
     for j ∈ axes(t, 1)
-        push!(u, env.iter.sol(t[j]))
+        push!(u_tot, env.iter.sol(t[j]))
+        push!(u_inc, sol_inc(t[j]))
+
         push!(times, t[j])
         push!(design_steps, designs[i](t[j]))
     end
 end
 
-sol = WaveSol(dim, times, u)
+sol_tot = WaveSol(dim, times, u_tot)
+sol_inc =  WaveSol(dim, times, u_inc)
 
-fig = plot(sol.dim)
+fig = plot(sol_tot.dim)
 
-GLMakie.record(fig, "design.mp4", 1:length(sol)) do i
+GLMakie.record(fig, "design_tot.mp4", 1:length(sol_tot)) do i
     GLMakie.empty!(fig.content[1].scene)
-    wave = Wave(sol.dim, sol.u[i])
+    wave = Wave(sol_tot.dim, sol_tot.u[i])
     plot!(fig, wave)
     plot!(fig, design_steps[i])
 end
 
 metric = WaveFlux(dim, circle_mask(dim, 8.0))
-f = metric(sol)
-save(plot(sol.t, f), "flux_design.png")
+f = metric(sol_tot)
+save(plot(sol_tot.t, f), "flux_design_tot.png")
+
+fig = plot(sol_inc.dim)
+
+GLMakie.record(fig, "design_inc.mp4", 1:length(sol_inc)) do i
+    GLMakie.empty!(fig.content[1].scene)
+    wave = Wave(sol_inc.dim, sol_inc.u[i])
+    plot!(fig, wave)
+    plot!(fig, design_steps[i])
+end
+
+metric = WaveFlux(dim, circle_mask(dim, 8.0))
+f = metric(sol_inc)
+save(plot(sol_inc.t, f), "flux_design_inc.png")
+
+sol_sc = sol_tot - sol_inc
+
+fig = plot(sol_sc.dim)
+
+GLMakie.record(fig, "design_sc.mp4", 1:length(sol_inc)) do i
+    GLMakie.empty!(fig.content[1].scene)
+    wave = Wave(sol_sc.dim, sol_sc.u[i])
+    plot!(fig, wave)
+    plot!(fig, design_steps[i])
+end
+
+metric = WaveFlux(dim, circle_mask(dim, 8.0))
+f = metric(sol_sc)
+save(plot(sol_sc.t, f), "flux_design_sc.png")

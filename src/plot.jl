@@ -1,10 +1,25 @@
 export plot, plot!, save, render!
 
+export Wave
+
 const RESOLUTION = (1920, 1080)
 const FONT_SIZE = 30
 
+struct Wave{D <: AbstractDim}
+    dim::D
+    u::AbstractArray{Float64}
+end
+
+
 """
-Quick plotting function for ez visualizations.
+Replacing GLMakie save with easier syntax
+"""
+function save(fig::GLMakie.Figure, path::String)
+    GLMakie.save(path, fig)
+end
+
+"""
+Quick plotting function for ez visualizations
 """
 function plot(x::Vector, y::Vector)
     fig = GLMakie.Figure(resolution = RESOLUTION, fontsize = FONT_SIZE)
@@ -13,6 +28,9 @@ function plot(x::Vector, y::Vector)
     return fig
 end
 
+"""
+Create a figure for plotting and animating waves in one dimension
+"""
 function plot(dim::OneDim)
     fig = GLMakie.Figure(resolution = RESOLUTION, fontsize = FONT_SIZE)
     ax = GLMakie.Axis(fig[1, 1], title = "1D Wave", xlabel = "X (m)", ylabel = "Displacement (m)")
@@ -25,6 +43,9 @@ function plot!(fig::GLMakie.Figure, wave::Wave{OneDim})
     GLMakie.lines!(fig.content[1], wave.dim.x, wave.u[:, 1], color = :blue, linewidth = 3)
 end
 
+"""
+Creating figure for two dimensional wave plotting
+"""
 function plot(dim::TwoDim)
     fig = GLMakie.Figure(resolution = RESOLUTION, fontsize = FONT_SIZE)
     ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "2D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Displacement (m)")
@@ -38,13 +59,9 @@ function plot!(fig::GLMakie.Figure, wave::Wave{TwoDim})
     GLMakie.surface!(fig.content[1], wave.dim.x, wave.dim.y, wave.u[:, :, 1], colormap = :ice)
 end
 
-function plot(wave::Wave{TwoDim})
-    dim = wave.dim
-    fig = plot(dim)
-    plot!(fig, wave)
-    return fig
-end
-
+"""
+Creating figure for three dimensional wave plotting
+"""
 function plot(dim::ThreeDim)
     fig = GLMakie.Figure(resolution = RESOLUTION, fontsize = FONT_SIZE)
     ax = GLMakie.Axis3(fig[1, 1], aspect = (1, 1, 1), perspectiveness = 0.5, title = "3D Wave", xlabel = "X (m)", ylabel = "Y (m)", zlabel = "Z (m)")
@@ -54,61 +71,6 @@ function plot(dim::ThreeDim)
     return fig
 end
 
-function save(fig::GLMakie.Figure, path::String)
-    GLMakie.save(path, fig)
-end
-
 function plot!(fig::GLMakie.Figure, cyl::Cylinder)
     GLMakie.mesh!(fig.content[1], GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
 end
-
-# function render!(sol, dim::OneDim; path, dt = 0.1)
-
-#     fig = plot(dim)
-
-#     n = Int(round((sol.prob.tspan[end] - sol.prob.tspan[1]) / dt))
-
-#     GLMakie.record(fig, path, 1:n) do i
-#         t = dt * i
-#         GLMakie.empty!(fig.content[1].scene)
-#         GLMakie.lines!(fig.content[1], dim.x, sol(t)[:, 1], color = :blue, linewidth = 2)
-#     end
-
-#     return nothing
-# end
-
-# function render!(sol, dim::TwoDim; path, dt = 0.1, design = nothing)
-
-#     fig = plot(dim)
-
-#     n = Int(round((sol.prob.tspan[end] - sol.prob.tspan[1]) / dt))
-
-#     GLMakie.record(fig, path, 1:n) do i
-#         t = dt * i
-#         GLMakie.empty!(fig.content[1].scene)
-#         if !isnothing(design)
-#             plot!(fig, design(t))
-#         end
-#         GLMakie.surface!(fig.content[1], dim.x, dim.y, sol(t)[:, :, 1], colormap = :ice, linewidth = 2)
-#     end
-
-#     return nothing
-# end
-
-# function render!(sol, dim::ThreeDim; path::String, dt = 0.1, design = nothing)
-
-#     fig = plot(dim)
-#     n = Int(round((sol.prob.tspan[end] - sol.prob.tspan[1]) / dt))
-
-#     GLMakie.record(fig, path, 1:n) do i
-#         t = dt * i
-#         GLMakie.empty!(fig.content[1].scene)
-#         if !isnothing(design)
-#             plot!(fig, design(t))
-#         end
-
-#         GLMakie.volume!(fig.content[1], dim.x, dim.y, dim.z, sol(t)[:, :, :, 1], colormap = GLMakie.Reverse(:ice))
-#     end
-
-#     return nothing
-# end

@@ -11,12 +11,12 @@ abstract type Emitter <: AbstractDesign end
 
 include("dims.jl")
 include("cylinder.jl")
-include("wave.jl")
 include("pml.jl")
 include("plot.jl")
 include("initial_conditions.jl")
 include("design.jl")
 include("sim.jl")
 include("wave_speed.jl")
+include("sol.jl")
 
 end

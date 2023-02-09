@@ -5,125 +5,88 @@ using DifferentialEquations: init
 using Distributions: Uniform
 
 using Waves
-using Waves: AbstractDim, ∇, ∇x, ∇y
+using Waves: AbstractDesign, AbstractDim, ∇, ∇x, ∇y
+include("../src/metrics.jl")
 
-# struct WaveSim{D <: AbstractDim} 
-#     dim::D
-#     iter::ODEIntegrator
-# end
-
-struct WaveSol{D <: AbstractDim}
-    dim::D
-    t::Vector{Float64}
-    u::Vector{<: AbstractArray{Float64}}
-end
-
-function Base.length(sol::WaveSol)
-    return length(sol.t)
-end
-
-# """
-# Extracting a solution from the simulator requires specification of a uniform timestep.
-# The way the integration process works is that the timesteps are determined based on error.
-# Interpolation is required to get uniform timesteps.
-# """
-# function WaveSol(sim::WaveSim; dt)
-#     ti, tf = sim.iter.sol.prob.tspan
-#     t = collect(ti:dt:tf)
-
-#     u = Vector{typeof(sim.iter.u)}()
-
-#     for i ∈ axes(t, 1)
-#         push!(u, sim.iter.sol(t[i]))
-#     end
-
-#     return WaveSol(dim, t, u)
-# end
-
-function Base.:-(sol1::WaveSol, sol2::WaveSol)
-    u = [u1 .- u2 for (u1, u2) in zip(sol1.u, sol2.u)]
-    return WaveSol(sol1.dim, sol1.t, u)
-end
-
-function render!(sol::WaveSol; path::String)
+"""
+Renders an animation of a wave solution.
+"""
+function render!(sol::WaveSol, design_trajectory::Vector{<:AbstractDesign} = nothing; path::String)
     fig = plot(sol.dim)
 
     GLMakie.record(fig, path, 1:length(sol)) do i
         GLMakie.empty!(fig.content[1].scene)
+        if !isnothing(design_trajectory)
+            plot!(fig, design_trajectory[i])
+        end
         wave = Wave(sol.dim, sol.u[i])
         plot!(fig, wave)
     end
 end
 
-abstract type WaveMetric end
-
-struct WaveFlux <: WaveMetric
-    Δ::Float64
-    mask::AbstractArray{Float64}
-end
-
-function WaveFlux(dim::AbstractDim, mask = nothing)
-    Δ = (dim.x[end] - dim.x[1]) / (length(dim.x) - 1)
-    mask = isnothing(mask) ? ones(size(dim)) : mask
-    return WaveFlux(Δ, mask)
-end
-
 """
-Compute flux on the state of a one dimensional wave simulation.
+Structure which mediates the interaction between a wave and a changing design.
+The effect of the design on the wave occurs through modulation of the wave WaveSpeed
+within the media.
 """
-function (metric::WaveFlux)(u::Vector{Float64})
-    return sum(∇(∇(u, metric.Δ), metric.Δ) .* metric.mask)
-end
-
-function (metric::WaveFlux)(u::Matrix{Float64})
-    d = ∇x(∇x(u, metric.Δ), metric.Δ) .+ ∇y(∇y(u, metric.Δ), metric.Δ)
-    return sum(d .* metric.mask)
-end
-
-function (metric::WaveFlux)(sol::WaveSol{OneDim})
-    return [metric(u[:, 1]) for u ∈ sol.u]
-end
-
-function (metric::WaveFlux)(sol::WaveSol{TwoDim})
-    return [metric(u[:, :, 1]) for u ∈ sol.u]
-end
-
-function square_mask(dim::OneDim, radius::Float64)
-    mask = zeros(size(dim))
-    mask[(-radius .< dim.x .< radius)] .= 1.0
-    return mask
-end
-
-function square_mask(dim::TwoDim, radius::Float64)
-    mask = zeros(size(dim))
-    mask[(-radius .< dim.x .< radius), (-radius .< dim.y .< radius)] .= 1.0
-    return mask
-end
-
-function circle_mask(dim::TwoDim, radius::Float64)
-    mask = zeros(size(dim))
-    g = grid(dim)
-
-    for i ∈ axes(mask, 1)
-        for j ∈ axes(mask, 2)
-            x, y = g[i, j]
-            mask[i, j] = (x ^ 2 + y ^ 2) <= radius ^ 2
-        end
-    end
-
-    return mask
-end
-
 mutable struct WaveEnv
     iter::ODEIntegrator
     C::WaveSpeed
+    dt::Float64
 end
 
-function update!(env::WaveEnv, action, dt)
-    design = DesignInterpolator(env.C.design(env.iter.t), action, env.iter.t, env.iter.t + dt)
+"""
+Takes the current environment and updates the WaveSpeed such that an action is applied over
+a time interval. It sets the current design equal to the design at the end of the previous time interval.
+"""
+function update_design!(env::WaveEnv, action)
+    design = DesignInterpolator(env.C.design(env.iter.t), action, env.iter.t, env.iter.t + env.dt)
     C = WaveSpeed(env.C.dim, env.C.C0, design)
     env.C = C
     env.iter.p[2] = env.C
+end
+
+"""
+Propagates the wave simulation to the next time stop which is given by the environment's dt variable.
+"""
+function propagate_wave!(env::WaveEnv)
+    add_tstop!(env.iter, env.iter.t + env.dt)
+    step!(env.iter)
+end
+
+"""
+"""
+function interpolate(sol::ODESolution, dim::AbstractDim, dt::Float64)
+    u = typeof(sol.prob.u0)[]
+    t = collect(sol.prob.tspan[1]:dt:sol.prob.tspan[end])
+
+    for i ∈ axes(t, 1)
+        push!(u, sol(t[i]))
+    end
+
+    return WaveSol(dim, t, u)
+end
+
+function interpolate(designs::Vector{DesignInterpolator}, dt::Float64)
+    design_trajectory = typeof(first(designs).initial)[]
+
+    for i ∈ axes(designs, 1)
+
+        design = designs[i]
+        t = collect(design.ti:dt:design.tf)
+
+        for j ∈ axes(t, 1)
+            push!(design_trajectory, designs[i](t[j]))
+        end
+
+        pop!(design_trajectory)
+    end
+
+    last_design = last(designs)
+
+    push!(design_trajectory, last_design(last_design.tf))
+
+    return design_trajectory
 end
 
 gs = 15.0
@@ -138,85 +101,32 @@ policy = Uniform.([-2.0, -2.0], [2.0, 2.0])
 design = DesignInterpolator(Cylinder(-3, -3, 1.0, 0.2), Cylinder(0.0, 0.0, 0.0, 0.0), tspan...)
 C = WaveSpeed(dim, C0, design)
 pml = build_pml(dim, pml_width) * pml_scale
+metric = WaveFlux(dim, circle_mask(dim, 8.0))
 
-prob = ODEProblem(split_wave!, u0, tspan, [Δ, C, pml])
+prob_tot = ODEProblem(split_wave!, u0, tspan, [Δ, C, pml])
 prob_inc = ODEProblem(split_wave!, u0, tspan, [Δ, WaveSpeed(dim, C0), pml])
+
 sol_inc = solve(prob_inc, Midpoint())
+iter_tot = init(prob_tot, Midpoint(), advance_to_tstop = true)
 
-iter = init(prob, Midpoint(), advance_to_tstop = true)
-
-env = WaveEnv(iter, C)
-dt = 1.0
+env = WaveEnv(iter_tot, C, 1.0)
 
 designs = Vector{DesignInterpolator}()
 
 @time while env.iter.t < tspan[end]
     action = Cylinder(rand.(policy)..., 0.0, 0.0)
-    update!(env, action, dt)
-    add_tstop!(env.iter, env.iter.t + dt)
-    step!(env.iter)
+
+    update_design!(env, action)
+    propagate_wave!(env)
+
     println("Time: $(env.iter.t)")
     push!(designs, env.C.design)
 end
 
-u_tot = Array{Float64, 3}[]
-u_inc = Array{Float64, 3}[]
-
-times = Float64[]
-design_steps = Cylinder[]
-
-for i ∈ axes(designs, 1)
-    design = designs[i]
-    t = collect(design.ti:0.1:design.tf)
-    for j ∈ axes(t, 1)
-        push!(u_tot, env.iter.sol(t[j]))
-        push!(u_inc, sol_inc(t[j]))
-
-        push!(times, t[j])
-        push!(design_steps, designs[i](t[j]))
-    end
-end
-
-sol_tot = WaveSol(dim, times, u_tot)
-sol_inc =  WaveSol(dim, times, u_inc)
-
-fig = plot(sol_tot.dim)
-
-GLMakie.record(fig, "design_tot.mp4", 1:length(sol_tot)) do i
-    GLMakie.empty!(fig.content[1].scene)
-    wave = Wave(sol_tot.dim, sol_tot.u[i])
-    plot!(fig, wave)
-    plot!(fig, design_steps[i])
-end
-
-metric = WaveFlux(dim, circle_mask(dim, 8.0))
-f = metric(sol_tot)
-save(plot(sol_tot.t, f), "flux_design_tot.png")
-
-fig = plot(sol_inc.dim)
-
-GLMakie.record(fig, "design_inc.mp4", 1:length(sol_inc)) do i
-    GLMakie.empty!(fig.content[1].scene)
-    wave = Wave(sol_inc.dim, sol_inc.u[i])
-    plot!(fig, wave)
-    plot!(fig, design_steps[i])
-end
-
-metric = WaveFlux(dim, circle_mask(dim, 8.0))
-f = metric(sol_inc)
-save(plot(sol_inc.t, f), "flux_design_inc.png")
-
+sol_tot = interpolate(env.iter.sol, dim, 0.1)
+sol_inc = interpolate(sol_inc, dim, 0.1)
 sol_sc = sol_tot - sol_inc
-
-fig = plot(sol_sc.dim)
-
-GLMakie.record(fig, "design_sc.mp4", 1:length(sol_inc)) do i
-    GLMakie.empty!(fig.content[1].scene)
-    wave = Wave(sol_sc.dim, sol_sc.u[i])
-    plot!(fig, wave)
-    plot!(fig, design_steps[i])
-end
-
-metric = WaveFlux(dim, circle_mask(dim, 8.0))
-f = metric(sol_sc)
-save(plot(sol_sc.t, f), "flux_design_sc.png")
+designs = interpolate(designs, 0.1)
+render!(sol_tot, designs, path = "test_tot.mp4")
+render!(sol_inc, designs, path = "test_inc.mp4")
+render!(sol_sc, designs, path = "test_sc.mp4")

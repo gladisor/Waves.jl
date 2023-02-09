@@ -1,3 +1,5 @@
+export WaveMetric, WaveFlux, square_mask, circle_mask
+
 abstract type WaveMetric end
 
 struct WaveFlux <: WaveMetric

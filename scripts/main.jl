@@ -5,8 +5,7 @@ using DifferentialEquations: init
 using Distributions: Uniform
 
 using Waves
-using Waves: AbstractDesign, AbstractDim, ∇, ∇x, ∇y
-include("../src/metrics.jl")
+using Waves: AbstractDesign, AbstractDim
 
 """
 Renders an animation of a wave solution.
@@ -89,7 +88,14 @@ function interpolate(designs::Vector{DesignInterpolator}, dt::Float64)
     return design_trajectory
 end
 
-gs = 15.0
+function Waves.plot(x::Vector, y::Vector)
+    fig = GLMakie.Figure(resolution = Waves.RESOLUTION, fontsize = Waves.FONT_SIZE)
+    ax = GLMakie.Axis(fig[1, 1], title = "Plot", xlabel = "x", ylabel = "y")
+    GLMakie.lines!(ax, x, y, color = :blue)
+    return fig
+end
+
+gs = 10.0
 Δ = 0.3
 C0 = 2.0
 pml_width = 4.0
@@ -101,7 +107,6 @@ policy = Uniform.([-2.0, -2.0], [2.0, 2.0])
 design = DesignInterpolator(Cylinder(-3, -3, 1.0, 0.2), Cylinder(0.0, 0.0, 0.0, 0.0), tspan...)
 C = WaveSpeed(dim, C0, design)
 pml = build_pml(dim, pml_width) * pml_scale
-metric = WaveFlux(dim, circle_mask(dim, 8.0))
 
 prob_tot = ODEProblem(split_wave!, u0, tspan, [Δ, C, pml])
 prob_inc = ODEProblem(split_wave!, u0, tspan, [Δ, WaveSpeed(dim, C0), pml])
@@ -130,3 +135,8 @@ designs = interpolate(designs, 0.1)
 render!(sol_tot, designs, path = "test_tot.mp4")
 render!(sol_inc, designs, path = "test_inc.mp4")
 render!(sol_sc, designs, path = "test_sc.mp4")
+
+metric = WaveFlux(dim, circle_mask(dim, 6.0))
+
+fig = plot(sol_tot.t, metric(sol_tot))
+save(fig, "flux.png")

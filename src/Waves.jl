@@ -18,5 +18,6 @@ include("design.jl")
 include("sim.jl")
 include("wave_speed.jl")
 include("sol.jl")
+include("metrics.jl")
 
 end

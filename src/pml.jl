@@ -1,5 +1,20 @@
 export build_pml
 
+function build_pml(dim::OneDim, width::Float64)
+    x = abs.(dim.x)
+
+    start = min(x[1], x[end]) - width
+
+    pml = zeros(size(dim))
+
+    for i ∈ axes(pml, 1)
+        pml[i] = max(x[i] - start, 0.0) / width
+    end
+
+    clamp!(pml, 0.0, 1.0)
+    return pml .^ 2
+end
+
 """
 Assuming an x axis which is symmetric build a vector which contains zeros in the
 interior and slowly scales from zero to one at the edges.
@@ -14,7 +29,7 @@ function build_pml(dim::TwoDim, width::Float64)
 
     for i ∈ axes(pml, 1)
         for j ∈ axes(pml, 2)
-            depth = maximum([x[i] - start_x, y[j] - start_y, 0.0]) ./ width
+            depth = maximum([x[i] - start_x, y[j] - start_y, 0.0]) / width
             pml[i, j] = depth
         end
     end

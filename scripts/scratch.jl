@@ -4,8 +4,16 @@ using Waves
 using Waves: AbstractDesign, ∇x, ∇y, AbstractDim
 import GLMakie
 
+function displacement(wave::Wave{OneDim})
+    return wave.u[:, 1]
+end
+
 function displacement(wave::Wave{TwoDim})
     return wave.u[:, :, 1]
+end
+
+function displacement(wave::Wave{ThreeDim})
+    return wave.u[:, :, :, 1]
 end
 
 function flux(wave::Wave{TwoDim})
@@ -67,7 +75,7 @@ include("configuration.jl")
 # design = DesignInterpolator(config, action, tspan...)
 
 gs = 10.0
-Δ = 0.1
+Δ = 0.
 C0 = 1.0
 design = nothing
 pml_width = 2.0

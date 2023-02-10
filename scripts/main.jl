@@ -3,6 +3,8 @@ using DifferentialEquations
 using DifferentialEquations.OrdinaryDiffEq: ODEIntegrator
 using DifferentialEquations: init
 using Distributions: Uniform
+using ReinforcementLearning
+using IntervalSets
 
 using Waves
 using Waves: AbstractDesign, AbstractDim
@@ -24,14 +26,33 @@ function render!(sol::WaveSol, design_trajectory::Vector{<:AbstractDesign} = not
 end
 
 """
+Abstract type which encapsulates structures which compute rewards from WaveEnv.
+"""
+abstract type RewardSignal end
+
+"""
 Structure which mediates the interaction between a wave and a changing design.
 The effect of the design on the wave occurs through modulation of the wave WaveSpeed
 within the media.
 """
-mutable struct WaveEnv
+mutable struct WaveEnv <: AbstractEnv
     iter::ODEIntegrator
     C::WaveSpeed
     dt::Float64
+    reward_signal::RewardSignal
+end
+
+"""
+Computes the flux of a scattered wave. Contains the solution of the incident wave
+"""
+mutable struct ScatteredFlux <: RewardSignal
+    sol_inc::ODESolution
+    flux::WaveFlux
+end
+
+function (scattered_flux::ScatteredFlux)(env::WaveEnv)
+    u_sc = env.iter.u[:, :, 1] .- scattered_flux.sol_inc(env.iter.t)
+    return scattered_flux.flux(u_sc[:, :, 1])
 end
 
 """
@@ -51,6 +72,31 @@ Propagates the wave simulation to the next time stop which is given by the envir
 function propagate_wave!(env::WaveEnv)
     add_tstop!(env.iter, env.iter.t + env.dt)
     step!(env.iter)
+end
+
+function RLBase.action_space(cyl::Cylinder)
+    return Space([-1.0..1.0, -1.0..1.0])
+end
+
+function RLBase.action_space(env::WaveEnv)
+    action_space(env.C.design.initial)
+end
+
+function RLBase.state(env::WaveEnv)
+    return env.iter.u
+end
+
+function RLBase.state_space(env::WaveEnv)
+    return env.iter.u
+end
+
+function RLBase.reward(env::WaveEnv)
+    return env.reward_signal(env)
+end
+
+function (env::WaveEnv)(action::AbstractDesign)
+    update_design!(env, action)
+    propagate_wave!(env)
 end
 
 """
@@ -113,16 +159,17 @@ prob_inc = ODEProblem(split_wave!, u0, tspan, [Δ, WaveSpeed(dim, C0), pml])
 
 sol_inc = solve(prob_inc, Midpoint())
 iter_tot = init(prob_tot, Midpoint(), advance_to_tstop = true)
+reward_signal = ScatteredFlux(sol_inc, WaveFlux(dim, circle_mask(dim, 6.0)))
 
-env = WaveEnv(iter_tot, C, 1.0)
+env = WaveEnv(iter_tot, C, 1.0, reward_signal)
 
 designs = Vector{DesignInterpolator}()
 
 @time while env.iter.t < tspan[end]
     action = Cylinder(rand.(policy)..., 0.0, 0.0)
 
-    update_design!(env, action)
-    propagate_wave!(env)
+    env(action)
+    println("Reward: $(reward(env))")
 
     println("Time: $(env.iter.t)")
     push!(designs, env.C.design)
@@ -131,12 +178,18 @@ end
 sol_tot = interpolate(env.iter.sol, dim, 0.1)
 sol_inc = interpolate(sol_inc, dim, 0.1)
 sol_sc = sol_tot - sol_inc
-designs = interpolate(designs, 0.1)
-render!(sol_tot, designs, path = "test_tot.mp4")
-render!(sol_inc, designs, path = "test_inc.mp4")
-render!(sol_sc, designs, path = "test_sc.mp4")
+# designs = interpolate(designs, 0.1)
+# render!(sol_tot, designs, path = "test_tot.mp4")
+# render!(sol_inc, designs, path = "test_inc.mp4")
+# render!(sol_sc, designs, path = "test_sc.mp4")
 
-metric = WaveFlux(dim, circle_mask(dim, 6.0))
+# metric = WaveFlux(dim, circle_mask(dim, 6.0))
 
-fig = plot(sol_tot.t, metric(sol_tot))
-save(fig, "flux.png")
+fig = plot(sol_tot.t, reward_signal.flux(sol_tot))
+save(fig, "flux_tot.png")
+
+fig = plot(sol_inc.t, reward_signal.flux(sol_inc))
+save(fig, "flux_inc.png")
+
+fig = plot(sol_sc.t, reward_signal.flux(sol_sc))
+save(fig, "flux_sc.png")

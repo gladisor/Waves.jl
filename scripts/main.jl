@@ -15,7 +15,7 @@ include("../src/env.jl")
 """
 Renders an animation of a wave solution.
 """
-function render!(sol::WaveSol, design_trajectory::Vector{<:AbstractDesign} = nothing; path::String)
+function render!(sol::WaveSol, design_trajectory::Union{Vector{<:AbstractDesign}, Nothing} = nothing; path::String)
     fig = plot(sol.dim)
 
     GLMakie.record(fig, path, 1:length(sol)) do i
@@ -71,7 +71,7 @@ function Waves.plot(x::Vector, y::Vector; title = "", xlabel = "", ylabel = "")
 end
 
 gs = 10.0
-Δ = 0.1
+Δ = 0.05
 C0 = 2.0
 pml_width = 4.0
 pml_scale = 10.0
@@ -86,20 +86,21 @@ pml = build_pml(dim, pml_width) * pml_scale
 prob_tot = ODEProblem(split_wave!, u0, tspan, [Δ, C, pml])
 prob_inc = ODEProblem(split_wave!, u0, tspan, [Δ, WaveSpeed(dim, C0), pml])
 
-sol_inc = solve(prob_inc, Midpoint())
-iter_tot = init(prob_tot, Midpoint(), advance_to_tstop = true)
+dt = 0.05
+sol_inc = solve(prob_inc, DGLDDRK73_C(), dt = dt)
+iter_tot = init(prob_tot, DGLDDRK73_C(), advance_to_tstop = true, dt = dt)
 reward_signal = ScatteredFlux(sol_inc, WaveFlux(dim, circle_mask(dim, 6.0)))
 
 env = WaveEnv(iter_tot, C, 0.5, reward_signal)
 designs = Vector{DesignInterpolator}()
 
-actor = Chain(
-    Conv((2, 2), 3 => 32, relu),
-    MaxPool((2, 2)),
-    Conv((2, 2), 32 => 1, relu),
-    MaxPool((2, 2)),
-    Flux.flatten,
-    Dense(256, 2, tanh))
+# actor = Chain(
+#     Conv((2, 2), 3 => 32, relu),
+#     MaxPool((2, 2)),
+#     Conv((2, 2), 32 => 1, relu),
+#     MaxPool((2, 2)),
+#     Flux.flatten,
+#     Dense(256, 2, tanh))
 
 # traj = CircularArraySARTTrajectory(
 #     capacity = 1000,

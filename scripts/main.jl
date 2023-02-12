@@ -5,9 +5,12 @@ using DifferentialEquations: init
 using Distributions: Uniform
 using ReinforcementLearning
 using IntervalSets
+using Flux
 
 using Waves
 using Waves: AbstractDesign, AbstractDim
+
+include("../src/env.jl")
 
 """
 Renders an animation of a wave solution.
@@ -23,80 +26,6 @@ function render!(sol::WaveSol, design_trajectory::Vector{<:AbstractDesign} = not
         wave = Wave(sol.dim, sol.u[i])
         plot!(fig, wave)
     end
-end
-
-"""
-Abstract type which encapsulates structures which compute rewards from WaveEnv.
-"""
-abstract type RewardSignal end
-
-"""
-Structure which mediates the interaction between a wave and a changing design.
-The effect of the design on the wave occurs through modulation of the wave WaveSpeed
-within the media.
-"""
-mutable struct WaveEnv <: AbstractEnv
-    iter::ODEIntegrator
-    C::WaveSpeed
-    dt::Float64
-    reward_signal::RewardSignal
-end
-
-"""
-Computes the flux of a scattered wave. Contains the solution of the incident wave
-"""
-mutable struct ScatteredFlux <: RewardSignal
-    sol_inc::ODESolution
-    flux::WaveFlux
-end
-
-function (scattered_flux::ScatteredFlux)(env::WaveEnv)
-    u_sc = env.iter.u[:, :, 1] .- scattered_flux.sol_inc(env.iter.t)
-    return scattered_flux.flux(u_sc[:, :, 1])
-end
-
-"""
-Takes the current environment and updates the WaveSpeed such that an action is applied over
-a time interval. It sets the current design equal to the design at the end of the previous time interval.
-"""
-function update_design!(env::WaveEnv, action)
-    design = DesignInterpolator(env.C.design(env.iter.t), action, env.iter.t, env.iter.t + env.dt)
-    C = WaveSpeed(env.C.dim, env.C.C0, design)
-    env.C = C
-    env.iter.p[2] = env.C
-end
-
-"""
-Propagates the wave simulation to the next time stop which is given by the environment's dt variable.
-"""
-function propagate_wave!(env::WaveEnv)
-    add_tstop!(env.iter, env.iter.t + env.dt)
-    step!(env.iter)
-end
-
-function RLBase.action_space(cyl::Cylinder)
-    return Space([-1.0..1.0, -1.0..1.0])
-end
-
-function RLBase.action_space(env::WaveEnv)
-    action_space(env.C.design.initial)
-end
-
-function RLBase.state(env::WaveEnv)
-    return env.iter.u
-end
-
-function RLBase.state_space(env::WaveEnv)
-    return env.iter.u
-end
-
-function RLBase.reward(env::WaveEnv)
-    return env.reward_signal(env)
-end
-
-function (env::WaveEnv)(action::AbstractDesign)
-    update_design!(env, action)
-    propagate_wave!(env)
 end
 
 """
@@ -134,22 +63,22 @@ function interpolate(designs::Vector{DesignInterpolator}, dt::Float64)
     return design_trajectory
 end
 
-function Waves.plot(x::Vector, y::Vector)
+function Waves.plot(x::Vector, y::Vector; title = "", xlabel = "", ylabel = "")
     fig = GLMakie.Figure(resolution = Waves.RESOLUTION, fontsize = Waves.FONT_SIZE)
-    ax = GLMakie.Axis(fig[1, 1], title = "Plot", xlabel = "x", ylabel = "y")
+    ax = GLMakie.Axis(fig[1, 1], title = title, xlabel = xlabel, ylabel = ylabel)
     GLMakie.lines!(ax, x, y, color = :blue)
     return fig
 end
 
 gs = 10.0
-Δ = 0.3
+Δ = 0.1
 C0 = 2.0
 pml_width = 4.0
 pml_scale = 10.0
 tspan = (0.0, 20.0)
 dim = TwoDim(gs, Δ)
 u0 = gaussian_pulse(dim, 0.0, 0.0, 1.0)
-policy = Uniform.([-2.0, -2.0], [2.0, 2.0])
+
 design = DesignInterpolator(Cylinder(-3, -3, 1.0, 0.2), Cylinder(0.0, 0.0, 0.0, 0.0), tspan...)
 C = WaveSpeed(dim, C0, design)
 pml = build_pml(dim, pml_width) * pml_scale
@@ -161,13 +90,25 @@ sol_inc = solve(prob_inc, Midpoint())
 iter_tot = init(prob_tot, Midpoint(), advance_to_tstop = true)
 reward_signal = ScatteredFlux(sol_inc, WaveFlux(dim, circle_mask(dim, 6.0)))
 
-env = WaveEnv(iter_tot, C, 1.0, reward_signal)
-
+env = WaveEnv(iter_tot, C, 0.5, reward_signal)
 designs = Vector{DesignInterpolator}()
 
-@time while env.iter.t < tspan[end]
-    action = Cylinder(rand.(policy)..., 0.0, 0.0)
+actor = Chain(
+    Conv((2, 2), 3 => 32, relu),
+    MaxPool((2, 2)),
+    Conv((2, 2), 32 => 1, relu),
+    MaxPool((2, 2)),
+    Flux.flatten,
+    Dense(256, 2, tanh))
 
+# traj = CircularArraySARTTrajectory(
+#     capacity = 1000,
+#     state = typeof(state(env)) => size(state(env)),
+#     action = typeof(actor(Flux.batch([state(env)]))) => size(actor(Flux.batch([state(env)]))))
+
+@time while !is_terminated(env)
+    action = Cylinder(rand(action_space(env))..., 0.0, 0.0)
+    # action = Cylinder(actor(Flux.batch([state(env)]))..., 0.0, 0.0) * 10.0
     env(action)
     println("Reward: $(reward(env))")
 
@@ -175,21 +116,22 @@ designs = Vector{DesignInterpolator}()
     push!(designs, env.C.design)
 end
 
-sol_tot = interpolate(env.iter.sol, dim, 0.1)
-sol_inc = interpolate(sol_inc, dim, 0.1)
+dt_plot = 0.05
+sol_tot = interpolate(env.iter.sol, dim, dt_plot)
+sol_inc = interpolate(sol_inc, dim, dt_plot)
+
+render!(sol_tot, interpolate(designs, dt_plot), path = "env_dx=$(Δ)_dt=$(dt_plot).mp4")
+render!(sol_inc, interpolate(designs, dt_plot), path = "env_inc_dx=$(Δ)_dt=$(dt_plot).mp4")
+
 sol_sc = sol_tot - sol_inc
-# designs = interpolate(designs, 0.1)
-# render!(sol_tot, designs, path = "test_tot.mp4")
-# render!(sol_inc, designs, path = "test_inc.mp4")
-# render!(sol_sc, designs, path = "test_sc.mp4")
 
-# metric = WaveFlux(dim, circle_mask(dim, 6.0))
+f_tot = reward_signal.flux(sol_tot)
+f_inc = reward_signal.flux(sol_inc)
+f_sc = reward_signal.flux(sol_sc)
 
-fig = plot(sol_tot.t, reward_signal.flux(sol_tot))
-save(fig, "flux_tot.png")
-
-fig = plot(sol_inc.t, reward_signal.flux(sol_inc))
-save(fig, "flux_inc.png")
-
-fig = plot(sol_sc.t, reward_signal.flux(sol_sc))
-save(fig, "flux_sc.png")
+fig = GLMakie.Figure(resolution = (1920, 1080), fontsize = 40)
+ax = GLMakie.Axis(fig[1, 1], title = "Flux With Single Random Scatterer", xlabel = "Time (s)", ylabel = "Flux")
+GLMakie.lines!(ax, sol_inc.t, f_inc, linewidth = 3, color = :blue, label = "Incident")
+GLMakie.lines!(ax, sol_sc.t, f_sc, linewidth = 3, color = :red, label = "Scattered")
+GLMakie.axislegend(ax)
+save(fig, "flux_dx=$(Δ)_dt=$(dt_plot).png")

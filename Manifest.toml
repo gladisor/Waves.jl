@@ -2,7 +2,7 @@
 
 julia_version = "1.8.4"
 manifest_format = "2.0"
-project_hash = "28d89dedbf72cf7b5fe32c50b8f60e59b57d3e38"
+project_hash = "8ed59cb3518848bee3df88a500ad676ac374d7b4"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -305,12 +305,6 @@ version = "0.3.1"
 git-tree-sha1 = "249fe38abf76d48563e2f4556bebd215aa317e15"
 uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
 version = "4.1.1"
-
-[[deps.DSP]]
-deps = ["Compat", "FFTW", "IterTools", "LinearAlgebra", "Polynomials", "Random", "Reexport", "SpecialFunctions", "Statistics"]
-git-tree-sha1 = "da8b06f89fce9996443010ef92572b193f8dca1f"
-uuid = "717857b8-e6f2-59f4-9121-6e50c889abd2"
-version = "0.7.8"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "e8119c1a33d267e16108be441a287a6981ba1630"
@@ -1399,12 +1393,6 @@ version = "0.2.1"
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
 uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
 version = "0.1.2"
-
-[[deps.Polynomials]]
-deps = ["LinearAlgebra", "RecipesBase"]
-git-tree-sha1 = "a14a99e430e42a105c898fcc7f212334bc7be887"
-uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-version = "3.2.4"
 
 [[deps.PositiveFactorizations]]
 deps = ["LinearAlgebra"]

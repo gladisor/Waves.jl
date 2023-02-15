@@ -1,6 +1,4 @@
-export plot, plot!, save, render!
-
-export Wave
+# export render! #,plot, plot!, save, 
 
 const RESOLUTION = (1920, 1080)
 const FONT_SIZE = 30
@@ -9,7 +7,6 @@ struct Wave{D <: AbstractDim}
     dim::D
     u::AbstractArray{Float64}
 end
-
 
 """
 Replacing GLMakie save with easier syntax
@@ -73,4 +70,60 @@ end
 
 function plot!(fig::GLMakie.Figure, cyl::Cylinder)
     GLMakie.mesh!(fig.content[1], GLMakie.GeometryBasics.Cylinder3{Float32}(GLMakie.Point3f(cyl.x, cyl.y, -1.0), GLMakie.Point3f(cyl.x, cyl.y, 1.0), cyl.r), color = :grey)
+end
+
+"""
+Constructs a WaveSol which is interpolated from an ODESolution
+"""
+function interpolate(sol::ODESolution, dim::AbstractDim, dt::Float64)
+    u = typeof(sol.prob.u0)[]
+    t = collect(sol.prob.tspan[1]:dt:sol.prob.tspan[end])
+
+    for i ∈ axes(t, 1)
+        push!(u, sol(t[i]))
+    end
+
+    return WaveSol(dim, t, u)
+end
+
+"""
+Goes through a Vector of DesignInterpolator and creates a vector of AbstractDesign
+interpolated at the specified dt
+"""
+function interpolate(designs::Vector{DesignInterpolator}, dt::Float64)
+    design_trajectory = typeof(first(designs).initial)[]
+
+    for i ∈ axes(designs, 1)
+
+        design = designs[i]
+        t = collect(design.ti:dt:design.tf)
+
+        for j ∈ axes(t, 1)
+            push!(design_trajectory, designs[i](t[j]))
+        end
+
+        pop!(design_trajectory)
+    end
+
+    last_design = last(designs)
+
+    push!(design_trajectory, last_design(last_design.tf))
+
+    return design_trajectory
+end
+
+"""
+Renders an animation of a wave solution.
+"""
+function render!(sol::WaveSol, design_trajectory::Union{Vector{<:AbstractDesign}, Nothing} = nothing; path::String)
+    fig = Waves.plot(sol.dim)
+
+    GLMakie.record(fig, path, 1:length(sol)) do i
+        GLMakie.empty!(fig.content[1].scene)
+        if !isnothing(design_trajectory)
+            Waves.plot!(fig, design_trajectory[i])
+        end
+        wave = Waves.Wave(sol.dim, sol.u[i])
+        Waves.plot!(fig, wave)
+    end
 end

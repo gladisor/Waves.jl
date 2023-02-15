@@ -19,7 +19,7 @@ end
 Assuming an x axis which is symmetric build a vector which contains zeros in the
 interior and slowly scales from zero to one at the edges.
 """
-function build_pml(dim::TwoDim, width::Float64)
+function Waves.build_pml(dim::TwoDim, width::Float64)
     x, y = abs.(dim.x), abs.(dim.y)
 
     start_x = min(x[1], x[end]) - width

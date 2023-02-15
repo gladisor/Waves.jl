@@ -12,8 +12,8 @@ end
 
 function (C::WaveSpeed)(t::Float64)
     if isnothing(C.design)
-        return C.C0
+        return C.C0 |> cu
     else
-        return speed(C.dim, C.design(t), C.C0)
+        return speed(C.dim, C.design(t), C.C0) |> cu
     end
 end

@@ -36,8 +36,18 @@ function OneDim(grid_size::Float64, Δ::Float64)
     return OneDim(-grid_size, grid_size, Δ)
 end
 
+function OneDim(grid_size::Float64, n::Int)
+    return OneDim(collect(range(-grid_size, grid_size, n)))
+end
+
 function TwoDim(grid_size::Float64, Δ::Float64)
     return TwoDim(-grid_size, grid_size, -grid_size, grid_size, Δ)
+end
+
+function TwoDim(grid_size::Float64, n::Int)
+    return TwoDim(
+        collect(range(-grid_size, grid_size, n)),
+        collect(range(-grid_size, grid_size, n)))
 end
 
 function ThreeDim(grid_size::Float64, Δ::Float64)

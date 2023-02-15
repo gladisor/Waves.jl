@@ -11,6 +11,7 @@ abstract type Emitter <: AbstractDesign end
 
 include("dims.jl")
 include("cylinder.jl")
+include("configuration.jl")
 include("pml.jl")
 include("initial_conditions.jl")
 include("design.jl")

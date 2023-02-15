@@ -1,4 +1,3 @@
-
 """
 Abstract type which encapsulates structures which compute rewards from WaveEnv.
 """

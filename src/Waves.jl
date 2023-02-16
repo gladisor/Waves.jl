@@ -8,11 +8,11 @@ using CairoMakie
 import Flux
 using ReinforcementLearning
 
-
 abstract type AbstractDim end
 abstract type AbstractDesign end
 abstract type Scatterer <: AbstractDesign end
 abstract type Emitter <: AbstractDesign end
+abstract type RewardSignal end
 
 include("dims.jl")
 include("cylinder.jl")

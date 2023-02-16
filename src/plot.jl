@@ -23,7 +23,7 @@ end
 
 function interpolate(dim::AbstractDim, sol::ODESolution, dt::Float64)::WaveSol
     t = collect(sol.prob.tspan[1]:dt:sol.prob.tspan[end])
-    return WaveSol(dim, t, sol(t).u)
+    return WaveSol(dim, t, Flux.cpu(sol(t).u))
 end
 
 """

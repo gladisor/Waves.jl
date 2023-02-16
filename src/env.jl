@@ -1,11 +1,6 @@
 export WaveEnv, ScatteredFlux
 
 """
-Abstract type which encapsulates structures which compute rewards from WaveEnv.
-"""
-abstract type RewardSignal end
-
-"""
 Structure which mediates the interaction between a wave and a changing design.
 The effect of the design on the wave occurs through modulation of the wave WaveSpeed
 within the media.

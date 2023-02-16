@@ -3,7 +3,7 @@ module Waves
 using Distributions: Uniform
 using SparseArrays
 using DifferentialEquations
-import GLMakie
+# import GLMakie
 
 abstract type AbstractDim end
 abstract type AbstractDesign end
@@ -23,6 +23,6 @@ include("speed_field.jl")
 # include("wave_speed.jl")
 include("sol.jl")
 include("metrics.jl")
-include("plot.jl")
+# include("plot.jl")
 
 end

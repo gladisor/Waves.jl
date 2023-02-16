@@ -1,3 +1,5 @@
+export WaveEnv, ScatteredFlux
+
 """
 Abstract type which encapsulates structures which compute rewards from WaveEnv.
 """
@@ -13,21 +15,6 @@ mutable struct WaveEnv <: AbstractEnv
     C::SpeedField
     dt::Float64
     reward_signal::RewardSignal
-end
-
-function (rs::RewardSignal)(env::WaveEnv) end
-
-"""
-Computes the flux of a scattered wave. Contains the solution of the incident wave
-"""
-mutable struct ScatteredFlux <: RewardSignal
-    sol_inc::ODESolution
-    flux::WaveFlux
-end
-
-function (scattered_flux::ScatteredFlux)(env::WaveEnv)
-    u_sc = env.iter.u[:, :, 1] .- scattered_flux.sol_inc(env.iter.t)
-    return scattered_flux.flux(u_sc[:, :, 1])
 end
 
 """
@@ -79,4 +66,18 @@ end
 
 function RLBase.reset!(env::WaveEnv)
     reinit!(env.iter)
+end
+
+## Reward Signals
+"""
+Computes the flux of a scattered wave. Contains the solution of the incident wave
+"""
+mutable struct ScatteredFlux <: RewardSignal
+    sol_inc::ODESolution
+    flux::WaveFlux
+end
+
+function (scattered_flux::ScatteredFlux)(env::WaveEnv)
+    u_sc = env.iter.u[:, :, 1] .- scattered_flux.sol_inc(env.iter.t)
+    return scattered_flux.flux(u_sc[:, :, 1])
 end

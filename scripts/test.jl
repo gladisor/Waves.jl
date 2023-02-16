@@ -1,13 +1,21 @@
-using CUDA
+println("Loading libraries")
+
+## plotting
+using CairoMakie
+using CairoMakie: Point
+
+## diffeq
 using DifferentialEquations
-using DifferentialEquations.OrdinaryDiffEq: ODEIntegrator
+
+## rl
 using ReinforcementLearning
+
+## utils
 using IntervalSets
+import Flux
 
+## local source
 using Waves
-using Waves: AbstractDesign
-
-include("../src/env.jl")
 
 gs = 10.0
 dx = 0.05
@@ -17,41 +25,42 @@ pml_width = 4.0
 pml_scale = 20.0
 tspan = (0.0, 20.0)
 
+println("Constructing components")
 dim = TwoDim(gs, dx)
 u = pulse(dim)
-
-u0 = cat(u, zeros(size(u)..., 2), dims = 3) |> cu
-grad = gradient(dim.x) |> cu
-
+u0 = cat(u, zeros(size(u)..., 2), dims = 3) |> Flux.gpu
+grad = gradient(dim.x) |> Flux.gpu
 design = DesignInterpolator(Cylinder(-3, -3, 1.0, 0.2), Cylinder(0.0, 0.0, 0.0, 0.0), tspan...)
 C_inc = SpeedField(dim, ambient_speed)
 C = SpeedField(dim, ambient_speed, design)
-
-pml = build_pml(dim, pml_width, pml_scale) |> cu
-
+pml = build_pml(dim, pml_width, pml_scale) |> Flux.gpu
 prob_inc = ODEProblem(wave!, u0, tspan, [grad, C_inc, pml])
 prob = ODEProblem(wave!, u0, tspan, [grad, C, pml])
 
+println("Solving")
 @time sol_inc = solve(prob_inc, ORK256(), dt = dt)
 
-# reward_signal = ScatteredFlux(sol_inc, WaveFlux(dim, circle_mask(dim, 6.0)))
+reward_signal = ScatteredFlux(sol_inc, WaveFlux(dim, circle_mask(dim, 6.0)))
+iter = init(prob, ORK256(),  advance_to_tstop = true,  dt = dt)
 
-# iter = init(prob, ORK256(),  advance_to_tstop = true,  dt = dt)
+env = WaveEnv(iter, C, 0.5, reward_signal)
+designs = Vector{DesignInterpolator}()
 
-# env = WaveEnv(iter, C, 0.5, reward_signal)
-# designs = Vector{DesignInterpolator}()
+@time while !is_terminated(env)
+    action = Cylinder(rand(action_space(env))..., 0.0, 0.0)
+    env(action)
+    println("Time: $(env.iter.t)")
+    push!(designs, env.C.design)
+end
 
-# @time while !is_terminated(env)
-#     action = Cylinder(rand(action_space(env))..., 0.0, 0.0)
-#     env(action)
-#     println("Time: $(env.iter.t)")
-#     push!(designs, env.C.design)
-# end
+sol_inc_interp = interpolate(dim, sol_inc, 0.1)
+sol_tot_interp = interpolate(dim, env.iter.sol, 0.1)
+sol_sc = sol_tot_interp - sol_inc_interp
 
-# # sol_inc_interp = Waves.interpolate(sol_inc, dim, 0.1)
-# # sol_tot_interp = Waves.interpolate(env.iter.sol, dim, 0.1)
-
-# # sol_sc = sol_tot_interp - sol_inc_interp
+design_interp = Waves.interpolate(designs, 0.1)
+Waves.render!(sol_tot_interp, design_interp, path = "sol_tot.mp4")
+Waves.render!(sol_inc_interp, path = "sol_inc.mp4")
+Waves.render!(sol_sc, design_interp, path = "sol_sc.mp4")
 
 # # flux_inc = reward_signal.flux(sol_inc_interp)
 # # flux_sc = reward_signal.flux(sol_sc)
@@ -63,7 +72,3 @@ prob = ODEProblem(wave!, u0, tspan, [grad, C, pml])
 # # axislegend(ax)
 # # save("flux.png", fig)
 
-# # design_interp = Waves.interpolate(designs, 0.1)
-# # Waves.render!(sol_tot_interp, design_interp, path = "sol_tot.mp4")
-# # Waves.render!(sol_inc_interp, path = "sol_inc.mp4")
-# # Waves.render!(sol_sc, design_interp, path = "sol_sc.mp4")

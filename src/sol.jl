@@ -21,3 +21,7 @@ function Base.:-(sol1::WaveSol, sol2::WaveSol)
     u = [u1 .- u2 for (u1, u2) in zip(sol1.u, sol2.u)]
     return WaveSol(sol1.dim, sol1.t, u)
 end
+
+function Base.getindex(sol::WaveSol, i::Int64)
+    return sol.u[i]
+end

@@ -3,9 +3,11 @@ module Waves
 using Distributions: Uniform
 using SparseArrays
 using DifferentialEquations
-using CUDA
+using DifferentialEquations.OrdinaryDiffEq: ODEIntegrator
 using CairoMakie
-# import GLMakie
+import Flux
+using ReinforcementLearning
+
 
 abstract type AbstractDim end
 abstract type AbstractDesign end
@@ -23,4 +25,6 @@ include("speed_field.jl")
 
 include("sol.jl")
 include("metrics.jl")
+include("env.jl")
+include("plot.jl")
 end

@@ -46,15 +46,8 @@ function square_mask(dim::TwoDim, radius::Float64)
 end
 
 function circle_mask(dim::TwoDim, radius::Float64)
-    mask = zeros(size(dim))
     g = grid(dim)
 
-    for i ∈ axes(mask, 1)
-        for j ∈ axes(mask, 2)
-            x, y = g[i, j]
-            mask[i, j] = (x ^ 2 + y ^ 2) <= radius ^ 2
-        end
-    end
-
+    mask = dropdims(sum(g .^ 2, dims = 3) .< radius ^ 2, dims = 3)
     return mask
 end

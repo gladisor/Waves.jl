@@ -1,6 +1,6 @@
 export build_pml
 
-function build_pml(dim::OneDim, width::Float64)
+function build_pml(dim::OneDim, width::Float64, scale::Float64)
     x = abs.(dim.x)
 
     start = min(x[1], x[end]) - width
@@ -12,14 +12,14 @@ function build_pml(dim::OneDim, width::Float64)
     end
 
     clamp!(pml, 0.0, 1.0)
-    return pml .^ 2
+    return pml .^ 2 * scale
 end
 
 """
 Assuming an x axis which is symmetric build a vector which contains zeros in the
 interior and slowly scales from zero to one at the edges.
 """
-function Waves.build_pml(dim::TwoDim, width::Float64)
+function build_pml(dim::TwoDim, width::Float64, scale::Float64)
     x, y = abs.(dim.x), abs.(dim.y)
 
     start_x = min(x[1], x[end]) - width
@@ -35,10 +35,10 @@ function Waves.build_pml(dim::TwoDim, width::Float64)
     end
 
     clamp!(pml, 0.0, 1.0)
-    return pml .^ 2
+    return pml .^ 2 * scale
 end
 
-function build_pml(dim::ThreeDim, width::Float64)
+function build_pml(dim::ThreeDim, width::Float64, scale::Float64)
     x, y, z = abs.(dim.x), abs.(dim.y), abs.(dim.z)
 
     start_x = x[end] - width
@@ -56,5 +56,5 @@ function build_pml(dim::ThreeDim, width::Float64)
         end
     end
 
-    return pml .^ 2
+    return pml .^ 2 * scale
 end

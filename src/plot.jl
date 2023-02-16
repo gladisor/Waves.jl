@@ -1,5 +1,3 @@
-# export render! #,plot, plot!, save, 
-
 const RESOLUTION = (1920, 1080)
 const FONT_SIZE = 30
 

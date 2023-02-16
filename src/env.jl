@@ -10,7 +10,7 @@ within the media.
 """
 mutable struct WaveEnv <: AbstractEnv
     iter::ODEIntegrator
-    C::WaveSpeed
+    C::SpeedField
     dt::Float64
     reward_signal::RewardSignal
 end
@@ -36,8 +36,9 @@ a time interval. It sets the current design equal to the design at the end of th
 """
 function update_design!(env::WaveEnv, action)
     design = DesignInterpolator(env.C.design(env.iter.t), action, env.iter.t, env.iter.t + env.dt)
-    C = WaveSpeed(env.C.dim, env.C.C0, design)
-    env.C = C
+    # C = WaveSpeed(env.C.dim, env.C.C0, design)
+    env.C.design = design
+    # env.C = C
     env.iter.p[2] = env.C
 end
 

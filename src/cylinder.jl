@@ -37,16 +37,8 @@ function Base.:∈(xy::Tuple, cyl::Cylinder)
     return ((xy[1] - cyl.x) ^ 2 + (xy[2] - cyl.y) ^ 2) <= cyl.r ^ 2
 end
 
-function speed(dim::TwoDim, cyl::Cylinder, C0::Matrix{Float64})
-    C = ones(size(dim)) .* C0
-
-    for i ∈ axes(C, 1)
-        for j ∈ axes(C, 2)
-            if (dim.x[i], dim.y[j]) ∈ cyl
-                C[i, j] = cyl.c
-            end
-        end
-    end
-
-    return C
+function speed(cyl::Cylinder, g::AbstractArray{<: AbstractFloat, 3}, ambient_speed)
+    pos = [cyl.x ;;; cyl.y]
+    in_cyl = dropdims(sum((g .- pos) .^ 2, dims = 3) .< cyl.r ^ 2, dims = 3)
+    return .~ in_cyl .* ambient_speed .+ in_cyl * cyl.c
 end

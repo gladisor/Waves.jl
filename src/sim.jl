@@ -1,4 +1,21 @@
-export split_wave!
+export gradient, split_wave!, wave!
+
+"""
+Function for constructing a gradient operator for a one dimensional scalar field.
+"""
+function gradient(x::Vector)
+    grad = zeros(size(x, 1), size(x, 1))
+    Δ = (x[end] - x[1]) / (length(x) - 1)
+
+    grad[[1, 2, 3], 1] .= [-3.0, 4.0, -1.0] ## left boundary edge case
+    grad[[end-2, end-1, end], end] .= [1.0, -4.0, 3.0] ## right boundary edge case
+
+    for i ∈ 2:(size(grad, 2) - 1)
+        grad[[i - 1, i + 1], i] .= [-1.0, 1.0]
+    end
+
+    return sparse((grad / (2 * Δ))')
+end
 
 """
 Obtains the first derivative of a a one dimensional function using central differences for
@@ -116,4 +133,16 @@ function split_wave!(du::Array{Float64, 4}, u::Array{Float64, 4}, p, t)
     du[:, :, :, 2] .= ∇x(U, Δ) .- Vx .* pml
     du[:, :, :, 3] .= ∇y(U, Δ) .- Vy .* pml
     du[:, :, :, 4] .= ∇z(U, Δ) .- Vz.* pml
+end
+
+function wave!(du::Array{Float64, 3}, u::Array{Float64, 3}, p, t::Float64)
+    grad, C, pml = p
+
+    U = u[:, :, 1]
+    Vx = u[:, :, 2]
+    Vy = u[:, :, 3]
+
+    du[:, :, 1] .= C(t) .* (grad * Vx .+ (grad * Vy')') .- U .* pml
+    du[:, :, 2] .= (grad * U) .- Vx .* pml
+    du[:, :, 3] .= (grad * U')' .- Vy .* pml
 end

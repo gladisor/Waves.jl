@@ -1,4 +1,4 @@
-export OneDim, TwoDim, ThreeDim, dims, grid
+export OneDim, TwoDim, ThreeDim, grid
 
 struct OneDim <: AbstractDim
     x::Vector{Float64}
@@ -67,13 +67,8 @@ function Base.size(dim::ThreeDim)
 end
 
 function grid(dim::TwoDim)
-    g = Matrix{Tuple}(undef, size(dim)...)
-
-    for i ∈ axes(g, 1)
-        for j ∈ axes(g, 2)
-            g[i, j] = (dim.x[i], dim.y[j])
-        end
-    end
-
+    x = repeat(dim.x, 1, length(dim.y))
+    y = repeat(dim.y', length(dim.x))
+    g = cat(x, y, dims = 3)
     return g
 end

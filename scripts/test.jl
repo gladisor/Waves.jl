@@ -34,8 +34,6 @@ prob = ODEProblem(wave!, u0, tspan, [grad, C, pml])
 
 @time sol_inc = solve(prob_inc, ORK256(), dt = dt)
 
-
-
 # reward_signal = ScatteredFlux(sol_inc, WaveFlux(dim, circle_mask(dim, 6.0)))
 
 # iter = init(prob, ORK256(),  advance_to_tstop = true,  dt = dt)

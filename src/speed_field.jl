@@ -8,7 +8,7 @@ mutable struct SpeedField{Dim <: AbstractDim, Des <: Union{DesignInterpolator, N
 end
 
 function SpeedField(dim::AbstractDim, ambient_speed::Float64, design::Union{DesignInterpolator, Nothing} = nothing)
-    return SpeedField(dim, grid(dim), ones(size(dim)) * ambient_speed, design)
+    return SpeedField(dim, cu(grid(dim)), cu(ones(size(dim)) * ambient_speed), design)
 end
 
 function (C::SpeedField)(t::Float64)

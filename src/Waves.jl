@@ -3,6 +3,7 @@ module Waves
 using Distributions: Uniform
 using SparseArrays
 using DifferentialEquations
+using CUDA
 # import GLMakie
 
 abstract type AbstractDim end

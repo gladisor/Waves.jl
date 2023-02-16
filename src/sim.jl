@@ -135,7 +135,7 @@ function split_wave!(du::Array{Float64, 4}, u::Array{Float64, 4}, p, t)
     du[:, :, :, 4] .= ∇z(U, Δ) .- Vz.* pml
 end
 
-function wave!(du::Array{Float64, 3}, u::Array{Float64, 3}, p, t::Float64)
+function wave!(du::AbstractArray{<: AbstractFloat, 3}, u::AbstractArray{<: AbstractFloat, 3}, p, t::AbstractFloat)
     grad, C, pml = p
 
     U = u[:, :, 1]

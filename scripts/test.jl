@@ -1,7 +1,8 @@
-using GLMakie
+using CUDA
 using DifferentialEquations
 using DifferentialEquations.OrdinaryDiffEq: ODEIntegrator
 using ReinforcementLearning
+using IntervalSets
 
 using Waves
 using Waves: AbstractDesign
@@ -9,7 +10,7 @@ using Waves: AbstractDesign
 include("../src/env.jl")
 
 gs = 10.0
-dx = 0.05
+dx = 0.03
 dt = 0.03
 ambient_speed = 2.0
 pml_width = 4.0
@@ -17,16 +18,16 @@ pml_scale = 20.0
 tspan = (0.0, 20.0)
 
 dim = TwoDim(gs, dx)
-g = grid(dim)
 u = pulse(dim)
-u0 = cat(u, zeros(size(u)..., 2), dims = 3)
 
-grad = gradient(dim.x)
+u0 = cat(u, zeros(size(u)..., 2), dims = 3) |> cu
+grad = gradient(dim.x) |> cu
+
 design = DesignInterpolator(Cylinder(-3, -3, 1.0, 0.2), Cylinder(0.0, 0.0, 0.0, 0.0), tspan...)
 C_inc = SpeedField(dim, ambient_speed)
 C = SpeedField(dim, ambient_speed, design)
 
-pml = build_pml(dim, pml_width, pml_scale)
+pml = build_pml(dim, pml_width, pml_scale) |> cu
 
 prob_inc = ODEProblem(wave!, u0, tspan, [grad, C_inc, pml])
 prob = ODEProblem(wave!, u0, tspan, [grad, C, pml])

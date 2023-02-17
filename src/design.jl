@@ -8,6 +8,7 @@ struct DesignInterpolator
 end
 
 function (interp::DesignInterpolator)(t::Float64)
-    t = (t - interp.ti) / (interp.tf - interp.ti)
+    d = (interp.tf - interp.ti)
+    t = ifelse(d > 0.0, (t - interp.ti) / d, 0.0)
     return interp.initial + t * interp.Δ
 end

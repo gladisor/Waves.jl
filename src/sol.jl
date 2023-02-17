@@ -6,8 +6,8 @@ of a wave simulation
 """
 struct WaveSol{D <: AbstractDim}
     dim::D
-    t::Vector{Float64}
-    u::Vector{<: AbstractArray{Float64}}
+    t::Vector{<: AbstractFloat}
+    u::Vector{<: AbstractArray{<: AbstractFloat}}
 end
 
 function Base.length(sol::WaveSol)

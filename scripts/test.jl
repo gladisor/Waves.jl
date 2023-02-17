@@ -8,12 +8,12 @@ using ReinforcementLearning
 using Waves
 
 gs = 10.0
-dx = 0.05
-dt = 0.05
+dx = 0.025
+dt = 0.02
 ambient_speed = 2.0
 pml_width = 4.0
 pml_scale = 20.0
-tspan = (0.0, 20.0)
+tspan = (0.0, 10.0)
 
 println("Constructing components")
 dim = TwoDim(gs, dx)

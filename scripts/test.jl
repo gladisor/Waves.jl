@@ -9,11 +9,11 @@ using Waves
 
 gs = 10.0
 dx = 0.025
-dt = 0.02
-ambient_speed = 2.0
+dt = 0.025
+ambient_speed = 1.0
 pml_width = 4.0
 pml_scale = 20.0
-tspan = (0.0, 10.0)
+tspan = (0.0, 20.0)
 
 println("Constructing components")
 dim = TwoDim(gs, dx)

@@ -51,3 +51,13 @@ sol_sc = sol_tot_interp - sol_inc_interp
 render!(sol_tot_interp, design_interp, path = "sol_tot.mp4")
 render!(sol_inc_interp, path = "sol_inc.mp4")
 render!(sol_sc, design_interp, path = "sol_sc.mp4")
+
+flux_inc = reward_signal.flux(sol_inc_interp)
+flux_sc = reward_signal.flux(sol_sc)
+
+fig = Figure(resolution = (1920, 1080), fontsize = 40)
+ax = Axis(fig[1, 1], title = "Acoustic Flux", xlabel = "Time (s)", ylabel = "Flux")
+lines!(ax, sol_inc_interp.t, flux_inc, label = "Incident", color = :blue, linewidth = 3)
+lines!(ax, sol_sc.t, flux_sc, label = "Scattered", color = :red, linewidth = 3)
+axislegend(ax)
+save("flux.png", fig)

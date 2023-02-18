@@ -25,6 +25,6 @@ include("speed_field.jl")
 
 include("sol.jl")
 include("metrics.jl")
-include("env.jl")
+# include("env.jl")
 include("plot.jl")
 end

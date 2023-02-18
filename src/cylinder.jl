@@ -37,6 +37,10 @@ function Base.:∈(xy::Tuple, cyl::Cylinder)
     return ((xy[1] - cyl.x) ^ 2 + (xy[2] - cyl.y) ^ 2) <= cyl.r ^ 2
 end
 
+function Base.zero(::Cylinder)
+    return Cylinder(0.0, 0.0, 0.0, 0.0)
+end
+
 function speed(cyl::Cylinder, g::AbstractArray{<: AbstractFloat, 3}, ambient_speed)
     pos = Flux.gpu([cyl.x ;;; cyl.y])
     in_cyl = dropdims(sum((g .- pos) .^ 2, dims = 3) .< cyl.r ^ 2, dims = 3)

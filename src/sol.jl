@@ -25,3 +25,7 @@ end
 function Base.getindex(sol::WaveSol, i::Int64)
     return sol.u[i]
 end
+
+function Base.lastindex(sol::WaveSol)
+    return sol.u[end]
+end

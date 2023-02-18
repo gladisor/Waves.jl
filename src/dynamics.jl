@@ -30,7 +30,7 @@ function WaveDynamics(;
         dim::AbstractDim, 
         pml_width::Float32, pml_scale::Float32, 
         ambient_speed::Float32, dt::Float32, 
-        design::AbstractDesign = nothing)
+        design::Union{AbstractDesign, Nothing} = nothing)
 
     grad = gradient(dim.x)
 

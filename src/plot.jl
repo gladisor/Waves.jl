@@ -31,14 +31,22 @@ Renders an animation of a wave solution.
 function render!(
         sol::WaveSol{TwoDim}, 
         design::Union{DesignTrajectory, Nothing} = nothing; 
-        path::String)
+        path::String,
+        fps::Int = 24)
 
     p = WavePlot(sol.dim)
-    record(p.fig, path, 1:length(sol)) do i
+
+    wave_interp = linear_interpolation(sol.t, sol.u)
+    design_interp = linear_interpolation(sol.t, design.traj)
+    n_frames = Int(round(fps * sol.t[end]))
+
+    t = collect(range(sol.t[1], sol.t[end], n_frames))
+
+    record(p.fig, path, 1:n_frames, framerate = fps) do i
         empty!(p.ax)
-        heatmap!(p.ax, sol.dim.x, sol.dim.y, sol[i][:, :, 1], colormap = :ice)
+        heatmap!(p.ax, sol.dim.x, sol.dim.y, wave_interp(t[i])[:, :, 1], colormap = :ice)
         if !isnothing(design)
-            mesh!(p.ax, design[i])
+            mesh!(p.ax, design_interp(t[i]))
         end
     end
 end

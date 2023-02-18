@@ -21,11 +21,11 @@ function Base.:-(cyl1::Cylinder, cyl2::Cylinder)
     return Cylinder(cyl1.x - cyl2.x, cyl1.y - cyl2.y, cyl1.r - cyl2.r, cyl1.c - cyl2.c)
 end
 
-function Base.:*(cyl::Cylinder, n::Float32)
+function Base.:*(cyl::Cylinder, n::AbstractFloat)
     return Cylinder(cyl.x * n, cyl.y * n, cyl.r * n, cyl.c * n)
 end
 
-function Base.:*(n::Float32, cyl::Cylinder)
+function Base.:*(n::AbstractFloat, cyl::Cylinder)
     return cyl * n
 end
 

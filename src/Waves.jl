@@ -4,6 +4,7 @@ using SparseArrays
 using IntervalSets
 using Distributions: Uniform
 using CairoMakie
+using Interpolations
 using Flux
 
 abstract type AbstractDim end

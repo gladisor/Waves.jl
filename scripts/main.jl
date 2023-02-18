@@ -23,7 +23,7 @@ while env.dyn.t < 500
     println(time(env))
 end
 
-wave_traj = vcat(wave_traj...)
+wave_traj = cpu(vcat(wave_traj...))
 design_traj = vcat(design_traj...)
 
 render!(wave_traj, design_traj, path = "vid.mp4")

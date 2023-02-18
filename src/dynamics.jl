@@ -45,7 +45,7 @@ function WaveDynamics(;
 end
 
 function f(u::AbstractArray, t::Float32, dyn::WaveDynamics)
-    dt = zeros(size(u))
+    dt = zeros(Float32, size(u))
 
     U = view(u, :, :, 1)
     Vx = view(u, :, :, 2)

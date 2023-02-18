@@ -12,10 +12,10 @@ function Waves.integrate(u, dyn::WaveDynamics, n::Int64)
         dyn.t += 1
 
         push!(t, dyn.t * dyn.dt)
-        push!(sol, Flux.cpu(u))
+        push!(sol, u)
     end
 
-    return WaveSol(dyn.dim, t, sol)
+    return cpu(WaveSol(dyn.dim, t, sol))
 end
 
 dx = 0.025f0

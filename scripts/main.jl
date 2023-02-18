@@ -9,7 +9,7 @@ dt = sqrt(dx^2/ambient_speed^2)
 kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => ambient_speed, :dt => dt)
 dyn = WaveDynamics(dim = TwoDim(15.0f0, dx), design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)
 u = pulse(dyn.dim)
-env = WaveEnv(u, dyn, 10) |> gpu
+env = WaveEnv(u, dyn, 20) |> gpu
 policy = pos_action_space(env.dyn.C.design.initial, 1.0f0)
 
 wave_traj = WaveSol{TwoDim}[]

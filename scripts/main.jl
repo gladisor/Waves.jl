@@ -2,12 +2,10 @@ using Flux
 
 using Waves
 
-Δ = 0.05f0
-
-kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => 1.0f0, :dt => Δ)
-dyn = WaveDynamics(dim = TwoDim(10.0f0, Δ), design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)
+kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => 1.0f0, :dt => 0.025f0)
+dyn = WaveDynamics(dim = TwoDim(10.0f0, 0.025f0), design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.0f0); kwargs...)
 u = pulse(dyn.dim)
-env = WaveEnv(u, dyn, 5) |> gpu
+env = WaveEnv(u, dyn, 10) |> gpu
 policy = pos_action_space(env.dyn.C.design.initial, 1.0f0)
 
 wave_traj = WaveSol{TwoDim}[]
@@ -15,7 +13,7 @@ design_traj = DesignTrajectory{Cylinder}[]
 
 action = zero(env.dyn.C.design(0.0f0))
 
-while env.dyn.t < 500
+while env.dyn.t < 1000
     sol = env(rand(policy))
     # sol = env(action)
     push!(wave_traj, sol)

@@ -1,12 +1,12 @@
 export pulse
 
-function pulse(dim::OneDim, x = 0.0, intensity = 1.0)
+function pulse(dim::OneDim, x::Float32 = 0.0f0, intensity::Float32 = 1.0f0)
     u = exp.(- intensity * (dim.x .- x) .^ 2)
-    return cat(u, zeros(size(u)), dims = 2)
+    return cat(u, zeros(Float32, size(u)), dims = 2)
 end
 
-function pulse(dim::TwoDim, x = 0.0, y = 0.0, intensity = 1.0)
-    u = zeros(length(dim.x), length(dim.y))
+function pulse(dim::TwoDim, x::Float32 = 0.0f0, y::Float32 = 0.0f0, intensity::Float32 = 1.0f0)
+    u = zeros(Float32, length(dim.x), length(dim.y))
 
     for i ∈ axes(u, 1)
         for j ∈ axes(u, 2)
@@ -14,5 +14,5 @@ function pulse(dim::TwoDim, x = 0.0, y = 0.0, intensity = 1.0)
         end
     end
 
-    return cat(u, zeros(size(u)..., 2), dims = 3)
+    return cat(u, zeros(Float32, size(u)..., 2), dims = 3)
 end

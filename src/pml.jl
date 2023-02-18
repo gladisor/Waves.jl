@@ -1,6 +1,6 @@
 export build_pml
 
-function build_pml(dim::OneDim, width::Float64, scale::Float64)
+function build_pml(dim::OneDim, width::Float32, scale::Float32)
     x = abs.(dim.x)
 
     start = min(x[1], x[end]) - width
@@ -19,7 +19,7 @@ end
 Assuming an x axis which is symmetric build a vector which contains zeros in the
 interior and slowly scales from zero to one at the edges.
 """
-function build_pml(dim::TwoDim, width::Float64, scale::Float64)
+function build_pml(dim::TwoDim, width::Float32, scale::Float32)
     x, y = abs.(dim.x), abs.(dim.y)
 
     start_x = min(x[1], x[end]) - width
@@ -38,7 +38,7 @@ function build_pml(dim::TwoDim, width::Float64, scale::Float64)
     return pml .^ 2 * scale
 end
 
-function build_pml(dim::ThreeDim, width::Float64, scale::Float64)
+function build_pml(dim::ThreeDim, width::Float32, scale::Float32)
     x, y, z = abs.(dim.x), abs.(dim.y), abs.(dim.z)
 
     start_x = x[end] - width

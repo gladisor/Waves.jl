@@ -1,18 +1,18 @@
 export OneDim, TwoDim, ThreeDim, grid
 
 struct OneDim <: AbstractDim
-    x::Vector{Float64}
+    x::Vector{Float32}
 end
 
 struct TwoDim <: AbstractDim
-    x::Vector{Float64}
-    y::Vector{Float64}
+    x::Vector{Float32}
+    y::Vector{Float32}
 end
 
 struct ThreeDim <: AbstractDim
-    x::Vector{Float64}
-    y::Vector{Float64}
-    z::Vector{Float64}
+    x::Vector{Float32}
+    y::Vector{Float32}
+    z::Vector{Float32}
 end
 
 function OneDim(x_min, x_max, Δ)
@@ -32,25 +32,25 @@ function ThreeDim(x_min, x_max, y_min, y_max, z_min, z_max, Δ)
     return ThreeDim(x, y, z)
 end
 
-function OneDim(grid_size::Float64, Δ::Float64)
+function OneDim(grid_size::Float32, Δ::Float32)
     return OneDim(-grid_size, grid_size, Δ)
 end
 
-function OneDim(grid_size::Float64, n::Int)
+function OneDim(grid_size::Float32, n::Int)
     return OneDim(collect(range(-grid_size, grid_size, n)))
 end
 
-function TwoDim(grid_size::Float64, Δ::Float64)
+function TwoDim(grid_size::Float32, Δ::Float32)
     return TwoDim(-grid_size, grid_size, -grid_size, grid_size, Δ)
 end
 
-function TwoDim(grid_size::Float64, n::Int)
+function TwoDim(grid_size::Float32, n::Int)
     return TwoDim(
         collect(range(-grid_size, grid_size, n)),
         collect(range(-grid_size, grid_size, n)))
 end
 
-function ThreeDim(grid_size::Float64, Δ::Float64)
+function ThreeDim(grid_size::Float32, Δ::Float32)
     return ThreeDim(-grid_size, grid_size, -grid_size, grid_size, -grid_size, grid_size, Δ)
 end
 

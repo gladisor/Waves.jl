@@ -1,3 +1,5 @@
+using Flux
+
 using Waves
 
 function Flux.gpu(dim::TwoDim)

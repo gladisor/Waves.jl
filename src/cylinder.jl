@@ -38,7 +38,7 @@ function Base.:∈(xy::Tuple, cyl::Cylinder)
 end
 
 function Base.zero(::Cylinder)
-    return Cylinder(0.0, 0.0, 0.0, 0.0)
+    return Cylinder(0.0f0, 0.0f0, 0.0f0, 0.0f0)
 end
 
 function speed(cyl::Cylinder, g::AbstractArray{Float32, 3}, ambient_speed)

@@ -78,5 +78,5 @@ function Flux.gpu(dim::TwoDim)
 end
 
 function Flux.cpu(dim::TwoDim)
-    return WaveSol(cpu(dim.x), cpu(dim.y))
+    return TwoDim(cpu(dim.x), cpu(dim.y))
 end

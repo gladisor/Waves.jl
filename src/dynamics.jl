@@ -45,17 +45,21 @@ function WaveDynamics(;
 end
 
 function f(u::AbstractArray, t::Float32, dyn::WaveDynamics)
-    dt = zeros(Float32, size(u))
+    # dt = zeros(Float32, size(u))
 
     U = view(u, :, :, 1)
     Vx = view(u, :, :, 2)
     Vy = view(u, :, :, 3)
 
-    dt[:, :, 1] .= dyn.C(t) .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
-    dt[:, :, 2] .= dyn.grad * U .- Vx .* dyn.pml
-    dt[:, :, 3] .= (dyn.grad * U')' .- Vy .* dyn.pml
+    # dt[:, :, 1] .= dyn.C(t) .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
+    # dt[:, :, 2] .= dyn.grad * U .- Vx .* dyn.pml
+    # dt[:, :, 3] .= (dyn.grad * U')' .- Vy .* dyn.pml
+    # return dt
 
-    return dt
+    dU = dyn.C(t) .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
+    dVx = dyn.grad * U .- Vx .* dyn.pml
+    dVy = (dyn.grad * U')' .- Vy .* dyn.pml
+    return cat(dU, dVx, dVy, dims = 3)
 end
 
 function runge_kutta(u::AbstractArray, dyn::WaveDynamics)

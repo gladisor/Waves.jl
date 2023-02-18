@@ -45,16 +45,9 @@ function WaveDynamics(;
 end
 
 function f(u::AbstractArray, t::Float32, dyn::WaveDynamics)
-    # dt = zeros(Float32, size(u))
-
     U = view(u, :, :, 1)
     Vx = view(u, :, :, 2)
     Vy = view(u, :, :, 3)
-
-    # dt[:, :, 1] .= dyn.C(t) .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
-    # dt[:, :, 2] .= dyn.grad * U .- Vx .* dyn.pml
-    # dt[:, :, 3] .= (dyn.grad * U')' .- Vy .* dyn.pml
-    # return dt
 
     dU = dyn.C(t) .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
     dVx = dyn.grad * U .- Vx .* dyn.pml

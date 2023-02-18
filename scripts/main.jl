@@ -6,6 +6,10 @@ function Flux.gpu(dim::TwoDim)
     return TwoDim(gpu(dim.x), gpu(dim.y))
 end
 
+function Flux.cpu(dim::TwoDim)
+    return WaveSol(cpu(dim.x), cpu(dim.y))
+end
+
 function Flux.gpu(C::SpeedField)
     dim = gpu(C.dim)
     g = gpu(C.g)
@@ -27,8 +31,10 @@ function Flux.gpu(env::WaveEnv)
     return WaveEnv(u, dyn, env.design_steps)
 end
 
-kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => 1.0f0, :dt => 0.05f0)
-dyn = WaveDynamics(dim = TwoDim(10.0f0, 0.05f0), design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)
+Δ = 0.05f0
+
+kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => 1.0f0, :dt => Δ)
+dyn = WaveDynamics(dim = TwoDim(10.0f0, Δ), design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)
 u = pulse(dyn.dim)
 env = WaveEnv(u, dyn, 5) |> gpu
 policy = pos_action_space(env.dyn.C.design.initial, 1.0f0)

@@ -72,3 +72,11 @@ function grid(dim::TwoDim)
     g = cat(x, y, dims = 3)
     return g
 end
+
+function Flux.gpu(dim::TwoDim)
+    return TwoDim(gpu(dim.x), gpu(dim.y))
+end
+
+function Flux.cpu(dim::TwoDim)
+    return WaveSol(cpu(dim.x), cpu(dim.y))
+end

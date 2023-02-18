@@ -2,22 +2,6 @@ using Flux
 
 using Waves
 
-function Waves.integrate(u, dyn::WaveDynamics, n::Int64)
-    t = Float32[dyn.t * dyn.dt]
-    sol = typeof(u)[u]
-    tf = dyn.t + n
-
-    while dyn.t < tf
-        u = runge_kutta(u, dyn)
-        dyn.t += 1
-
-        push!(t, dyn.t * dyn.dt)
-        push!(sol, u)
-    end
-
-    return cpu(WaveSol(dyn.dim, t, sol))
-end
-
 dx = 0.025f0
 ambient_speed = 1.0f0
 dt = sqrt(dx^2/ambient_speed^2)

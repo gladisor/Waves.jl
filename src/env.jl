@@ -24,3 +24,9 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.u = sol.u[end]
     return sol
 end
+
+function Flux.gpu(env::WaveEnv)
+    u = gpu(env.u)
+    dyn = gpu(env.dyn)
+    return WaveEnv(u, dyn, env.design_steps)
+end

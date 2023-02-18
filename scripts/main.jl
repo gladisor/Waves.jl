@@ -2,35 +2,6 @@ using Flux
 
 using Waves
 
-function Flux.gpu(dim::TwoDim)
-    return TwoDim(gpu(dim.x), gpu(dim.y))
-end
-
-function Flux.cpu(dim::TwoDim)
-    return WaveSol(cpu(dim.x), cpu(dim.y))
-end
-
-function Flux.gpu(C::SpeedField)
-    dim = gpu(C.dim)
-    g = gpu(C.g)
-    ambient_speed = gpu(C.ambient_speed)
-    return SpeedField(dim, g, ambient_speed, C.design)
-end
-
-function Flux.gpu(dyn::WaveDynamics)
-    dim = gpu(dyn.dim)
-    grad = gpu(dyn.grad)
-    C = gpu(dyn.C)
-    pml = gpu(dyn.pml)
-    return WaveDynamics(dim, grad, C, pml, dyn.t, dyn.dt)
-end
-
-function Flux.gpu(env::WaveEnv)
-    u = gpu(env.u)
-    dyn = gpu(env.dyn)
-    return WaveEnv(u, dyn, env.design_steps)
-end
-
 Δ = 0.05f0
 
 kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => 1.0f0, :dt => Δ)

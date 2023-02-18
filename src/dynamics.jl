@@ -62,7 +62,7 @@ function runge_kutta(u::AbstractArray, dyn::WaveDynamics)
     k1 = f(u, t, dyn)
     k2 = f(u .+ 0.5f0 * h * k1, t + 0.5f0 * h, dyn)
     k3 = f(u .+ 0.5f0 * h * k2, t + 0.5f0 * h, dyn)
-    k4 = f(u .+ h * k3, t + h, dyn)
+    k4 = f(u .+ h * k3,         t + h,         dyn)
 
     return u .+ 1/6f0 * h * (k1 .+ 2*k2 .+ 2*k3 .+ k4)
 end

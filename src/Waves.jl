@@ -1,30 +1,26 @@
 module Waves
 
-using Distributions: Uniform
 using SparseArrays
-using DifferentialEquations
-using DifferentialEquations.OrdinaryDiffEq: ODEIntegrator
+using Distributions: Uniform
 using CairoMakie
 import Flux
-using ReinforcementLearning
 
 abstract type AbstractDim end
 abstract type AbstractDesign end
 abstract type Scatterer <: AbstractDesign end
-abstract type Emitter <: AbstractDesign end
 abstract type RewardSignal end
 
-include("dims.jl")
-include("cylinder.jl")
+include("dims.jl")                  ## Core structures for defining dimensional spaces
+include("pml.jl")                   ## Perfectly Matched Layer
+include("initial_conditions.jl")    ## Pulses, waves, etc...
 
-include("pml.jl")
-include("initial_conditions.jl")
-include("design.jl")
-include("sim.jl")
-include("speed_field.jl")
+include("cylinder.jl")              ## Simple circular scatterer
+include("design.jl")                ## Interpolator for design
+include("speed_field.jl")           ## Defines a dynamic wavespeed field C(t)
+include("dynamics.jl")              ## Defines the dynamics of the wave simulation
+include("env.jl")
 
-include("sol.jl")
-include("metrics.jl")
-# include("env.jl")
-include("plot.jl")
+include("sol.jl")                   ## Structure for holing results of wave simulations
+include("design_trajectory.jl")     ## Structure for holding the path of designs
+include("plot.jl")                  ## Plotting
 end

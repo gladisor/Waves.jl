@@ -5,10 +5,8 @@ version = "0.1.0"
 
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
-ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 ReinforcementLearning = "158674fc-8238-5cab-b5ba-03dfc80d1318"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"

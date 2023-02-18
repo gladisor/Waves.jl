@@ -1,4 +1,4 @@
-export Cylinder, speed
+export Cylinder
 
 struct Cylinder <: Scatterer
     x

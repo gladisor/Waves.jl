@@ -1,14 +1,14 @@
 export SpeedField
 
-mutable struct SpeedField{Dim <: AbstractDim, Des <: Union{DesignInterpolator, Nothing}}
-    dim::Dim
+mutable struct SpeedField
+    dim::AbstractDim
     g::AbstractArray
     ambient_speed::AbstractArray
-    design::Des
+    design::Union{DesignInterpolator, Nothing}
 end
 
 function SpeedField(dim::AbstractDim, ambient_speed::Float64, design::Union{DesignInterpolator, Nothing} = nothing)
-    return SpeedField(dim, Flux.gpu(grid(dim)), Flux.gpu(ones(size(dim)) * ambient_speed), design)
+    return SpeedField(dim, grid(dim), ones(size(dim)) * ambient_speed, design)
 end
 
 function (C::SpeedField)(t::Float64)

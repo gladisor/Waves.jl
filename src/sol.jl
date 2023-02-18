@@ -6,8 +6,8 @@ of a wave simulation
 """
 struct WaveSol{D <: AbstractDim}
     dim::D
-    t::Vector{<: AbstractFloat}
-    u::Vector{<: AbstractArray{<: AbstractFloat}}
+    t::AbstractVector{<: AbstractFloat}
+    u::AbstractVector{<: AbstractArray{<: AbstractFloat}}
 end
 
 function Base.length(sol::WaveSol)
@@ -28,4 +28,14 @@ end
 
 function Base.lastindex(sol::WaveSol)
     return sol.u[end]
+end
+
+function Base.vcat(sol1::WaveSol, sol2::WaveSol)
+    pop!(sol1.t)
+    pop!(sol1.u)
+    return WaveSol(sol1.dim, vcat(sol1.t, sol2.t), vcat(sol1.u, sol2.u))
+end
+
+function Base.vcat(sols::WaveSol...)
+    return reduce(vcat, sols)
 end

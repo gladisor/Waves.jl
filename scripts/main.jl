@@ -2,7 +2,7 @@ using Flux
 
 using Waves
 
-Δ = 0.05f0
+Δ = 0.025f0
 
 kwargs = Dict(:pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => 1.0f0, :dt => Δ)
 dyn = WaveDynamics(dim = TwoDim(10.0f0, Δ), design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)

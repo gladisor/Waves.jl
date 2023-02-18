@@ -28,9 +28,9 @@ function Flux.gpu(env::WaveEnv)
 end
 
 kwargs = Dict(:pml_width => 4.0, :pml_scale => 20.0, :ambient_speed => 1.0, :dt => 0.05)
-dyn = WaveDynamics(dim = TwoDim(10.0, 0.05), design = Cylinder(-3, -3, 1.0, 0.0); kwargs...)
-u = pulse(dyn.dim, 0.0, 0.0, 5.0)
-env = WaveEnv(u, dyn, 10)
+dyn = WaveDynamics(dim = TwoDim(10.0, 0.05), design = Cylinder(-3, -3, 1.0, 0.1); kwargs...)
+u = pulse(dyn.dim, 0.0, 0.0, 1.0)
+env = WaveEnv(u, dyn, 10) |> gpu
 policy = pos_action_space(env.dyn.C.design.initial, 1.0)
 
 wave_traj = WaveSol{TwoDim}[]

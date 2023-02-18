@@ -1,4 +1,4 @@
-export Cylinder
+export Cylinder, pos_action_space
 
 struct Cylinder <: Scatterer
     x
@@ -45,4 +45,27 @@ function speed(cyl::Cylinder, g::AbstractArray{<: AbstractFloat, 3}, ambient_spe
     pos = Flux.gpu([cyl.x ;;; cyl.y])
     in_cyl = dropdims(sum((g .- pos) .^ 2, dims = 3) .< cyl.r ^ 2, dims = 3)
     return .~ in_cyl .* ambient_speed .+ in_cyl * cyl.c
+end
+
+function Base.rand(cyl::ClosedInterval{Cylinder})
+    x = rand(Uniform(cyl.left.x, cyl.right.x))
+    y = rand(Uniform(cyl.left.y, cyl.right.y))
+
+    if cyl.right.r > cyl.left.r
+        r = rand(Uniform(cyl.left.r, cyl.right.r))
+    else
+        r = 0.0
+    end
+
+    if cyl.right.c > cyl.left.c
+        c = rand(Uniform(cyl.left.c, cyl.right.c))
+    else
+        c = 0.0
+    end
+
+    return Cylinder(x, y, r, c)
+end
+
+function pos_action_space(::Cylinder, scale::Float64)
+    return Cylinder(-scale, -scale, 0.0, 0.0)..Cylinder(scale, scale, 0.0, 0.0)
 end

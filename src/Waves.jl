@@ -1,6 +1,7 @@
 module Waves
 
 using SparseArrays
+using IntervalSets
 using Distributions: Uniform
 using CairoMakie
 import Flux

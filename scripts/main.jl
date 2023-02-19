@@ -1,7 +1,7 @@
 using Flux
 using Waves
 
-dx = 0.1f0
+dx = 0.05f0
 ambient_speed = 1.0f0
 dt = sqrt(dx^2/ambient_speed^2)
 tmax = 20.0
@@ -12,9 +12,9 @@ dyn = WaveDynamics(design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)
 dyn_inc = WaveDynamics(;kwargs...)
 
 u = pulse(dyn.dim)
-sol_inc = cpu(integrate(u, dyn_inc, n))
 
-env = WaveEnv(u, dyn, 5) |> gpu
+@time sol_inc = cpu(integrate(gpu(u), gpu(dyn_inc), n))
+env = gpu(WaveEnv(u, dyn, 5))
 policy = pos_action_space(env.dyn.C.design.initial, 1.0f0)
 
 sol_tot = WaveSol{TwoDim}[]
@@ -22,7 +22,7 @@ design_traj = DesignTrajectory{Cylinder}[]
 
 action = zero(env.dyn.C.design(0.0f0))
 
-while time(env) < 20.0
+@time while time(env) < 20.0
     sol = env(rand(policy))
     push!(sol_tot, sol)
     push!(design_traj, DesignTrajectory(env))

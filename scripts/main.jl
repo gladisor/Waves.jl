@@ -1,7 +1,7 @@
 using Flux
 using Waves
 
-dx = 0.05f0
+dx = 0.1f0
 ambient_speed = 1.0f0
 dt = sqrt(dx^2/ambient_speed^2)
 tmax = 20.0
@@ -12,7 +12,6 @@ dyn = WaveDynamics(design = Cylinder(-3.0f0, -3.0f0, 1.0f0, 0.1f0); kwargs...)
 dyn_inc = WaveDynamics(;kwargs...)
 
 u = pulse(dyn.dim)
-
 @time sol_inc = cpu(integrate(gpu(u), gpu(dyn_inc), n))
 env = gpu(WaveEnv(u, dyn, 5))
 policy = pos_action_space(env.dyn.C.design.initial, 1.0f0)
@@ -20,9 +19,9 @@ policy = pos_action_space(env.dyn.C.design.initial, 1.0f0)
 sol_tot = WaveSol{TwoDim}[]
 design_traj = DesignTrajectory{Cylinder}[]
 
-action = zero(env.dyn.C.design(0.0f0))
+action = zero(env.dyn.C.design.initial)
 
-@time while time(env) < 20.0
+@time while time(env) < tmax
     sol = env(rand(policy))
     push!(sol_tot, sol)
     push!(design_traj, DesignTrajectory(env))
@@ -33,4 +32,33 @@ sol_tot = vcat(sol_tot...)
 design_traj = vcat(design_traj...)
 
 sol_sc = sol_tot - sol_inc
-render!(sol_sc, design_traj, path = "vid.mp4")
+
+function circle_mask(dim::TwoDim, radius::Float32)
+    g = grid(dim)
+    return dropdims(sum(g .^ 2, dims = 3), dims = 3) .< radius ^2
+end
+
+function flux(u::AbstractArray{Float32, 3}, grad::AbstractMatrix{Float32}, mask::AbstractMatrix)
+    U = view(u, :, :, 1)
+    dUxx = grad * grad * U
+    dUy = (grad * U')'
+    dUyy = (grad * dUy')'
+    return sum((dUxx .+ dUyy) .* mask)
+end
+
+function flux(sol::WaveSol, grad::AbstractMatrix{Float32}, mask::AbstractMatrix)
+    return [flux(sol[i], grad, mask) for i ∈ axes(sol.t, 1)]
+end
+
+mask = circle_mask(env.dyn.dim, 10.0f0)
+sc_flux = flux(sol_sc, env.dyn.grad, mask)
+inc_flux = flux(sol_inc, env.dyn.grad, mask)
+
+using CairoMakie
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, sol_inc.t, inc_flux, color = :blue, label = "Incident")
+lines!(ax, sol_sc.t, sc_flux, color = :red, label = "Scattered")
+axislegend(ax)
+save("flux.png", fig)

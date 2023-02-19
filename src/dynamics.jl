@@ -4,7 +4,7 @@ export WaveDynamics, integrate
 Function for constructing a gradient operator for a one dimensional scalar field.
 """
 function gradient(x::Vector)
-    grad = zeros(size(x, 1), size(x, 1))
+    grad = zeros(Float32, size(x, 1), size(x, 1))
     Δ = (x[end] - x[1]) / (length(x) - 1)
 
     grad[[1, 2, 3], 1] .= [-3.0f0, 4.0f0, -1.0f0] ## left boundary edge case

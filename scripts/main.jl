@@ -8,7 +8,7 @@ end
 
 function flux(u::AbstractArray{Float32, 3}, grad::AbstractMatrix{Float32}, mask::AbstractMatrix)
     U = view(u, :, :, 1)
-    dUxx = grad * grad * U
+    dUxx = grad * (grad * U)
     dUy = (grad * U')'
     dUyy = (grad * dUy')'
     return sum((dUxx .+ dUyy) .* mask)
@@ -18,7 +18,7 @@ function flux(sol::WaveSol, grad::AbstractMatrix{Float32}, mask::AbstractMatrix)
     return [flux(sol[i], grad, mask) for i ∈ axes(sol.t, 1)]
 end
 
-dx = 0.1f0
+dx = 0.05f0
 ambient_speed = 1.0f0
 dt = sqrt(dx^2/ambient_speed^2)
 tmax = 20.0
@@ -36,26 +36,24 @@ policy = action_space(env.dyn.C.design.initial, 1.0f0)
 sol_tot = WaveSol{TwoDim}[]
 design_traj = DesignTrajectory{Cylinder}[]
 
-action = zero(env.dyn.C.design.initial)
-
 @time while time(env) < tmax
     sol = env(gpu(rand(policy)))
-    push!(sol_tot, cpu(sol))
-    push!(design_traj, cpu(DesignTrajectory(env)))
+
+    push!(sol_tot, cpu(sol)); push!(design_traj, cpu(DesignTrajectory(env)))
     println(time(env))
 end
 
-sol_tot = vcat(sol_tot...)
-design_traj = vcat(design_traj...)
-
+sol_tot = vcat(sol_tot...); design_traj = vcat(design_traj...)
 sol_sc = sol_tot - sol_inc
 
 mask = circle_mask(env.dyn.dim, 10.0f0)
-sc_flux = flux(sol_sc, env.dyn.grad, mask)
-inc_flux = flux(sol_inc, env.dyn.grad, mask)
+grad = cpu(env.dyn.grad)
+sc_flux = flux(sol_sc, grad, mask)
+inc_flux = flux(sol_inc, grad, mask)
 
 using CairoMakie
 
+println("Plotting Flux")
 fig = Figure()
 ax = Axis(fig[1, 1])
 xlims!(ax, sol_inc.t[1], sol_inc.t[end])
@@ -64,4 +62,5 @@ lines!(ax, sol_sc.t, sc_flux, color = :red, label = "Scattered")
 axislegend(ax)
 save("flux.png", fig)
 
+println("Rendering")
 @time render!(sol_tot, design_traj, path = "vid.mp4")

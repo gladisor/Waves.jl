@@ -34,5 +34,5 @@ function Base.getindex(dt::DesignTrajectory, i::Int64)
 end
 
 function Flux.cpu(dt::DesignTrajectory)
-    return DesignTrajectory(cpu(dt.traj))
+    return DesignTrajectory(cpu.(dt.traj))
 end

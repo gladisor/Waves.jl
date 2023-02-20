@@ -39,7 +39,7 @@ design_traj = DesignTrajectory{Cylinder}[]
 action = zero(env.dyn.C.design.initial)
 
 @time while time(env) < tmax
-    sol = env(rand(policy))
+    sol = env(gpu(rand(policy)))
     push!(sol_tot, cpu(sol))
     push!(design_traj, cpu(DesignTrajectory(env)))
     println(time(env))

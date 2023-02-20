@@ -1,31 +1,26 @@
 export Cylinder, action_space
 
 struct Cylinder <: Scatterer
-    # x::Float32
-    # y::Float32
     pos::AbstractVector{Float32}
     r::Float32
     c::Float32
 end
 
-# function Cylinder(dim::TwoDim; r, c, offset = 0.0)
-#     x = rand(Uniform(dim.x[1] + r + offset, dim.x[end] - r - offset))
-#     y = rand(Uniform(dim.y[1] + r + offset, dim.y[end] - r - offset))
-#     return Cylinder(x, y, r, c)
-# end
+function Cylinder(dim::TwoDim; r::Float32, c::Float32, offset::Float32 = 0.0f0)
+    x = rand(Uniform(dim.x[1] + r + offset, dim.x[end] - r - offset))
+    y = rand(Uniform(dim.y[1] + r + offset, dim.y[end] - r - offset))
+    return Cylinder([x, y], r, c)
+end
 
 function Base.:+(cyl1::Cylinder, cyl2::Cylinder)
-    # return Cylinder(cyl1.x + cyl2.x, cyl1.y + cyl2.y, cyl1.r + cyl2.r, cyl1.c + cyl2.c)
     return Cylinder(cyl1.pos .+ cyl2.pos, cyl1.r + cyl2.r, cyl1.c + cyl2.c)
 end
 
 function Base.:-(cyl1::Cylinder, cyl2::Cylinder)
-    # return Cylinder(cyl1.x - cyl2.x, cyl1.y - cyl2.y, cyl1.r - cyl2.r, cyl1.c - cyl2.c)
     return Cylinder(cyl1.pos .- cyl2.pos, cyl1.r - cyl2.r, cyl1.c - cyl2.c)
 end
 
 function Base.:*(cyl::Cylinder, n::AbstractFloat)
-    # return Cylinder(cyl.x * n, cyl.y * n, cyl.r * n, cyl.c * n)
     return Cylinder(cyl.pos * n, cyl.r * n, cyl.c * n)
 end
 
@@ -34,27 +29,30 @@ function Base.:*(n::AbstractFloat, cyl::Cylinder)
 end
 
 function Base.:/(cyl::Cylinder, n::Float32)
-    # return Cylinder(cyl.x / n, cyl.y / n, cyl.r / n, cyl.c / n)
     return Cylinder(cyl.pos / n, cyl.r / n, cyl.c / n)
 end
 
 function Base.zero(::Cylinder)
-    # return Cylinder(0.0f0, 0.0f0, 0.0f0, 0.0f0)
     return Cylinder(zeros(Float32, 2), 0.0f0, 0.0f0)
 end
 
-function speed(cyl::Cylinder, g::AbstractArray{Float32, 3}, ambient_speed)
-    # pos = gpu([cyl.x ;;; cyl.y])
+"""
+Generates a bit matrix which is the size of the domain containing ones
+where the cylinder is present and zeros elsewhere.
+"""
+function location_mask(cyl::Cylinder, g::AbstractArray{Float32, 3})
     pos = reshape(cyl.pos, 1, 1, 2)
-    in_cyl = dropdims(sum((g .- pos) .^ 2, dims = 3) .< cyl.r ^ 2, dims = 3)
-    return .~ in_cyl .* ambient_speed .+ in_cyl * cyl.c
+    return dropdims(sum((g .- pos) .^ 2, dims = 3) .< cyl.r ^ 2, dims = 3)
+end
+
+function speed(cyl::Cylinder, g::AbstractArray{Float32, 3}, ambient_speed)
+    loc = location_mask(cyl, g)
+    return .~ loc .* ambient_speed .+ loc * cyl.c
 end
 
 function Base.rand(cyl::ClosedInterval{Cylinder})
 
     pos = rand.(Uniform.(cyl.left.pos, cyl.right.pos))
-    # x = rand(Uniform(cyl.left.x, cyl.right.x))
-    # y = rand(Uniform(cyl.left.y, cyl.right.y))
 
     if cyl.right.r > cyl.left.r
         r = rand(Uniform(cyl.left.r, cyl.right.r))
@@ -68,12 +66,10 @@ function Base.rand(cyl::ClosedInterval{Cylinder})
         c = 0.0
     end
 
-    # return Cylinder(x, y, r, c)
     return Cylinder(pos, r, c)
 end
 
 function action_space(::Cylinder, scale::Float32)
-    # return Cylinder(-scale, -scale, 0.0, 0.0)..Cylinder(scale, scale, 0.0, 0.0)
     return Cylinder([-scale, -scale], 0.0f0, 0.0f0)..Cylinder([scale, scale], 0.0f0, 0.0f0)
 end
 

@@ -18,7 +18,7 @@ function flux(sol::WaveSol, grad::AbstractMatrix{Float32}, mask::AbstractMatrix)
     return [flux(sol[i], grad, mask) for i ∈ axes(sol.t, 1)]
 end
 
-dx = 0.05f0
+dx = 0.1f0
 ambient_speed = 1.0f0
 dt = sqrt(dx^2/ambient_speed^2)
 tmax = 20.0
@@ -28,7 +28,8 @@ kwargs = Dict(:dim => TwoDim(15.0f0, dx), :pml_width => 4.0f0, :pml_scale => 20.
 dyn = WaveDynamics(design = Cylinder([0.0f0, 0.0f0], 1.0f0, 0.1f0); kwargs...)
 dyn_inc = WaveDynamics(;kwargs...)
 
-u = pulse(dyn.dim, 0.0f0, 4.0f0, 1.0f0) .+ pulse(dyn.dim, 0.0f0, -4.0f0, 1.0f0)
+# u = pulse(dyn.dim, 0.0f0, 4.0f0, 1.0f0) .+ pulse(dyn.dim, 0.0f0, -4.0f0, 1.0f0)
+u = pulse(dyn.dim, -9.0f0, 9.0f0, 1.0f0)
 @time sol_inc = cpu(integrate(gpu(u), gpu(dyn_inc), n))
 env = gpu(WaveEnv(u, dyn, 5))
 policy = action_space(env.dyn.C.design.initial, 1.0f0)

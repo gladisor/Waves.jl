@@ -20,10 +20,6 @@ function (C::SpeedField)(t::Float32)
 end
 
 function Flux.gpu(C::SpeedField)
-#     dim = gpu(C.dim)
-#     g = gpu(C.g)
-#     ambient_speed = gpu(C.ambient_speed)
-#     return SpeedField(dim, g, ambient_speed, C.design)
     return SpeedField(
         gpu(C.dim),
         gpu(C.g),

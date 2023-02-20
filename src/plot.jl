@@ -22,7 +22,6 @@ function WavePlot(dim::TwoDim)
 end
 
 function CairoMakie.mesh!(ax::Axis, cyl::Cylinder)
-    # mesh!(ax, Circle(Point(cyl.x, cyl.y), cyl.r), color = :gray)
     mesh!(ax, Circle(Point(cyl.pos...), cyl.r), color = :gray)
 end
 

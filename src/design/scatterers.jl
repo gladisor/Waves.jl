@@ -1,8 +1,4 @@
-using Waves: AbstractDesign, Scatterer
-using Distributions: Uniform
-using CairoMakie
-using Flux
-using IntervalSets
+export Scatterers, random_pos
 
 struct Scatterers <: AbstractDesign
     pos::AbstractMatrix{Float32}
@@ -51,14 +47,14 @@ function Base.zero(config::Scatterers)
         zeros(Float32, size(config.c)))
 end
 
-function Waves.location_mask(config::Scatterers, g::AbstractArray{Float32, 3})
+function location_mask(config::Scatterers, g::AbstractArray{Float32, 3})
     pos = config.pos'
     pos = reshape(pos, 1, 1, size(pos)...)
     mask = dropdims(sum((g .- pos) .^ 2, dims = 3), dims = 3) .< reshape(config.r, 1, 1, length(config.r)) .^ 2
     return mask
 end
 
-function Waves.speed(config::Scatterers, g::AbstractArray{Float32, 3}, ambient_speed)
+function speed(config::Scatterers, g::AbstractArray{Float32, 3}, ambient_speed)
     mask = Waves.location_mask(config, g)
     ambient_mask = dropdims(sum(mask, dims = 3), dims = 3) .== 0
     C0 = ambient_mask .* ambient_speed
@@ -80,7 +76,7 @@ function Flux.cpu(config::Scatterers)
     return Scatterers(cpu(config.pos), cpu(config.r), cpu(config.c))
 end
 
-function Waves.action_space(config::Scatterers, scale::Float32)
+function action_space(config::Scatterers, scale::Float32)
     pos_low = ones(Float32, size(config.pos)) * -scale
     pos_high = ones(Float32, size(config.pos)) * scale
     r = zeros(Float32, size(config.r))

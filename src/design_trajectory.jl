@@ -25,11 +25,14 @@ function Base.vcat(dts::DesignTrajectory...)
     return reduce(vcat, dts)
 end
 
-
 function Base.length(dt::DesignTrajectory)
     return length(dt.traj)
 end
 
 function Base.getindex(dt::DesignTrajectory, i::Int64)
     return dt.traj[i]
+end
+
+function Flux.cpu(dt::DesignTrajectory)
+    return DesignTrajectory(cpu(dt.traj))
 end

@@ -22,7 +22,7 @@ function (env::WaveEnv)(action::AbstractDesign)
     update_design!(env, action)
     sol = integrate(env.u, env.dyn, env.design_steps)
     env.u = sol.u[end]
-    return cpu(sol)
+    return sol
 end
 
 function Flux.gpu(env::WaveEnv)

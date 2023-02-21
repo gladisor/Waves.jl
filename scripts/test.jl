@@ -2,8 +2,8 @@ using Flux
 using Waves
 using ReinforcementLearning
 
-mutable struct <: AbstractHook
-end
+# mutable struct <: AbstractHook
+# end
 
 gs = 15.0f0
 dx = 0.1f0

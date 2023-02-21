@@ -90,3 +90,10 @@ function Flux.gpu(dyn::WaveDynamics)
     pml = gpu(dyn.pml)
     return WaveDynamics(dim, grad, C, pml, dyn.t, dyn.dt)
 end
+
+function Flux.cpu(dyn::WaveDynamics)
+    return WaveDynamics(
+        cpu(dyn.dim), cpu(dyn.grad),
+        cpu(dyn.C), cpu(dyn.pml),
+        dyn.t, dyn.dt)
+end

@@ -76,7 +76,7 @@ function Flux.cpu(config::Scatterers)
     return Scatterers(cpu(config.pos), cpu(config.r), cpu(config.c))
 end
 
-function action_space(config::Scatterers, scale::Float32)
+function RLBase.action_space(config::Scatterers, scale::Float32)
     pos_low = ones(Float32, size(config.pos)) * -scale
     pos_high = ones(Float32, size(config.pos)) * scale
     r = zeros(Float32, size(config.r))

@@ -1,4 +1,4 @@
-export Cylinder, action_space
+export Cylinder
 
 struct Cylinder <: Scatterer
     pos::AbstractVector{Float32}
@@ -69,7 +69,7 @@ function Base.rand(cyl::ClosedInterval{Cylinder})
     return Cylinder(pos, r, c)
 end
 
-function action_space(::Cylinder, scale::Float32)
+function RLBase.action_space(::Cylinder, scale::Float32)
     return Cylinder([-scale, -scale], 0.0f0, 0.0f0)..Cylinder([scale, scale], 0.0f0, 0.0f0)
 end
 

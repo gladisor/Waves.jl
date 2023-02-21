@@ -4,6 +4,17 @@ struct DesignTrajectory{D <: AbstractDesign}
     traj::Vector{D}
 end
 
+function DesignTrajectory(design::DesignInterpolator)
+    t = collect(range(design.ti, design.tf, env.design_steps + 1))
+    traj = typeof(design.initial)[]
+
+    for i ∈ axes(t, 1)
+        push!(traj, design(t[i]))
+    end
+
+    return DesignTrajectory(traj)
+end
+
 function DesignTrajectory(env::WaveEnv)
     design = env.dyn.C.design
     t = collect(range(design.ti, design.tf, env.design_steps + 1))

@@ -68,7 +68,7 @@ function Flux.gpu(env::WaveEnv)
     return WaveEnv(
         gpu(env.u), 
         env.initial_condition,
-        gpu(env.sol), 
+        env.sol, # gpu(env.sol),
         gpu(env.dyn), 
         env.design_steps, 
         env.tmax)

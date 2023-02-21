@@ -1,18 +1,18 @@
 export OneDim, TwoDim, ThreeDim, grid
 
 struct OneDim <: AbstractDim
-    x::Vector{Float32}
+    x::AbstractVector{Float32}
 end
 
 struct TwoDim <: AbstractDim
-    x::Vector{Float32}
-    y::Vector{Float32}
+    x::AbstractVector{Float32}
+    y::AbstractVector{Float32}
 end
 
 struct ThreeDim <: AbstractDim
-    x::Vector{Float32}
-    y::Vector{Float32}
-    z::Vector{Float32}
+    x::AbstractVector{Float32}
+    y::AbstractVector{Float32}
+    z::AbstractVector{Float32}
 end
 
 function OneDim(x_min, x_max, Δ)

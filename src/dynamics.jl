@@ -84,16 +84,19 @@ function integrate(u, dyn::WaveDynamics, n::Int64)
 end
 
 function Flux.gpu(dyn::WaveDynamics)
-    dim = gpu(dyn.dim)
-    grad = gpu(dyn.grad)
-    C = gpu(dyn.C)
-    pml = gpu(dyn.pml)
-    return WaveDynamics(dim, grad, C, pml, dyn.t, dyn.dt)
+    return WaveDynamics(
+        gpu(dyn.dim), 
+        gpu(dyn.grad), 
+        gpu(dyn.C), 
+        gpu(dyn.pml), 
+        dyn.t, dyn.dt)
 end
 
 function Flux.cpu(dyn::WaveDynamics)
     return WaveDynamics(
-        cpu(dyn.dim), cpu(dyn.grad),
-        cpu(dyn.C), cpu(dyn.pml),
+        cpu(dyn.dim), 
+        cpu(dyn.grad),
+        cpu(dyn.C), 
+        cpu(dyn.pml),
         dyn.t, dyn.dt)
 end

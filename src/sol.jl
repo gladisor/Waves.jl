@@ -40,6 +40,10 @@ function Base.vcat(sols::WaveSol...)
     return reduce(vcat, sols)
 end
 
+function Flux.gpu(sol::WaveSol)
+    WaveSol(gpu(sol.dim), gpu(sol.t), gpu(sol.u))
+end
+
 function Flux.cpu(sol::WaveSol)
     return WaveSol(cpu(sol.dim), cpu(sol.t), cpu(sol.u))
 end

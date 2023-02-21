@@ -2,6 +2,9 @@ using Flux
 using Waves
 using ReinforcementLearning
 
+mutable struct <: AbstractHook
+end
+
 gs = 15.0f0
 dx = 0.1f0
 ambient_speed = 1.0f0

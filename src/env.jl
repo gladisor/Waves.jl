@@ -31,7 +31,6 @@ function update_design!(env::WaveEnv, action::AbstractDesign)
     ti = time(env)
     tf = ti + env.design_steps * env.dyn.dt
     env.dyn.C.design = DesignInterpolator(env.dyn.C.design(ti), action, ti, tf)
-    return nothing
 end
 
 function (env::WaveEnv)(action::AbstractDesign)

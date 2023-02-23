@@ -21,8 +21,7 @@ include("initial_conditions.jl")           ## Pulses, waves, etc...
 
 include("design/cylinder.jl")              ## Simple circular scatterer
 include("design/scatterers.jl")
-include("design/design.jl")                ## Interpolator for design
-include("speed_field.jl")                  ## Defines a dynamic wavespeed field C(t)
+include("design/design_interpolator.jl")   ## Interpolator for design
 include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
 include("env.jl")
 

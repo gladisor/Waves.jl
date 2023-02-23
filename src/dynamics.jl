@@ -19,37 +19,48 @@ end
 
 mutable struct WaveDynamics
     dim::AbstractDim
-    grad::AbstractMatrix
-    C::SpeedField
-    pml::AbstractMatrix
+    g::AbstractArray{Float32}
+    grad::AbstractMatrix{Float32}
+    design::Union{DesignInterpolator, Nothing}
+    pml::AbstractMatrix{Float32}
+    ambient_speed::Float32
     t::Int
     dt::Float32
 end
 
 function WaveDynamics(;
-        dim::AbstractDim, 
+        dim::AbstractDim, design::Union{AbstractDesign, Nothing} = nothing,
         pml_width::Float32, pml_scale::Float32, 
-        ambient_speed::Float32, dt::Float32, 
-        design::Union{AbstractDesign, Nothing} = nothing)
+        ambient_speed::Float32, dt::Float32)
 
+    g = grid(dim)
     grad = gradient(dim.x)
-
-    if !isnothing(design)
-        design = DesignInterpolator(design, zero(design), 0.0, 0.0)
-    end
-
-    C = SpeedField(dim, ambient_speed, design)
+    design = DesignInterpolator(design)
     pml = build_pml(dim, pml_width, pml_scale)
 
-    return WaveDynamics(dim, grad, C, pml, 0, dt)
+    return WaveDynamics(dim, g, grad, design, pml, ambient_speed, 0, dt)
 end
 
-function f(u::AbstractArray, t::Float32, dyn::WaveDynamics)
+function Base.time(dyn::WaveDynamics)
+    return dyn.t * dyn.dt
+end
+
+function speed(dyn::WaveDynamics, t::Float32)
+    if isnothing(dyn.design)
+        return dropdims(sum(dyn.g, dims = 3), dims = 3) .^ 0.0f0 * dyn.ambient_speed
+    else
+        return speed(dyn.design(t), dyn.g, dyn.ambient_speed)
+    end
+end
+
+function f(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
     U = view(u, :, :, 1)
     Vx = view(u, :, :, 2)
     Vy = view(u, :, :, 3)
 
-    dU = dyn.C(t) .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
+    C = speed(dyn, t)
+
+    dU = C .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
     dVx = dyn.grad * U .- Vx .* dyn.pml
     dVy = (dyn.grad * U')' .- Vy .* dyn.pml
     return cat(dU, dVx, dVy, dims = 3)
@@ -86,17 +97,19 @@ end
 function Flux.gpu(dyn::WaveDynamics)
     return WaveDynamics(
         gpu(dyn.dim), 
+        gpu(dyn.g),
         gpu(dyn.grad), 
-        gpu(dyn.C), 
+        gpu(dyn.design),
         gpu(dyn.pml), 
-        dyn.t, dyn.dt)
+        dyn.ambient_speed, dyn.t, dyn.dt)
 end
 
 function Flux.cpu(dyn::WaveDynamics)
     return WaveDynamics(
-        cpu(dyn.dim), 
+        cpu(dyn.dim),
+        cpu(dyn.g),
         cpu(dyn.grad),
-        cpu(dyn.C), 
+        cpu(dyn.design),
         cpu(dyn.pml),
-        dyn.t, dyn.dt)
+        dyn.ambient_speed, dyn.t, dyn.dt)
 end

@@ -15,22 +15,21 @@ function WaveEnv(;
     design_steps::Int,
     tmax::Float32)
 
-    sol = WaveSol(dyn.dim, Float32[], AbstractArray{Float32}[])
+    t = time(dyn)
+    u = initial_condition(dyn.dim)
+    sol = WaveSol(dyn.dim, typeof(t)[t], typeof(u)[u])
 
-    return WaveEnv(
-        initial_condition(dyn.dim), 
-        initial_condition, 
-        sol, dyn, design_steps, tmax)
+    return WaveEnv(u, initial_condition, sol, dyn, design_steps, tmax)
 end
 
 function Base.time(env::WaveEnv)
-    return env.dyn.t * env.dyn.dt
+    return time(env.dyn)
 end
 
 function update_design!(env::WaveEnv, action::AbstractDesign)
     ti = time(env)
     tf = ti + env.design_steps * env.dyn.dt
-    env.dyn.C.design = DesignInterpolator(env.dyn.C.design(ti), action, ti, tf)
+    env.dyn.C.design = DesignInterpolator(env.dyn.design(ti), action, ti, tf)
 end
 
 function (env::WaveEnv)(action::AbstractDesign)
@@ -44,7 +43,7 @@ function RLBase.state(env::WaveEnv)
 end
 
 function RLBase.action_space(env::WaveEnv, args...)
-    return action_space(env.dyn.C.design.initial, args...)
+    return action_space(env.dyn.design.initial, args...)
 end
 
 function RLBase.reward(env::WaveEnv)
@@ -68,7 +67,7 @@ function Flux.gpu(env::WaveEnv)
     return WaveEnv(
         gpu(env.u), 
         env.initial_condition,
-        env.sol, # gpu(env.sol),
+        gpu(env.sol),
         gpu(env.dyn), 
         env.design_steps, 
         env.tmax)

@@ -45,9 +45,9 @@ function location_mask(cyl::Cylinder, g::AbstractArray{Float32, 3})
     return dropdims(sum((g .- pos) .^ 2, dims = 3) .< cyl.r ^ 2, dims = 3)
 end
 
-function speed(cyl::Cylinder, g::AbstractArray{Float32, 3}, ambient_speed)
+function speed(cyl::Cylinder, g::AbstractArray{Float32, 3}, ambient_speed::Float32)
     loc = location_mask(cyl, g)
-    return .~ loc .* ambient_speed .+ loc * cyl.c
+    return .~ loc * ambient_speed .+ loc * cyl.c
 end
 
 function Base.rand(cyl::ClosedInterval{Cylinder})

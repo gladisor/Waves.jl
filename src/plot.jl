@@ -37,9 +37,12 @@ function render!(
     p = WavePlot(sol.dim)
 
     wave_interp = linear_interpolation(sol.t, sol.u)
-    design_interp = linear_interpolation(sol.t, design.traj)
-    n_frames = Int(round(fps * sol.t[end]))
 
+    if !isnothing(design)
+        design_interp = linear_interpolation(sol.t, design.traj)
+    end
+
+    n_frames = Int(round(fps * sol.t[end]))
     t = collect(range(sol.t[1], sol.t[end], n_frames))
 
     record(p.fig, path, 1:n_frames, framerate = fps) do i

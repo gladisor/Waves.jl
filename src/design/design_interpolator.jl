@@ -7,6 +7,14 @@ struct DesignInterpolator
     tf::Float32
 end
 
+function DesignInterpolator(initial::AbstractDesign)
+    return DesignInterpolator(initial, zero(initial), 0.0f0, 0.0f0)
+end
+
+function DesignInterpolator(initial::Nothing)
+    return initial
+end
+
 function (interp::DesignInterpolator)(t::Float32)
     d = (interp.tf - interp.ti)
     t = ifelse(d > 0.0f0, (t - interp.ti) / d, 0.0f0)

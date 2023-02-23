@@ -17,6 +17,10 @@ function gradient(x::Vector)
     return sparse((grad / (2 * Δ))')
 end
 
+function stable_dt(dx::Float32, ambient_speed::Float32)::Float32
+    return sqrt(dx^2 / ambient_speed^2)
+end
+
 mutable struct WaveDynamics
     dim::AbstractDim
     g::AbstractArray{Float32}

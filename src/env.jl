@@ -5,6 +5,7 @@ mutable struct WaveEnv <: AbstractEnv
     initial_condition::InitialCondition
     sol::WaveSol
     dyn::WaveDynamics
+    design_space::Union{ClosedInterval, Nothing}
     design_steps::Int
     tmax::Float32
 end
@@ -12,14 +13,15 @@ end
 function WaveEnv(;
     initial_condition::InitialCondition,
     dyn::WaveDynamics,
+    design_space::Union{ClosedInterval, Nothing},
     design_steps::Int,
     tmax::Float32)
 
     t = time(dyn)
-    u = initial_condition(dyn.dim)
-    sol = WaveSol(dyn.dim, typeof(t)[t], typeof(u)[u])
+    u = initial_condition(dyn.g)
+    sol = WaveSol(dyn.dim, Float32[t], typeof(u)[u])
 
-    return WaveEnv(u, initial_condition, sol, dyn, design_steps, tmax)
+    return WaveEnv(u, initial_condition, sol, dyn, design_space, design_steps, tmax)
 end
 
 function Base.time(env::WaveEnv)
@@ -29,7 +31,7 @@ end
 function update_design!(env::WaveEnv, action::AbstractDesign)
     ti = time(env)
     tf = ti + env.design_steps * env.dyn.dt
-    env.dyn.C.design = DesignInterpolator(env.dyn.design(ti), action, ti, tf)
+    env.dyn.design = DesignInterpolator(env.dyn.design(ti), action, ti, tf)
 end
 
 function (env::WaveEnv)(action::AbstractDesign)
@@ -42,8 +44,8 @@ function RLBase.state(env::WaveEnv)
     return env.u
 end
 
-function RLBase.action_space(env::WaveEnv, args...)
-    return action_space(env.dyn.design.initial, args...)
+function RLBase.action_space(env::WaveEnv)
+    env.design_space
 end
 
 function RLBase.reward(env::WaveEnv)
@@ -55,7 +57,7 @@ function RLBase.state_space(env::WaveEnv)
 end
 
 function RLBase.reset!(env::WaveEnv)
-    env.u = env.initial_condition(env.dyn.dim)
+    env.u = env.initial_condition(env.dyn.g)
     env.dyn.t = 0
 end
 
@@ -66,9 +68,10 @@ end
 function Flux.gpu(env::WaveEnv)
     return WaveEnv(
         gpu(env.u), 
-        env.initial_condition,
+        gpu(env.initial_condition),
         gpu(env.sol),
         gpu(env.dyn), 
+        env.design_space,
         env.design_steps, 
         env.tmax)
 end
@@ -76,9 +79,10 @@ end
 function Flux.cpu(env::WaveEnv)
     return WaveEnv(
         cpu(env.u), 
-        env.initial_condition,
+        cpu(env.initial_condition),
         cpu(env.sol), 
         cpu(env.dyn), 
+        env.design_space,
         env.design_steps, 
         env.tmax)
 end

@@ -69,7 +69,7 @@ function Base.rand(cyl::ClosedInterval{Cylinder})
     return Cylinder(pos, r, c)
 end
 
-function RLBase.action_space(::Cylinder, scale::Float32)
+function design_space(::Cylinder, scale::Float32)
     return Cylinder([-scale, -scale], 0.0f0, 0.0f0)..Cylinder([scale, scale], 0.0f0, 0.0f0)
 end
 

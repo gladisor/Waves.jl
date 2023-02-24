@@ -21,8 +21,8 @@ function (hook::SaveData)(::PreEpisodeStage, agent, env::WaveEnv)
 end
 
 function (hook::SaveData)(::PostActStage, agent, env::WaveEnv)
-    push!(hook.sols, env.sol)
-    push!(hook.designs, DesignTrajectory(env))
+    push!(hook.sols, cpu(env.sol))
+    push!(hook.designs, cpu(DesignTrajectory(env)))
 end
 
 mutable struct RandomDesignPolicy <: AbstractPolicy
@@ -33,10 +33,9 @@ function (policy::RandomDesignPolicy)(env::WaveEnv)
     return gpu(rand(policy.action))
 end
 
-dx = 0.1f0
+dx = 0.05f0
 ambient_speed = 1.0f0
-# dt = Waves.stable_dt(dx, ambient_speed)
-dt = 0.01f0
+dt = 0.025f0
 dim = TwoDim(15.0f0, dx)
 config = Scatterers(M = 20, r = 0.5f0, disk_r = 10.0f0, c = 0.1f0)
 
@@ -45,8 +44,8 @@ kwargs = Dict(:dim => dim, :pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_s
 env = gpu(WaveEnv(
     initial_condition = Pulse([-9.0f0, 9.0f0], 1.0f0),
     dyn = WaveDynamics(design = config; kwargs...), 
-    design_space = Waves.design_space(config, 0.5f0),
-    design_steps = 20, tmax = 20.0f0))
+    design_space = Waves.design_space(config, 1.0f0),
+    design_steps = 40, tmax = 20.0f0))
 
 policy = RandomDesignPolicy(action_space(env))
 
@@ -55,4 +54,4 @@ traj = SaveData()
 
 sol = vcat(traj.sols...)
 design = vcat(traj.designs...)
-render!(sol, design, path = "vid.mp4")
+@time render!(sol, design, path = "vid.mp4")

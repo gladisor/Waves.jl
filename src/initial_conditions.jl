@@ -1,7 +1,7 @@
 export pulse, Pulse
 
 struct Pulse <: InitialCondition
-    pos::Vector{Float32}
+    pos::AbstractVector{Float32}
     intensity::Float32
 end
 

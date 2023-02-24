@@ -30,22 +30,23 @@ mutable struct RandomDesignPolicy <: AbstractPolicy
 end
 
 function (policy::RandomDesignPolicy)(env::WaveEnv)
-    return rand(policy.action)
+    return gpu(rand(policy.action))
 end
 
 dx = 0.1f0
 ambient_speed = 1.0f0
-dt = Waves.stable_dt(dx, ambient_speed)
+# dt = Waves.stable_dt(dx, ambient_speed)
+dt = 0.01f0
 dim = TwoDim(15.0f0, dx)
-config = Scatterers(M = 4, r = 0.5f0, disk_r = 10.0f0, c = 0.1f0)
+config = Scatterers(M = 20, r = 0.5f0, disk_r = 10.0f0, c = 0.1f0)
 
 kwargs = Dict(:dim => dim, :pml_width => 4.0f0, :pml_scale => 20.0f0, :ambient_speed => ambient_speed, :dt => dt)
 
-env = WaveEnv(
+env = gpu(WaveEnv(
     initial_condition = Pulse([-9.0f0, 9.0f0], 1.0f0),
     dyn = WaveDynamics(design = config; kwargs...), 
     design_space = Waves.design_space(config, 0.5f0),
-    design_steps = 5, tmax = 20.0f0)
+    design_steps = 20, tmax = 20.0f0))
 
 policy = RandomDesignPolicy(action_space(env))
 

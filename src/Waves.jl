@@ -1,6 +1,6 @@
 module Waves
 
-export AbstractDim, AbstractDesign
+export AbstractDim, AbstractDesign, design_space
 
 using SparseArrays
 using IntervalSets
@@ -27,11 +27,12 @@ include("design/scatterers.jl")
 include("design/design_interpolator.jl")   ## Interpolator for design
 include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
 include("update_equations.jl")
+include("integrator.jl")
 include("env.jl")
-
-include("design/design_trajectory.jl")     ## Structure for holding the path of designs
-include("plot.jl")                         ## Plotting
+include("design/design_trajectory.jl")     ## Structure for holding the sequence of designs
 
 include("reinforcement_learning/hooks.jl")
 include("reinforcement_learning/random_policy.jl")
+
+include("plot.jl")                         ## Plotting
 end

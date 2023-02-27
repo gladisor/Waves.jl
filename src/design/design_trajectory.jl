@@ -17,7 +17,7 @@ function DesignTrajectory(dyn::WaveDynamics, n::Int)
 end
 
 function DesignTrajectory(env::WaveEnv)
-    return DesignTrajectory(env.dyn, env.design_steps)
+    return DesignTrajectory(env.iter.dyn, env.design_steps)
 end
 
 function Base.vcat(dt1::DesignTrajectory, dt2::DesignTrajectory)

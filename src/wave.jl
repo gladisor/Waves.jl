@@ -28,3 +28,11 @@ end
 function Base.:*(n::Number, wave::Wave)
     return wave * n
 end
+
+function Flux.gpu(wave::Wave)
+    return Wave(gpu(wave.u))
+end
+
+function Flux.cpu(wave::Wave)
+    return Wave(cpu(wave.u))
+end

@@ -29,10 +29,10 @@ function Base.:*(n::Number, wave::Wave)
     return wave * n
 end
 
-function Flux.gpu(wave::Wave)
-    return Wave(gpu(wave.u))
+function Flux.gpu(wave::Wave{D}) where D <: AbstractDim
+    return Wave{D}(gpu(wave.u))
 end
 
-function Flux.cpu(wave::Wave)
-    return Wave(cpu(wave.u))
+function Flux.cpu(wave::Wave{D}) where D <: AbstractDim
+    return Wave{D}(cpu(wave.u))
 end

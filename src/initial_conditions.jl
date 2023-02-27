@@ -2,7 +2,7 @@ export pulse, Pulse
 
 struct Pulse{D <: AbstractDim} <: InitialCondition
     mesh_grid::AbstractArray{Float32}
-    pos::AbstractArray{Float32}
+    pos::AbstractVector{Float32}
     intensity::Float32
 end
 

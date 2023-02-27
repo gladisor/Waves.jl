@@ -30,7 +30,7 @@ mutable struct WaveDynamics
     g::AbstractArray{Float32}
     grad::AbstractMatrix{Float32}
     design::Union{DesignInterpolator, Nothing}
-    pml::AbstractMatrix{Float32}
+    pml::AbstractArray{Float32}
     ambient_speed::Float32
     t::Int
     dt::Float32
@@ -61,7 +61,7 @@ function speed(dyn::WaveDynamics, t::Float32)
     end
 end
 
-function f(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
+function split_wave_pml_2d(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
     U = view(u, :, :, 1)
     Vx = view(u, :, :, 2)
     Vy = view(u, :, :, 3)
@@ -74,7 +74,7 @@ function f(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
     return cat(dU, dVx, dVy, dims = 3)
 end
 
-function runge_kutta(u::AbstractArray, dyn::WaveDynamics)
+function runge_kutta(f::Function, u::AbstractArray, dyn::WaveDynamics)
     h = dyn.dt
     t = dyn.t * h
 
@@ -84,6 +84,10 @@ function runge_kutta(u::AbstractArray, dyn::WaveDynamics)
     k4 = f(u .+         h * k3, t +         h, dyn) ## Endpoint
 
     return u .+ 1/6f0 * h * (k1 .+ 2*k2 .+ 2*k3 .+ k4)
+end
+
+function runge_kutta(u::AbstractArray, dyn::WaveDynamics)
+    return runge_kutta(split_wave_pml_2d, u, dyn)
 end
 
 function integrate(u, dyn::WaveDynamics, n::Int64)

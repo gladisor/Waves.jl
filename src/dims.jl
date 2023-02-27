@@ -66,6 +66,10 @@ function Base.size(dim::ThreeDim)
     return (length(dim.x), length(dim.y), length(dim.z))
 end
 
+function grid(dim::OneDim)
+    return dim.x
+end
+
 function grid(dim::TwoDim)
     x = repeat(dim.x, 1, length(dim.y))
     y = repeat(dim.y', length(dim.x))

@@ -27,4 +27,7 @@ include("env.jl")
 
 include("design/design_trajectory.jl")     ## Structure for holding the path of designs
 include("plot.jl")                         ## Plotting
+
+include("reinforcement_learning/hooks.jl")
+include("reinforcement_learning/random_policy.jl")
 end

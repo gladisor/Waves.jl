@@ -67,10 +67,11 @@ function wave(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
     Ψy = view(u, :, :, 5)
     Ω = view(u, :, :, 6)
 
-    U[:, [1, end]] .= 0.0f0
-    U[[1, end], :] .= 0.0f0
+    # U[:, [1, end]] .= 0.0f0
+    # U[[1, end], :] .= 0.0f0
 
-    C = dyn.ambient_speed
+    C = Waves.speed(dyn, t)
+    b = C .^ 2
     ∇ = dyn.grad
     σx = dyn.pml
     σy = σx'
@@ -80,39 +81,30 @@ function wave(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
     Ux = ∇ * U
     Uy = (∇ * U')'
 
-    dU = C^2 * (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
-    dVx = C^2 * Ux .- σx .* Vx
-    dVy = C^2 * Uy .- σy .* Vy
-    dΨx = C^2 * σx .* Vyy
-    dΨy = C^2 * σy .* Vxx
+    dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
+    dVx = Ux .- σx .* Vx
+    dVy = Uy .- σy .* Vy
+    dΨx = b .* σx .* Vyy
+    dΨy = b .* σy .* Vxx
     dΩ = σx .* σy .* U
 
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-dim = TwoDim(5.0f0, 200)
+dim = TwoDim(5.0f0, 300)
 
 pml_width = 1.0f0
-pml_scale = 50.0f0
-ambient_speed = 1.0f0
+pml_scale = 100.0f0
+ambient_speed = 3.0f0
 dt = 0.01f0
 
-dyn = WaveDynamics(dim = dim, pml_width = pml_width, pml_scale = pml_scale, ambient_speed = ambient_speed, dt = dt)
+cyl = Cylinder([0.0f0, -3.0f0], 1.0f0, 0.1f0)
+
+dyn = WaveDynamics(design = cyl, dim = dim, pml_width = pml_width, pml_scale = pml_scale, ambient_speed = ambient_speed, dt = dt)
 dyn.pml = build_pml_x(dim, pml_width, pml_scale)
 u = exp.(-5.0f0 * dropdims(sum((dyn.g .- [0.0f0;;;0.0f0]).^ 2, dims = 3), dims = 3))
 
 u0 = cat(u, zeros(Float32, size(u)..., 5), dims = 3)
 iter = WaveIntegrator(wave, runge_kutta, dyn)
-@time sol = integrate(iter, u0, 1500)
-# @time render!(sol, path = "vid.mp4")
-
-using GLMakie
-
-fig = Figure()
-ax = Axis3(fig[1, 1], perspectiveness = 0.5, aspect = (1, 1, 1))
-zlims!(ax, -1.0, 4.0)
-
-record(fig, "vid.mp4", 1:length(sol)) do i
-    empty!(ax.scene)
-    surface!(ax, dim.x, dim.y, sol.u[i][:, :, 1], colormap = :ice)
-end
+@time sol = integrate(iter, u0, 500)
+@time render!(sol, path = "vid.mp4")

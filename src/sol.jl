@@ -10,10 +10,9 @@ struct WaveSol{D <: AbstractDim}
     u::AbstractVector{<: AbstractArray{Float32}}
 end
 
-function WaveSol(dim::AbstractDim)
-    return WaveSol(dim, Float32[], AbstractArray{Float32}[])
-end
-
+# function WaveSol(dim::AbstractDim)
+#     return WaveSol(dim, Float32[], AbstractArray{Float32}[])
+# end
 
 function Base.length(sol::WaveSol)
     return length(sol.t)

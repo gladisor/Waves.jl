@@ -15,7 +15,8 @@ function WaveEnv(;
     design_space::Union{ClosedInterval, Nothing},
     design_steps::Int, tmax::Float32)
 
-    sol = WaveSol(iter.dyn.dim)
+    u = displacement(iter.wave)
+    sol = WaveSol(iter.dyn.dim, Float32[time(iter.dyn)], typeof(u)[u])
     iter.wave = initial_condition(iter.wave)
 
     return WaveEnv(initial_condition, sol, iter, design_space, design_steps, tmax)

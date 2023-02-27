@@ -82,9 +82,3 @@ function render!(
         end
     end
 end
-
-function render!(data::SaveData; path::String)
-    sol = vcat(data.sols...)
-    design = vcat(data.designs...)
-    render!(sol, design, path = path)
-end

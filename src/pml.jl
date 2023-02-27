@@ -20,22 +20,13 @@ Assuming an x axis which is symmetric build a vector which contains zeros in the
 interior and slowly scales from zero to one at the edges.
 """
 function build_pml(dim::TwoDim, width::Float32, scale::Float32)
-    x, y = abs.(dim.x), abs.(dim.y)
-
-    start_x = min(x[1], x[end]) - width
-    start_y = min(y[1], y[end]) - width
-
-    pml = zeros(Float32, size(dim))
-
-    for i ∈ axes(pml, 1)
-        for j ∈ axes(pml, 2)
-            depth = maximum([x[i] - start_x, y[j] - start_y, 0.0f0]) / width
-            pml[i, j] = depth
-        end
-    end
-
-    clamp!(pml, 0.0f0, 1.0f0)
-    return pml .^ 2 * scale
+    x = abs.(dim.x)
+    pml_start = x[1] - width
+    pml_region = x .> pml_start
+    x[.~ pml_region] .= 0.0f0
+    x[pml_region] .= (x[pml_region] .- minimum(x[pml_region])) / (maximum(x[pml_region]) - minimum(x[pml_region]))
+    x = repeat(x, 1, length(dim.y))
+    return x .^ 2 * scale
 end
 
 function build_pml(dim::ThreeDim, width::Float32, scale::Float32)

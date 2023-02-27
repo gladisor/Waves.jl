@@ -61,19 +61,6 @@ function speed(dyn::WaveDynamics, t::Float32)
     end
 end
 
-function split_wave_pml_2d(u::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
-    U = view(u, :, :, 1)
-    Vx = view(u, :, :, 2)
-    Vy = view(u, :, :, 3)
-
-    C = speed(dyn, t)
-
-    dU = C .* ((dyn.grad * Vx) .+ (dyn.grad * Vy')') .- U .* dyn.pml
-    dVx = dyn.grad * U .- Vx .* dyn.pml
-    dVy = (dyn.grad * U')' .- Vy .* dyn.pml
-    return cat(dU, dVx, dVy, dims = 3)
-end
-
 function runge_kutta(f::Function, u::AbstractArray, dyn::WaveDynamics)
     h = dyn.dt
     t = dyn.t * h
@@ -86,24 +73,16 @@ function runge_kutta(f::Function, u::AbstractArray, dyn::WaveDynamics)
     return u .+ 1/6f0 * h * (k1 .+ 2*k2 .+ 2*k3 .+ k4)
 end
 
-function runge_kutta(u::AbstractArray, dyn::WaveDynamics)
-    return runge_kutta(split_wave_pml_2d, u, dyn)
-end
+function runge_kutta(f::Function, wave::Wave, dyn::WaveDynamics)
+    h = dyn.dt
+    t = dyn.t * h
 
-function integrate(u, dyn::WaveDynamics, n::Int64)
-    t = Float32[dyn.t * dyn.dt]
-    sol = typeof(u)[u]
-    tf = dyn.t + n
+    k1 = f(wave,                   t,            dyn) ## Euler
+    k2 = f(wave + 0.5f0 * h * k1, t + 0.5f0 * h, dyn) ## Midpoint
+    k3 = f(wave + 0.5f0 * h * k2, t + 0.5f0 * h, dyn)
+    k4 = f(wave +         h * k3, t +         h, dyn) ## Endpoint
 
-    while dyn.t < tf
-        u = runge_kutta(u, dyn)
-        dyn.t += 1
-
-        push!(t, dyn.t * dyn.dt)
-        push!(sol, u)
-    end
-
-    return WaveSol(dyn.dim, t, sol)
+    return wave + 1/6f0 * h * (k1 + 2*k2 + 2*k3 + k4)
 end
 
 function Flux.gpu(dyn::WaveDynamics)

@@ -1,5 +1,6 @@
 using Waves
 using ReinforcementLearning
+using Flux
 
 dim = TwoDim(5.0f0, 0.025f0)
 cyl = Cylinder([0.0f0, 0.0f0], 0.5f0, 0.2f0)

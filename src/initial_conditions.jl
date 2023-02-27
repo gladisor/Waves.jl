@@ -38,10 +38,10 @@ function (pulse::Pulse{TwoDim})(wave::Wave{TwoDim})
     return Wave{TwoDim}(cat(u, z, dims = 3))
 end
 
-function Flux.gpu(pulse::Pulse)
-    return Pulse(gpu(pulse.mesh_grid), gpu(pulse.pos), pulse.intensity)
+function Flux.gpu(pulse::Pulse{D}) where D <: AbstractDim
+    return Pulse{D}(gpu(pulse.mesh_grid), gpu(pulse.pos), pulse.intensity)
 end
 
-function Flux.cpu(pulse::Pulse)
-    return Pulse(cpu(pulse.mesh_grid), cpu(pulse.pos), pulse.intensity)
+function Flux.cpu(pulse::Pulse{D}) where D <: AbstractDim
+    return Pulse{D}(cpu(pulse.mesh_grid), cpu(pulse.pos), pulse.intensity)
 end

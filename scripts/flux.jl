@@ -44,12 +44,12 @@ function split_wave(wave::Wave{OneDim}, t::Float32, dyn::WaveDynamics)
     return Wave{OneDim}(cat(dU, dVx, dims = 2))
 end
 
-# dim = TwoDim(8.0f0, 0.05f0)
-dim = OneDim(8.0f0, 0.05f0)
-# pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
-pulse = Pulse(dim, 0.0f0, 10.0f0)
-# wave = Wave(dim, 6)
-wave = Wave(dim, 2)
+dim = TwoDim(5.0f0, 0.05f0)
+# dim = OneDim(8.0f0, 0.05f0)
+pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
+# pulse = Pulse(dim, 0.0f0, 10.0f0)
+wave = Wave(dim, 6)
+# wave = Wave(dim, 2)
 
 wave = pulse(wave)
 
@@ -57,13 +57,13 @@ dyn = WaveDynamics(
     dim = dim,
     pml_width = 1.0f0,
     pml_scale = 100.0f0,
-    ambient_speed = 3.0f0,
+    ambient_speed = 2.0f0,
     dt = 0.01f0)
 
 iter = WaveIntegrator(
     wave, 
-    # split_wave_pml,
-    split_wave,
+    split_wave_pml,
+    # split_wave,
     runge_kutta,
     dyn)
 

@@ -22,13 +22,10 @@ data = SaveData()
 
 sol_tot = vcat(data.sols...)
 designs = vcat(data.designs...)
-@time render!(sol_tot, designs, path = "vid_tot.mp4")
 
 wave = env.initial_condition(wave)
 dyn_inc = WaveDynamics(;kwargs...)
 iter_inc = gpu(WaveIntegrator(wave, split_wave_pml, runge_kutta, dyn_inc))
-sol_inc = cpu(integrate(iter_inc, 2000))
-@time render!(sol_inc, path = "vid_inc.mp4")
-
+sol_inc = cpu(integrate(iter_inc, length(sol_tot)))
 sol_sc = sol_tot - sol_inc
 @time render!(sol_sc, designs, path = "vid_sc.mp4")

@@ -9,11 +9,18 @@ function Wave(dim::AbstractDim, fields::Int = 1)
     return Wave{typeof(dim)}(u)
 end
 
+function field(wave::Wave{OneDim}, i::Int)
+    return view(wave.u, :, i)
+end
+
 function field(wave::Wave{TwoDim}, i::Int)
     return view(wave.u, :, :, i)
 end
 
-function displacement(wave::Wave{TwoDim})
+"""
+The displacement of a wave will always be its first field
+"""
+function displacement(wave::Wave)
     return field(wave, 1)
 end
 

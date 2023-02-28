@@ -18,7 +18,7 @@ function (pulse::Pulse{OneDim})()
     return exp.(- pulse.intensity * (pulse.mesh_grid .- pulse.pos) .^ 2)
 end
 
-function (pluse::Pulse{OneDim})(wave::Wave{OneDim})
+function (pulse::Pulse{OneDim})(wave::Wave{OneDim})
     u = pulse()
     z = pulse.mesh_grid * 0.0f0
     z = repeat(z, 1, size(wave.u, 2) - 1)

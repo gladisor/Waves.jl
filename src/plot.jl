@@ -76,7 +76,7 @@ function render!(
 
     record(p.fig, path, 1:n_frames, framerate = fps) do i
         empty!(p.ax)
-        heatmap!(p.ax, sol.dim.x, sol.dim.y, wave_interp(t[i])[:, :, 1], colormap = :ice, fxaa = false)
+        heatmap!(p.ax, sol.dim.x, sol.dim.y, wave_interp(t[i])[:, :, 1], colormap = :ice)
         if !isnothing(design)
             mesh!(p.ax, design_interp(t[i]))
         end

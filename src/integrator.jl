@@ -1,4 +1,4 @@
-export WaveIntegrator, integrate, runge_kutta
+export WaveIntegrator, integrate
 
 """
 Comprised of two functions:
@@ -10,6 +10,10 @@ mutable struct WaveIntegrator
     f::Function
     integration_function::Function
     dyn::WaveDynamics
+end
+
+function reset!(iter::WaveIntegrator)
+    reset!(iter.dyn)
 end
 
 function step!(iter::WaveIntegrator)
@@ -30,17 +34,6 @@ function integrate(iter::WaveIntegrator, n::Int)
     end
 
     return WaveSol(iter.dyn.dim, t, sol)
-end
-
-function runge_kutta(f::Function, wave::AbstractArray{Float32}, dyn::WaveDynamics)
-    h = dyn.dt
-    t = dyn.t * h
-
-    k1 = f(wave,                   t,            dyn) ## Euler
-    k2 = f(wave .+ 0.5f0 * h * k1, t + 0.5f0 * h, dyn) ## Midpoint
-    k3 = f(wave .+ 0.5f0 * h * k2, t + 0.5f0 * h, dyn)
-    k4 = f(wave .+         h * k3, t +         h, dyn) ## Endpoint
-    return 1/6f0 * h * (k1 .+ 2*k2 .+ 2*k3 .+ k4)
 end
 
 function Flux.gpu(iter::WaveIntegrator)

@@ -17,7 +17,8 @@ abstract type RewardSignal end
 abstract type InitialCondition end
 
 include("dims.jl")                         ## Core structures for defining dimensional spaces
-include("wave.jl")
+include("metrics.jl")
+include("ops.jl")
 include("sol.jl")                          ## Structure for holing results of wave simulations
 include("pml.jl")                          ## Perfectly Matched Layer
 include("initial_conditions.jl")           ## Pulses, waves, etc...

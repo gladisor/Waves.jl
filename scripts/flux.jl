@@ -71,6 +71,12 @@ function Waves.displacement(sol::WaveSol{TwoDim})
     return cat(sol.u..., dims = 3)
 end
 
+function wave_rnn(z::Matrix{Float32}, dyn::WaveDynamics)
+    z′ = z .+ runge_kutta(split_wave, z, dyn)
+    dyn.t += 1
+    return z′, z′
+end
+
 dim = TwoDim(5.0f0, 0.05f0)
 pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
 wave = zeros(Float32, size(dim)..., 6)
@@ -89,7 +95,7 @@ n = 200
 @time sol = integrate(iter, n)
 @time render!(sol, path = "vid.mp4")
 
-nodes = 300
+nodes = 100
 fields = 2
 z_dim = OneDim(5.0f0, nodes)
 z_dyn = WaveDynamics(dim = z_dim; kwargs...)
@@ -104,46 +110,41 @@ encoder = Chain(
     x -> reshape(x, nodes, fields, :)
     )
 
-hypernet = Chain(
+Φ = Chain(
     Dense(2, 128, relu),
     Dense(128, 1))
 
-_, Ψ = Flux.destructure(hypernet)
+_, restructure = Flux.destructure(hypernet)
 
-decoder = Chain(
+Ψ = Chain(
     Dense(nodes * fields, 128, relu),
-    Dense(128, length(Ψ)))
+    Dense(128, length(restructure)))
 
 x = cat(sol.u..., dims = 3)
 x = reshape(x, size(x, 1), size(x, 2), 1, size(x, 3))
-x = x[:, :, :, 1, :]
+x = x[:, :, 1, 1:10]
 
 g = grid(dim)
 points = reshape(g, :, 2)
 
-opt = Descent(0.01)
-θ = Flux.params(encoder, decoder)
+opt = Adam(0.01)
+ps = Flux.params(encoder, decoder)
 
-for i ∈ 1:5
+for i ∈ 1:100
 
     reset!(z_dyn)
 
-    gs = Flux.gradient(θ) do
+    gs = Flux.gradient(ps) do
 
-        loss = 0.0f0
-        z = dropdims(encoder(x), dims = 3)
-        # z = cat(z, z_bc, dims = 2)
-
-        zs = Matrix{Float32}[z]
-
-        for i ∈ 1:length(sol)
-            # Φ = Ψ(decoder(vec(z[end])))
-            # û = reshape(Φ(points'), size(dim)...)
-            # loss += mean((sol.u[i] .- û) .^ 2)
-            z = z .+ runge_kutta(split_wave, z, z_dyn)
-            # push!(zs, z)
-            z_dyn.t += 1
-        end
+        z = dropdims(encoder(x[:, :, 1, :, :]), dims = 3)
+        m = Flux.Recur(wave_rnn, z)
+        latents = cat([m(z_dyn) for _ ∈ 1:size(x, 3)]..., dims = 3)
+        latents = Flux.flatten(latents)
+        θ = Ψ(latents)
+        Φ = restructure.(eachcol(θ)) ## restructuring weights into Φ
+        û = cat(map(Φ -> Φ(points'), Φ)..., dims = 3) ## evaluating Φ on the domain
+        û = reshape(û, size(dim)..., :)
+        loss = mean((x .- û) .^ 2)
 
         Flux.ignore() do 
             println("Loss: $loss")
@@ -152,13 +153,11 @@ for i ∈ 1:5
         return loss
     end
 
-    Flux.Optimise.update!(opt, θ, gs)
+    Flux.Optimise.update!(opt, ps, gs)
 end
 
-
-# reset!(z_dyn)
-
-# z = dropdims(encoder(x), dims = 3)
-# z_iter = WaveIntegrator(z, split_wave, runge_kutta, z_dyn)
-# @time z_sol = integrate(z_iter, n)
-# @time render!(z_sol, path = "z_vid.mp4")
+reset!(z_dyn)
+z = dropdims(encoder(x[:, :, 1, :, :]), dims = 3)
+z_iter = WaveIntegrator(z, split_wave, runge_kutta, z_dyn)
+@time z_sol = integrate(z_iter, n)
+@time render!(z_sol, path = "z_vid.mp4")

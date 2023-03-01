@@ -18,11 +18,11 @@ function (pulse::Pulse{OneDim})()
     return exp.(- pulse.intensity * (pulse.mesh_grid .- pulse.pos) .^ 2)
 end
 
-function (pulse::Pulse{OneDim})(wave::Wave{OneDim})
+function (pulse::Pulse{OneDim})(wave::AbstractMatrix{Float32})
     u = pulse()
     z = pulse.mesh_grid * 0.0f0
-    z = repeat(z, 1, size(wave.u, 2) - 1)
-    return Wave{OneDim}(cat(u, z, dims = 2))
+    z = repeat(z, 1, size(wave, 2) - 1)
+    return cat(u, z, dims = 2)
 end
 
 function (pulse::Pulse{TwoDim})()
@@ -31,11 +31,11 @@ function (pulse::Pulse{TwoDim})()
     return u
 end
 
-function (pulse::Pulse{TwoDim})(wave::Wave{TwoDim})
+function (pulse::Pulse{TwoDim})(wave::AbstractArray{Float32, 3})
     u = pulse()
     z = dropdims(sum(pulse.mesh_grid, dims = 3), dims = 3) * 0.0f0
-    z = repeat(z, 1, 1, size(wave.u, 3) - 1)
-    return Wave{TwoDim}(cat(u, z, dims = 3))
+    z = repeat(z, 1, 1, size(wave, 3) - 1)
+    return cat(u, z, dims = 3)
 end
 
 function Flux.gpu(pulse::Pulse{D}) where D <: AbstractDim

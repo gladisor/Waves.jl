@@ -1,47 +1,56 @@
-export Wave, displacement
+# export Wave, displacement
+export displacement
 
-struct Wave{D <: AbstractDim}
-    u::AbstractArray{Float32}
+function displacement(wave::AbstractMatrix{Float32})
+    return selectdim(wave, 2, 1)
 end
 
-Flux.@functor Wave
-
-function Wave(dim::AbstractDim, fields::Int = 1)
-    u = zeros(Float32, size(dim)..., fields)
-    return Wave{typeof(dim)}(u)
+function displacement(wave::AbstractArray{Float32, 3})
+    return selectdim(wave, 3, 1)
 end
 
-function field(wave::Wave{OneDim}, i::Int)
-    return view(wave.u, :, i)
-end
-
-function field(wave::Wave{TwoDim}, i::Int)
-    return view(wave.u, :, :, i)
-end
-
-"""
-The displacement of a wave will always be its first field
-"""
-function displacement(wave::Wave)
-    return field(wave, 1)
-end
-
-function Base.:+(wave1::Wave{D}, wave2::Wave{D}) where D <: AbstractDim
-    return Wave{D}(wave1.u .+ wave2.u)
-end
-
-function Base.:*(wave::Wave{D}, n::Number) where D <: AbstractDim
-    return Wave{D}(n * wave.u)
-end
-
-function Base.:*(n::Number, wave::Wave)
-    return wave * n
-end
-
-# function Flux.gpu(wave::Wave{D}) where D <: AbstractDim
-#     return Wave{D}(gpu(wave.u))
+# struct Wave{D <: AbstractDim}
+#     u::AbstractArray{Float32}
 # end
 
-# function Flux.cpu(wave::Wave{D}) where D <: AbstractDim
-#     return Wave{D}(cpu(wave.u))
+# Flux.@functor Wave
+
+# function Wave(dim::AbstractDim, fields::Int = 1)
+#     u = zeros(Float32, size(dim)..., fields)
+#     return Wave{typeof(dim)}(u)
 # end
+
+# function field(wave::Wave{OneDim}, i::Int)
+#     return view(wave.u, :, i)
+# end
+
+# function field(wave::Wave{TwoDim}, i::Int)
+#     return view(wave.u, :, :, i)
+# end
+
+# """
+# The displacement of a wave will always be its first field
+# """
+# function displacement(wave::Wave)
+#     return field(wave, 1)
+# end
+
+# function Base.:+(wave1::Wave{D}, wave2::Wave{D}) where D <: AbstractDim
+#     return Wave{D}(wave1.u .+ wave2.u)
+# end
+
+# function Base.:*(wave::Wave{D}, n::Number) where D <: AbstractDim
+#     return Wave{D}(n * wave.u)
+# end
+
+# function Base.:*(n::Number, wave::Wave)
+#     return wave * n
+# end
+
+# # function Flux.gpu(wave::Wave{D}) where D <: AbstractDim
+# #     return Wave{D}(gpu(wave.u))
+# # end
+
+# # function Flux.cpu(wave::Wave{D}) where D <: AbstractDim
+# #     return Wave{D}(cpu(wave.u))
+# # end

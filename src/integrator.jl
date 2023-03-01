@@ -13,7 +13,7 @@ mutable struct WaveIntegrator
 end
 
 function step!(iter::WaveIntegrator)
-    iter.wave = iter.integration_function(iter.f, iter.wave, iter.dyn)
+    iter.wave = iter.wave + iter.integration_function(iter.f, iter.wave, iter.dyn)
     iter.dyn.t += 1
 end
 
@@ -40,8 +40,7 @@ function runge_kutta(f::Function, wave::Wave, dyn::WaveDynamics)
     k2 = f(wave + 0.5f0 * h * k1, t + 0.5f0 * h, dyn) ## Midpoint
     k3 = f(wave + 0.5f0 * h * k2, t + 0.5f0 * h, dyn)
     k4 = f(wave +         h * k3, t +         h, dyn) ## Endpoint
-
-    return wave + 1/6f0 * h * (k1 + 2*k2 + 2*k3 + k4)
+    return 1/6f0 * h * (k1 + 2*k2 + 2*k3 + k4)
 end
 
 function Flux.gpu(iter::WaveIntegrator)

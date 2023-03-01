@@ -2,6 +2,8 @@ using Waves
 using Waves: field
 using SparseArrays
 using CairoMakie
+using Flux
+using Statistics: mean
 
 function laplacian(x::Vector{Float32})
     laplace = zeros(Float32, length(x), length(x))
@@ -27,7 +29,7 @@ function flux(u::AbstractMatrix{Float32}, laplace::SparseMatrixCSC{Float32}, mas
     return sum(f .* mask)
 end
 
-function energy(u::AbstractMatrix{Float32})
+function energy(u::AbstractArray{Float32})
     return u .^ 2
 end
 
@@ -35,7 +37,7 @@ function split_wave(wave::Wave{OneDim}, t::Float32, dyn::WaveDynamics)
     U = displacement(wave)
     Vx = field(wave, 2)
 
-    U[[1, end]] .= 0.0f0
+    # U[[1, end]] .= 0.0f0
 
     ∇ = dyn.grad
     dU = dyn.ambient_speed * ∇ * Vx
@@ -44,41 +46,86 @@ function split_wave(wave::Wave{OneDim}, t::Float32, dyn::WaveDynamics)
     return Wave{OneDim}(cat(dU, dVx, dims = 2))
 end
 
-dim = TwoDim(5.0f0, 0.05f0)
-# dim = OneDim(8.0f0, 0.05f0)
-pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
-# pulse = Pulse(dim, 0.0f0, 10.0f0)
-wave = Wave(dim, 6)
-# wave = Wave(dim, 2)
+function reset!(dyn::WaveDynamics)
+    dyn.t = 0
+end
 
+function reset!(iter::WaveIntegrator)
+    reset!(iter.dyn)
+end
+
+dim = TwoDim(5.0f0, 0.05f0)
+pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
+wave = Wave(dim, 6)
 wave = pulse(wave)
 
-dyn = WaveDynamics(
-    dim = dim,
-    pml_width = 1.0f0,
-    pml_scale = 100.0f0,
-    ambient_speed = 2.0f0,
-    dt = 0.01f0)
+kwargs = Dict(
+    :pml_width => 1.0f0, 
+    :pml_scale => 100.0f0,
+    :ambient_speed => 2.0f0,
+    :dt => 0.01f0)
 
-iter = WaveIntegrator(
-    wave, 
-    split_wave_pml,
-    # split_wave,
-    runge_kutta,
-    dyn)
-
-@time sol = integrate(iter, 500)
+dyn = WaveDynamics(dim = dim; kwargs...)
+iter = WaveIntegrator(wave, split_wave_pml, runge_kutta, dyn)
+@time sol = integrate(iter, 400)
 @time render!(sol, path = "vid.mp4")
-# mask = circle_mask(dim, 3.0f0)
-# laplace = laplacian(dim.x)
 
-# f = [flux(energy(u), laplace, mask) for u in sol.u]
-# println("Plotting Flux")
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# xlims!(ax, sol.t[1], sol.t[end])
-# lines!(ax, sol.t, f, color = :blue)
-# save("flux.png", fig)
+# z_dim = OneDim(1.0f0, 100)
+# z_dyn = WaveDynamics(dim = z_dim; kwargs...)
 
-# using Flux
+# encoder = Chain(
+#     Conv((4, 4), 1 => 1, pad = SamePad(), relu),
+#     MaxPool((4, 4)),
+#     Conv((4, 4), 1 => 1, pad = SamePad(), relu),
+#     MaxPool((4, 4)),
+#     Flux.flatten,
+#     Dense(144, 200, relu),
+#     x -> reshape(x, 100, 2, :)
+#     )
 
+# hypernet = Chain(
+#     Dense(2, 128, relu),
+#     Dense(128, 1))
+
+# _, Ψ = Flux.destructure(hypernet)
+
+# decoder = Chain(
+#     Dense(200, 128, relu),
+#     Dense(128, length(Ψ)))
+
+# x = cat(sol.u..., dims = 3)
+# x = reshape(x, size(x, 1), size(x, 2), 1, size(x, 3))
+# x = x[:, :, :, 1, :]
+
+# g = grid(dim)
+# points = reshape(g, :, 2)
+
+# opt = Descent(0.05)
+# θ = Flux.params(encoder, decoder)
+
+# for i ∈ 1:100
+
+#     reset!(z_dyn)
+
+#     gs = Flux.gradient(θ) do
+
+#         loss = 0.0f0
+#         z = Wave{OneDim}(dropdims(encoder(x), dims = 3))
+
+#         for i ∈ 1:(length(sol) - 70)
+#             Φ = Ψ(decoder(vec(z.u)))
+#             û = reshape(Φ(points'), size(dim)...)
+#             loss += mean((sol.u[i] .- û) .^ 2)
+#             z = z + runge_kutta(split_wave, z, z_dyn)
+#             z_dyn.t += 1
+#         end
+
+#         Flux.ignore() do 
+#             println("Loss: $loss")
+#         end
+        
+#         return loss
+#     end
+
+#     Flux.Optimise.update!(opt, θ, gs)
+# end

@@ -4,6 +4,8 @@ struct Wave{D <: AbstractDim}
     u::AbstractArray{Float32}
 end
 
+Flux.@functor Wave
+
 function Wave(dim::AbstractDim, fields::Int = 1)
     u = zeros(Float32, size(dim)..., fields)
     return Wave{typeof(dim)}(u)
@@ -36,10 +38,10 @@ function Base.:*(n::Number, wave::Wave)
     return wave * n
 end
 
-function Flux.gpu(wave::Wave{D}) where D <: AbstractDim
-    return Wave{D}(gpu(wave.u))
-end
+# function Flux.gpu(wave::Wave{D}) where D <: AbstractDim
+#     return Wave{D}(gpu(wave.u))
+# end
 
-function Flux.cpu(wave::Wave{D}) where D <: AbstractDim
-    return Wave{D}(cpu(wave.u))
-end
+# function Flux.cpu(wave::Wave{D}) where D <: AbstractDim
+#     return Wave{D}(cpu(wave.u))
+# end

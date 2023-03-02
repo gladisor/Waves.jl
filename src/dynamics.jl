@@ -1,9 +1,17 @@
 export WaveDynamics
 
-function stable_dt(dx::Float32, ambient_speed::Float32)::Float32
-    return sqrt(dx^2 / ambient_speed^2)
-end
+"""
+Structure for holding information on how the wave should change over time.
 
+    dim: holds information on the dimentional space
+    g: constructed from dim, is the array of coordinate points
+    grad: used to take first derivatives of scalar fields
+    design: holds a structure which has an effect on the wave
+    pml: the rate at which outgoing waves should be dampened
+    ambient_speed: the normal speed of the wave as it moves through the domain
+    t: integer timestep
+    dt: the amount of time that passes at each timestep
+"""
 mutable struct WaveDynamics
     dim::AbstractDim
     g::AbstractArray{Float32}
@@ -16,9 +24,11 @@ mutable struct WaveDynamics
 end
 
 function WaveDynamics(;
-        dim::AbstractDim, design::Union{AbstractDesign, Nothing} = nothing,
+        dim::AbstractDim, 
+        design::Union{AbstractDesign, Nothing} = nothing,
         pml_width::Float32, pml_scale::Float32, 
-        ambient_speed::Float32, dt::Float32)
+        ambient_speed::Float32, dt::Float32
+        )
 
     g = grid(dim)
     grad = gradient(dim.x)
@@ -28,14 +38,25 @@ function WaveDynamics(;
     return WaveDynamics(dim, g, grad, design, pml, ambient_speed, 0, dt)
 end
 
+"""
+For resetting the time of the dynamics
+"""
 function reset!(dyn::WaveDynamics)
     dyn.t = 0
 end
 
+"""
+Gets the physical time in the system
+"""
 function Base.time(dyn::WaveDynamics)
     return dyn.t * dyn.dt
 end
 
+"""
+Retrives the wave speed array which describes the speed of the wave at every point
+within the domain. If there is no design then the speed is just the ambient_speed everywhere.
+If there is a design then the speed of the design is included where the design exists.
+"""
 function speed(dyn::WaveDynamics, t::Float32)
     if isnothing(dyn.design)
         return dropdims(sum(dyn.g, dims = 3), dims = 3) .^ 0.0f0 * dyn.ambient_speed

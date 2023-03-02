@@ -3,7 +3,7 @@ const BACKWARD_DIFF_COEF = [1.0f0, -4.0f0, 3.0f0]
 const CENTRAL_DIFF_COEF = [-1.0f0, 1.0f0]
 
 """
-Function for constructing a gradient operator for a one dimensional scalar field.
+Function for constructing a sparse gradient Matrix for a one dimensional scalar field.
 """
 function gradient(x::Vector{Float32})
     grad = zeros(Float32, size(x, 1), size(x, 1))
@@ -19,6 +19,9 @@ function gradient(x::Vector{Float32})
     return sparse((grad / (2 * Δ))')
 end
 
+"""
+Constructs the sparse matrix which performs a second spatial derivative.
+"""
 function laplacian(x::Vector{Float32})
     laplace = zeros(Float32, length(x), length(x))
     dx = (x[end] - x[1]) / (length(x) - 1)

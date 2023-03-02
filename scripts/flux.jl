@@ -1,8 +1,8 @@
 using Waves
-using SparseArrays
 using CairoMakie
 using Flux
 using Statistics: mean
+using Flux.Optimisers: Restructure
 
 function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dyn::WaveDynamics)
     U = selectdim(wave, 2, 1)
@@ -17,10 +17,34 @@ function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dyn::WaveDynamic
     return cat(dU, dVx, dims = 2)
 end
 
-function wave_rnn(z::Matrix{Float32}, dyn::WaveDynamics)
+function wave_cell(z::AbstractMatrix{Float32}, dyn::WaveDynamics)
     z′ = z .+ runge_kutta(latent_wave, z, dyn)
     dyn.t += 1
     return z′, z′
+end
+
+struct WaveNet
+    encoder::Chain
+    restructure::Restructure
+    hypernet::Chain
+end
+
+function WaveNet(dim::AbstractDim, z_size::Int, z_fields::Int)
+
+    encoder = Chain(
+        Conv((4, 4), 1 => 1, pad = SamePad(), tanh),
+        MaxPool((4, 4)),
+        Conv((4, 4), 1 => 1, pad = SamePad(), tanh),
+        MaxPool((4, 4)),
+        Flux.flatten,
+        Dense(144, z_size * z_fields, tanh),
+        z -> reshape(z, z_size, z_fields, :))
+
+    Φ = Chain(Dense(length(size(dim)), 128, relu), Dense(128, 1))
+    _, restructure = Flux.destructure(Φ)
+    hypernet = Chain(Dense(z_size * z_fields, 128, relu), Dense(128, length(restructure)))
+
+    return WaveNet(encoder, restructure, hypernet)
 end
 
 dim = OneDim(5.0f0, 0.05f0)
@@ -37,6 +61,7 @@ kwargs = Dict(
     :dt => 0.01f0)
 
 dyn = WaveDynamics(dim = dim, design = cyl; kwargs...)
+
 # iter = WaveIntegrator(wave, split_wave_pml, runge_kutta, dyn)
 # n = 600
 # @time sol = integrate(iter, n)
@@ -60,7 +85,7 @@ opt = Descent(0.01)
 for i ∈ 1:100
     gs = Flux.gradient(ps) do
 
-        m = Flux.Recur(wave_rnn, wave)
+        m = Flux.Recur(wave_cell, wave)
         latents = [m(dyn) for i ∈ 1:30]
         e = sum(energy(displacement(latents[end])))
 
@@ -86,24 +111,10 @@ p = WavePlot(dim)
 lines!(p.ax, dim.x, sol.u[end])
 save("optimized_uf.png", p.fig)
 
-
-# nodes = 100
-# fields = 2
-# z_dim = OneDim(5.0f0, nodes)
-# z_dyn = WaveDynamics(dim = z_dim; kwargs...)
-
-# encoder = Chain(
-#     Conv((4, 4), 1 => 1, pad = SamePad(), relu),
-#     MaxPool((4, 4)),
-#     Conv((4, 4), 1 => 1, pad = SamePad(), relu),
-#     MaxPool((4, 4)),
-#     Flux.flatten,
-#     Dense(144, nodes * fields, tanh),
-#     z -> reshape(z, nodes, fields, :))
-
-# Φ = Chain(Dense(2, 128, relu), Dense(128, 1))
-# _, restructure = Flux.destructure(Φ)
-# Ψ = Chain(Dense(nodes * fields, 128, relu), Dense(128, length(restructure)))
+nodes = 100
+fields = 2
+z_dim = OneDim(5.0f0, nodes)
+z_dyn = WaveDynamics(dim = z_dim; kwargs...)
 
 # x = cat(sol.u..., dims = 3)
 # x = reshape(x, size(x, 1), size(x, 2), 1, size(x, 3))

@@ -26,10 +26,10 @@ function Base.getindex(sol::WaveSol, i::Int64)
     return sol.u[i]
 end
 
-function Base.lastindex(sol::WaveSol)
-    return sol.u[end]
-end
-
+"""
+Stacks the two solutions on top of one another. Assumes that the final state
+of the previous solution is equal to the first state of the next solution.
+"""
 function Base.vcat(sol1::WaveSol, sol2::WaveSol)
     pop!(sol1.t)
     pop!(sol1.u)

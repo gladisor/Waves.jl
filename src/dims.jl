@@ -15,17 +15,17 @@ struct ThreeDim <: AbstractDim
     z::AbstractVector{Float32}
 end
 
-function OneDim(x_min, x_max, Δ)
+function OneDim(x_min::Float32, x_max::Float32, Δ::Float32)
     return OneDim(collect(x_min:Δ:x_max))
 end
 
-function TwoDim(x_min, x_max, y_min, y_max, Δ)
+function TwoDim(x_min::Float32, x_max::Float32, y_min::Float32, y_max::Float32, Δ::Float32)
     x = collect(x_min:Δ:x_max)
     y = collect(y_min:Δ:y_max)
     return TwoDim(x, y)
 end
 
-function ThreeDim(x_min, x_max, y_min, y_max, z_min, z_max, Δ)
+function ThreeDim(x_min::Float32, x_max::Float32, y_min::Float32, y_max::Float32, z_min::Float32, z_max::Float32, Δ::Float32)
     x = collect(x_min:Δ:x_max)
     y = collect(y_min:Δ:y_max)
     z = collect(z_min:Δ:z_max)
@@ -70,6 +70,12 @@ function grid(dim::OneDim)
     return dim.x
 end
 
+"""
+Returns a 3 dimensional array (x, y, 2) where x and y are the number
+of discretization points on each axis. The last dimension specifies the
+x or y coordinate in the space. This array is useful in operations
+which would normally involve a double for loop.
+"""
 function grid(dim::TwoDim)
     x = repeat(dim.x, 1, length(dim.y))
     y = repeat(dim.y', length(dim.x))

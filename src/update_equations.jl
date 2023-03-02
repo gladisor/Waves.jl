@@ -1,5 +1,9 @@
 export split_wave_pml, runge_kutta
 
+"""
+Update rule for a two dimensional wave with a pml. Assumes the dimention is a square with
+the same number of discretization points in each dimension.
+"""
 function split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
     U = selectdim(wave, 3, 1)
     Vx = selectdim(wave, 3, 2)
@@ -29,6 +33,10 @@ function split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDy
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
+"""
+Runge Kutta integration scheme for more accuratly estimating the rate of change of the
+wave over time.
+"""
 function runge_kutta(f::Function, wave::AbstractArray{Float32}, dyn::WaveDynamics)
     h = dyn.dt
     t = dyn.t * h

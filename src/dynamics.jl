@@ -25,9 +25,11 @@ end
 
 function WaveDynamics(;
         dim::AbstractDim, 
+        pml_width::Float32, 
+        pml_scale::Float32, 
+        ambient_speed::Float32, 
+        dt::Float32,
         design::Union{AbstractDesign, Nothing} = nothing,
-        pml_width::Float32, pml_scale::Float32, 
-        ambient_speed::Float32, dt::Float32
         )
 
     g = grid(dim)
@@ -59,7 +61,7 @@ If there is a design then the speed of the design is included where the design e
 """
 function speed(dyn::WaveDynamics, t::Float32)
     if isnothing(dyn.design)
-        return dropdims(sum(dyn.g, dims = 3), dims = 3) .^ 0.0f0 * dyn.ambient_speed
+        return one(dyn.dim) * dyn.ambient_speed
     else
         return speed(dyn.design(t), dyn.g, dyn.ambient_speed)
     end

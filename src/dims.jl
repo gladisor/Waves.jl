@@ -83,6 +83,14 @@ function grid(dim::TwoDim)
     return g
 end
 
+function Base.one(dim::OneDim)
+    return dim.x .^ 0.0f0
+end
+
+function Base.one(dim::TwoDim)
+    return (dim.x * dim.y') .^ 0.0f0
+end
+
 function Flux.gpu(dim::TwoDim)
     return TwoDim(gpu(dim.x), gpu(dim.y))
 end

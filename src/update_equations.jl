@@ -1,5 +1,20 @@
 export split_wave_pml, runge_kutta
 
+function split_wave_pml(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
+    U = selectdim(wave, 2, 1)
+    V = selectdim(wave, 2, 2)
+
+    ∇ = dynamics.grad
+    σx = dynamics.pml
+    C = Waves.speed(dynamics, t)
+    b = C .^ 2
+
+    dU = b .* ∇ * V .- σx .* U
+    dVx = ∇ * U .- σx .* V
+
+    return cat(dU, dVx, dims = 2)
+end
+
 """
 Update rule for a two dimensional wave with a pml. Assumes the dimention is a square with
 the same number of discretization points in each dimension.

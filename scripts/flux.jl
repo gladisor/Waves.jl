@@ -29,11 +29,57 @@ end
 Flux.@functor WaveEncoder
 Flux.trainable(encoder::WaveEncoder) = (encoder.layers,)
 
-function (encoder::WaveEncoder)(x)
-    z = encoder.layers(x)
-    zs = [z[:, :, i] for i ∈ axes(z, 3)]
-    latents = integrate.([encoder.cell], zs, [encoder.dynamics], [encoder.steps])
+function (encoder::WaveEncoder)(wave::AbstractArray{Float32, 3})
+    z = dropdims(encoder.layers(Flux.batch([wave])), dims = 3)
+    latents = integrate(encoder.cell, z, encoder.dynamics, encoder.steps)
+    latents = Flux.flatten(cat(latents..., dims = 3))
     return latents
+end
+
+function (encoder::WaveEncoder)(sol::WaveSol{TwoDim})
+    return encoder(first(sol.u))
+end
+
+struct WaveDecoder
+    dim::TwoDim
+    points::AbstractMatrix{Float32}
+    fields::Int
+    restructure::Restructure
+    hypernetwork::Chain
+end
+
+Flux.@functor WaveDecoder
+Flux.trainable(decoder::WaveDecoder) = (decoder.hypernetwork,)
+
+function WaveDecoder(dim::AbstractDim, in_size::Int, h_size::Int, fields::Int)
+
+    points = reshape(grid(dim), :, 2)'
+    Φ = Chain(
+        Dense(ndims(dim), h_size, relu), 
+        Dense(h_size, h_size, relu),
+        Dense(h_size, fields))
+
+    _, restructure = Flux.destructure(Φ)
+    hypernetwork = Chain(Dense(in_size, h_size, relu), Dense(h_size, length(restructure), bias = false))
+    return WaveDecoder(dim, points, fields, restructure, hypernetwork)
+end
+
+function (decoder::WaveDecoder)(z)
+    θ = decoder.hypernetwork(z)
+    Φ = decoder.restructure.(eachcol(θ))
+    return map(Φ -> reshape(Φ(decoder.points), size(decoder.dim)..., decoder.fields), Φ)
+end
+
+function training_data(sol::WaveSol, k::Int)
+    x = []
+    y = []
+
+    for i ∈ 1:(length(sol) - k)
+        push!(x, sol.u[i])
+        push!(y, sol.u[i+1:i+k])
+    end
+
+    return (x, y)
 end
 
 dim = TwoDim(5.0f0, 0.025f0)
@@ -44,56 +90,55 @@ wave = pulse(wave) .+ pulse2(wave)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 100.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
 cell = WaveCell(split_wave_pml, runge_kutta)
 
-cyl = Cylinder([4.0f0, 0.0f0], 0.5f0, 0.1f0)
-dynamics = WaveDynamics(dim = dim, design = cyl; dynamics_kwargs...)
+dynamics = WaveDynamics(dim = dim; dynamics_kwargs...)
 
-n = 600
+n = 10
 @time u = integrate(cell, wave, dynamics, n)
 pushfirst!(u, wave) ## add the initial state
 t = collect(range(0.0f0, dynamics.dt * n, n + 1))
 sol = WaveSol(dim, t, u)
 
-render!(sol, DesignTrajectory(dynamics, n), path = "vid.mp4")
+z_grid_size = 5.0f0
+z_elements = 100
+z_fields = 2
 
-# z_grid_size = 5.0f0
-# z_elements = 100
-# z_fields = 2
-# z_steps = 6
+z_cell = WaveCell(latent_wave, runge_kutta)
+z_dim = OneDim(z_grid_size, z_elements)
+z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...)
 
-# z_cell = WaveCell(latent_wave, runge_kutta)
-# z_dim = OneDim(z_grid_size, z_elements)
-# z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...)
+layers = Chain(
+    Conv((4, 4), 6 => 1, relu, pad = SamePad()), MaxPool((4, 4)),
+    Conv((4, 4), 1 => 1, relu, pad = SamePad()), MaxPool((4, 4)),
+    Flux.flatten,
+    Dense(625, z_elements * z_fields, relu),
+    z -> reshape(z, z_elements, z_fields, :))
 
-# layers = Chain(
-#     Conv((4, 4), 6 => 1, relu, pad = SamePad()), MaxPool((4, 4)),
-#     Conv((4, 4), 1 => 1, relu, pad = SamePad()), MaxPool((4, 4)),
-#     Flux.flatten,
-#     Dense(625, z_elements * z_fields, tanh),
-#     z -> reshape(z, z_elements, z_fields, :))
+encoder = WaveEncoder(z_cell, z_dynamics, length(sol)-1, layers) |> gpu
+decoder = WaveDecoder(dim, z_elements * z_fields, 128, 6) |> gpu
 
-# encoder = WaveEncoder(z_cell, z_dynamics, z_steps, layers)
+ps = Flux.params(encoder, decoder)
+opt = Adam(0.01)
 
-# x = cat(sol.u[1:3]..., dims = 4)
+u_true = cat(sol.u[2:end]..., dims = 4)
 
-# println(size(x))
-# latents = encoder(x)
-# println(size(latents[1]))
-# ps = Flux.params(encoder)
+for i ∈ 1:50
+    
+    gs = Flux.gradient(ps) do
 
-# ps = Flux.params(wave)
+        latents = encoder(sol)
+        u_pred = cat(decoder(latents)..., dims = 4)
+        loss = mean((u_pred .- u_true) .^ 2)
 
-# gs = Flux.gradient(ps) do 
-#     latents = integrate(cell, wave, dynamics, 1)
-#     e = sum(energy(displacement(latents[end])))
+        Flux.ignore() do 
+            println("Loss: $loss")
+        end
 
-#     Flux.ignore() do 
-#         println(e)
-#     end
+        return loss
+    end
 
-#     return e
-# end
+    Flux.Optimise.update!(opt, ps, gs)
 
-# p = WavePlot(dim)
-# # lines!(p.ax, dim.x, displacement(gs[wave]))
-# heatmap!(p.ax, dim.x, dim.y, displacement(gs[wave]))
-# save("u.png", p.fig)
+    p = WavePlot(dim)
+    plot_wave!(p, dim, decoder(encoder(sol))[end])
+    save("training/u$i.png", p.fig)
+end

@@ -66,6 +66,10 @@ function Base.size(dim::ThreeDim)
     return (length(dim.x), length(dim.y), length(dim.z))
 end
 
+function Base.ndims(dim::AbstractDim)
+    return length(size(dim))
+end
+
 function grid(dim::OneDim)
     return dim.x
 end

@@ -1,4 +1,4 @@
-export WavePlot, interpolate, render!
+export WavePlot, plot_wave!, render!
 
 mutable struct WavePlot
     fig::Figure

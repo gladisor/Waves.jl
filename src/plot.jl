@@ -25,40 +25,24 @@ function CairoMakie.mesh!(ax::Axis, cyl::Cylinder)
     mesh!(ax, Circle(Point(cyl.pos...), cyl.r), color = :gray)
 end
 
-function render!(
-    sol::WaveSol{OneDim}, design::Union{DesignTrajectory, Nothing} = nothing; path::String, fps::Int = 24, n_frames = nothing)
+function plot_design!(p::WavePlot, cyl::Cylinder)
+    mesh!(p.ax, cyl)
+end
 
-    p = WavePlot(sol.dim)
+function plot_wave!(p::WavePlot, dim::OneDim, wave::AbstractMatrix{Float32})
+    lines!(p.ax, dim.x, displacement(wave), color = :blue, linewidth = 3)
+end
 
-    wave_interp = linear_interpolation(sol.t, sol.u)
-
-    if !isnothing(design)
-        design_interp = linear_interpolation(sol.t, design.traj)
-    end
-
-    if isnothing(n_frames)
-        n_frames = Int(round(fps * sol.t[end]))
-    end
-    t = collect(range(sol.t[1], sol.t[end], n_frames))
-
-    record(p.fig, path, 1:n_frames, framerate = fps) do i
-        empty!(p.ax)
-        lines!(p.ax, sol.dim.x, wave_interp(t[i])[:, 1], color = :blue, linewidth = 3)
-        if !isnothing(design)
-            mesh!(p.ax, design_interp(t[i]))
-        end
-    end
+function plot_wave!(p::WavePlot, dim::TwoDim, wave::AbstractArray{Float32, 3})
+    heatmap!(p.ax, dim.x, dim.y, displacement(wave), colormap = :ice)
 end
 
 """
 Renders an animation of a wave solution.
 """
 function render!(
-        sol::WaveSol{TwoDim}, 
-        design::Union{DesignTrajectory, Nothing} = nothing; 
-        path::String,
-        fps::Int = 24,
-        n_frames = nothing)
+        sol::WaveSol, 
+        design::Union{DesignTrajectory, Nothing} = nothing; path::String, fps::Int = 24)
 
     p = WavePlot(sol.dim)
 
@@ -68,17 +52,16 @@ function render!(
         design_interp = linear_interpolation(sol.t, design.traj)
     end
 
-    if isnothing(n_frames)
-        n_frames = Int(round(fps * sol.t[end]))
-    end
-
+    n_frames = Int(round(fps * sol.t[end]))
     t = collect(range(sol.t[1], sol.t[end], n_frames))
 
     record(p.fig, path, 1:n_frames, framerate = fps) do i
+
         empty!(p.ax)
-        heatmap!(p.ax, sol.dim.x, sol.dim.y, wave_interp(t[i])[:, :, 1], colormap = :ice)
+        plot_wave!(p, sol.dim, wave_interp(t[i]))
+
         if !isnothing(design)
-            mesh!(p.ax, design_interp(t[i]))
+            plot_design!(p, design_interp(t[i]))
         end
     end
 end

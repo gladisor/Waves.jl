@@ -114,12 +114,14 @@ z_cell = WaveCell(latent_wave, runge_kutta)
 z_dim = OneDim(z_grid_size, z_elements)
 z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
 
+h_size = 12
+
 layers = Chain(
-    Conv((3, 3), 6 => 1, relu),
+    Conv((3, 3), 6 => h_size, relu),
     MaxPool((2, 2)),
-    Conv((3, 3), 1 => 1, relu),
+    Conv((3, 3), h_size => h_size, relu),
     MaxPool((2, 2)),
-    Conv((4, 4), 1 => 1, relu),
+    Conv((4, 4), h_size => 1, relu),
     Flux.flatten,
     z -> reshape(z, 200, 2, :)
 )
@@ -127,17 +129,17 @@ layers = Chain(
 decoder = Chain(
     z -> reshape(z, 20, 20, 1, size(z, 2)),
     Upsample(scale = (2, 2)),
-    Conv((3, 3), 1 => 1, relu),
-    Conv((3, 3), 1 => 1, relu),
-    Conv((3, 3), 1 => 1, relu),
+    Conv((3, 3), 1 => h_size, relu),
+    Conv((3, 3), h_size => h_size, relu),
+    Conv((3, 3), h_size => h_size, relu),
     Upsample((2, 2)),
-    Conv((5, 5), 1 => 1, relu),
-    Conv((5, 5), 1 => 1, relu),
-    Conv((5, 5), 1 => 1, relu),
+    Conv((5, 5), h_size => h_size, relu),
+    Conv((5, 5), h_size => h_size, relu),
+    Conv((5, 5), h_size => h_size, relu),
     Upsample((2, 2)),
-    Conv((5, 5), 1 => 1, relu),
-    Conv((5, 5), 1 => 1, relu),
-    Conv((4, 4), 1 => 6)) |> gpu
+    Conv((5, 5), h_size => h_size, relu),
+    Conv((5, 5), h_size => h_size, relu),
+    Conv((4, 4), h_size => 6)) |> gpu
 
 encoder = WaveEncoder(z_cell, z_dynamics, length(sol)-1, layers) |> gpu
 y_true = cat(sol.u[2:end]..., dims = 4)
@@ -147,13 +149,14 @@ opt = Adam(0.001)
 
 train_loss = Float32[]
 
-for i ∈ 1:2
+for i ∈ 1:100
     Waves.reset!(dynamics)
     
     gs = Flux.gradient(ps) do
 
         y_pred = decoder(encoder(sol))
-        loss = sum((y_pred .- y_true) .^ 2)
+        # loss = sum((y_pred .- y_true) .^ 2)
+        loss = sqrt.(Flux.Losses.huber_loss(y_pred, y_true))
 
         Flux.ignore() do 
             println("Loss: $loss")
@@ -166,10 +169,20 @@ for i ∈ 1:2
     Flux.Optimise.update!(opt, ps, gs)
 end
 
-p = WavePlot(dim)
-predicted_waves = cpu(decoder(encoder(sol)))
-plot_wave!(p, dim, predicted_waves[:, :, :, 1])
-save("u.png", p.fig)
+fig = Figure()
+ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
+heatmap!(ax1, dim.x, dim.y, cpu(y_true[:, :, 1, end]), colormap = :ice)
+ax2 = Axis(fig[1, 2], aspect = AxisAspect(1.0))
+heatmap!(ax2, dim.x, dim.y, cpu(predicted_waves[:, :, 1, end]), colormap = :ice)
+ax3 = Axis(fig[2, 1], aspect = AxisAspect(1.0))
+heatmap!(ax3, dim.x, dim.y, cpu(y_true[:, :, 1, end ÷ 2]), colormap = :ice)
+ax4 = Axis(fig[2, 2], aspect = AxisAspect(1.0))
+heatmap!(ax4, dim.x, dim.y, cpu(predicted_waves[:, :, 1, end ÷ 2]), colormap = :ice)
+ax5 = Axis(fig[3, 1], aspect = AxisAspect(1.0))
+heatmap!(ax5, dim.x, dim.y, cpu(y_true[:, :, 1, 1]), colormap = :ice)
+ax6 = Axis(fig[3, 2], aspect = AxisAspect(1.0))
+heatmap!(ax6, dim.x, dim.y, cpu(predicted_waves[:, :, 1, 1]), colormap = :ice)
+save("comparison.png", fig)
 
 fig = Figure()
 ax = Axis(fig[1, 1])

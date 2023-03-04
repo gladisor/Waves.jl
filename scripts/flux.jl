@@ -90,8 +90,8 @@ function training_data(sol::WaveSol, k::Int)
     return (x, y)
 end
 
-dim = TwoDim(5.0f0, 0.025f0)
-pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
+dim = TwoDim(5.0f0, 0.1f0)
+pulse = Pulse(dim, 0.0f0, 0.0f0, 5.0f0)
 wave = zeros(Float32, size(dim)..., 6)
 wave = pulse(wave) |> gpu
 
@@ -100,14 +100,14 @@ cell = WaveCell(split_wave_pml, runge_kutta)
 
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
-n = 10
+n = 50
 @time u = integrate(cell, wave, dynamics, n)
 pushfirst!(u, wave) ## add the initial state
 t = collect(range(0.0f0, dynamics.dt * n, n + 1))
 sol = WaveSol(dim, t, u) |> gpu
 
 z_grid_size = 5.0f0
-z_elements = 100
+z_elements = 200
 z_fields = 2
 
 z_cell = WaveCell(latent_wave, runge_kutta)
@@ -115,29 +115,45 @@ z_dim = OneDim(z_grid_size, z_elements)
 z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
 
 layers = Chain(
-    Conv((4, 4), 6 => 1, relu, pad = SamePad()), MaxPool((4, 4)),
-    Conv((4, 4), 1 => 1, relu, pad = SamePad()), MaxPool((4, 4)),
+    Conv((3, 3), 6 => 1, relu),
+    MaxPool((2, 2)),
+    Conv((3, 3), 1 => 1, relu),
+    MaxPool((2, 2)),
+    Conv((4, 4), 1 => 1, relu),
     Flux.flatten,
-    Dense(625, z_elements * z_fields, relu),
-    z -> reshape(z, z_elements, z_fields, :))
+    z -> reshape(z, 200, 2, :)
+)
+
+decoder = Chain(
+    z -> reshape(z, 20, 20, 1, size(z, 2)),
+    Upsample(scale = (2, 2)),
+    Conv((3, 3), 1 => 1, relu),
+    Conv((3, 3), 1 => 1, relu),
+    Conv((3, 3), 1 => 1, relu),
+    Upsample((2, 2)),
+    Conv((5, 5), 1 => 1, relu),
+    Conv((5, 5), 1 => 1, relu),
+    Conv((5, 5), 1 => 1, relu),
+    Upsample((2, 2)),
+    Conv((5, 5), 1 => 1, relu),
+    Conv((5, 5), 1 => 1, relu),
+    Conv((4, 4), 1 => 6)) |> gpu
 
 encoder = WaveEncoder(z_cell, z_dynamics, length(sol)-1, layers) |> gpu
-decoder = WaveDecoder(dim, z_elements * z_fields, 128, 6) |> gpu
+y_true = cat(sol.u[2:end]..., dims = 4)
 
 ps = Flux.params(encoder, decoder)
 opt = Adam(0.001)
 
-u_true = cat(sol.u[2:end]..., dims = 4)
 train_loss = Float32[]
 
-for i ∈ 1:3000
+for i ∈ 1:2
     Waves.reset!(dynamics)
     
     gs = Flux.gradient(ps) do
 
-        latents = encoder(sol)
-        u_pred = cat(decoder(latents)..., dims = 4)
-        loss = sum((u_pred .- u_true) .^ 2)
+        y_pred = decoder(encoder(sol))
+        loss = sum((y_pred .- y_true) .^ 2)
 
         Flux.ignore() do 
             println("Loss: $loss")
@@ -148,11 +164,11 @@ for i ∈ 1:3000
     end
 
     Flux.Optimise.update!(opt, ps, gs)
-
 end
 
 p = WavePlot(dim)
-plot_wave!(p, dim, cpu(decoder(encoder(sol))[end]))
+predicted_waves = cpu(decoder(encoder(sol)))
+plot_wave!(p, dim, predicted_waves[:, :, :, 1])
 save("u.png", p.fig)
 
 fig = Figure()

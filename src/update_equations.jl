@@ -1,15 +1,17 @@
 export split_wave_pml, runge_kutta
 
 function split_wave_pml(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
-    U = selectdim(wave, 2, 1)
-    V = selectdim(wave, 2, 2)
+    # U = selectdim(wave, 2, 1)
+    # V = selectdim(wave, 2, 2)
+    U = wave[:, 1]
+    V = wave[:, 2]
 
     ∇ = dynamics.grad
     σx = dynamics.pml
     C = Waves.speed(dynamics, t)
     b = C .^ 2
 
-    dU = b .* ∇ * V .- σx .* U
+    dU = b .* (∇ * V) .- σx .* U
     dVx = ∇ * U .- σx .* V
 
     return cat(dU, dVx, dims = 2)
@@ -20,12 +22,19 @@ Update rule for a two dimensional wave with a pml. Assumes the dimention is a sq
 the same number of discretization points in each dimension.
 """
 function split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDynamics)
-    U = selectdim(wave, 3, 1)
-    Vx = selectdim(wave, 3, 2)
-    Vy = selectdim(wave, 3, 3)
-    Ψx = selectdim(wave, 3, 4)
-    Ψy = selectdim(wave, 3, 5)
-    Ω = selectdim(wave, 3, 6)
+    # U = selectdim(wave, 3, 1)
+    # Vx = selectdim(wave, 3, 2)
+    # Vy = selectdim(wave, 3, 3)
+    # Ψx = selectdim(wave, 3, 4)
+    # Ψy = selectdim(wave, 3, 5)
+    # Ω = selectdim(wave, 3, 6)
+
+    U = wave[:, :, 1]
+    Vx = wave[:, :, 2]
+    Vy = wave[:, :, 3]
+    Ψx = wave[:, :, 4]
+    Ψy = wave[:, :, 5]
+    Ω = wave[:, :, 6]
 
     C = Waves.speed(dyn, t)
     b = C .^ 2

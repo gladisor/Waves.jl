@@ -95,6 +95,14 @@ function Base.one(dim::TwoDim)
     return (dim.x * dim.y') .^ 0.0f0
 end
 
+function Flux.gpu(dim::OneDim)
+    return OneDim(gpu(dim.x))
+end
+
+function Flux.cpu(dim::OneDim)
+    return OneDim(cpu(dim.x))
+end
+
 function Flux.gpu(dim::TwoDim)
     return TwoDim(gpu(dim.x), gpu(dim.y))
 end

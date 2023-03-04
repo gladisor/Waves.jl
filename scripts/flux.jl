@@ -90,6 +90,24 @@ function training_data(sol::WaveSol, k::Int)
     return (x, y)
 end
 
+
+function plot_comparison!(y_true, y_pred; path::String)
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
+    heatmap!(ax1, dim.x, dim.y, y_true[:, :, 1, end], colormap = :ice)
+    ax2 = Axis(fig[1, 2], aspect = AxisAspect(1.0))
+    heatmap!(ax2, dim.x, dim.y, y_pred[:, :, 1, end], colormap = :ice)
+    ax3 = Axis(fig[2, 1], aspect = AxisAspect(1.0))
+    heatmap!(ax3, dim.x, dim.y, y_true[:, :, 1, end ÷ 2], colormap = :ice)
+    ax4 = Axis(fig[2, 2], aspect = AxisAspect(1.0))
+    heatmap!(ax4, dim.x, dim.y, y_pred[:, :, 1, end ÷ 2], colormap = :ice)
+    ax5 = Axis(fig[3, 1], aspect = AxisAspect(1.0))
+    heatmap!(ax5, dim.x, dim.y, y_true[:, :, 1, 1], colormap = :ice)
+    ax6 = Axis(fig[3, 2], aspect = AxisAspect(1.0))
+    heatmap!(ax6, dim.x, dim.y, y_pred[:, :, 1, 1], colormap = :ice)
+    save(path, fig)
+end
+
 dim = TwoDim(5.0f0, 0.1f0)
 pulse = Pulse(dim, 0.0f0, 0.0f0, 5.0f0)
 wave = zeros(Float32, size(dim)..., 6)
@@ -100,7 +118,7 @@ cell = WaveCell(split_wave_pml, runge_kutta)
 
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
-n = 50
+n = 100
 @time u = integrate(cell, wave, dynamics, n)
 pushfirst!(u, wave) ## add the initial state
 t = collect(range(0.0f0, dynamics.dt * n, n + 1))
@@ -145,18 +163,17 @@ encoder = WaveEncoder(z_cell, z_dynamics, length(sol)-1, layers) |> gpu
 y_true = cat(sol.u[2:end]..., dims = 4)
 
 ps = Flux.params(encoder, decoder)
-opt = Adam(0.001)
+opt = Adam(0.0005)
 
 train_loss = Float32[]
 
-for i ∈ 1:100
+for i ∈ 1:1000
     Waves.reset!(dynamics)
     
     gs = Flux.gradient(ps) do
 
         y_pred = decoder(encoder(sol))
-        # loss = sum((y_pred .- y_true) .^ 2)
-        loss = sqrt.(Flux.Losses.huber_loss(y_pred, y_true))
+        loss = sqrt(Flux.Losses.mse(y_pred, y_true))
 
         Flux.ignore() do 
             println("Loss: $loss")
@@ -169,22 +186,16 @@ for i ∈ 1:100
     Flux.Optimise.update!(opt, ps, gs)
 end
 
-fig = Figure()
-ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
-heatmap!(ax1, dim.x, dim.y, cpu(y_true[:, :, 1, end]), colormap = :ice)
-ax2 = Axis(fig[1, 2], aspect = AxisAspect(1.0))
-heatmap!(ax2, dim.x, dim.y, cpu(predicted_waves[:, :, 1, end]), colormap = :ice)
-ax3 = Axis(fig[2, 1], aspect = AxisAspect(1.0))
-heatmap!(ax3, dim.x, dim.y, cpu(y_true[:, :, 1, end ÷ 2]), colormap = :ice)
-ax4 = Axis(fig[2, 2], aspect = AxisAspect(1.0))
-heatmap!(ax4, dim.x, dim.y, cpu(predicted_waves[:, :, 1, end ÷ 2]), colormap = :ice)
-ax5 = Axis(fig[3, 1], aspect = AxisAspect(1.0))
-heatmap!(ax5, dim.x, dim.y, cpu(y_true[:, :, 1, 1]), colormap = :ice)
-ax6 = Axis(fig[3, 2], aspect = AxisAspect(1.0))
-heatmap!(ax6, dim.x, dim.y, cpu(predicted_waves[:, :, 1, 1]), colormap = :ice)
-save("comparison.png", fig)
+y_pred = decoder(encoder(sol))
+
+u_pred = [y_pred[:, :, :, i] for i in axes(y_pred, 4)]
+pushfirst!(u_pred, wave)
+sol_pred = cpu(WaveSol(dim, t, u_pred))
+render!(sol_pred, path = "vid_pred.mp4")
+
+plot_comparison!(cpu(y_true), cpu(y_pred), path = "rmse_comparison.png")
 
 fig = Figure()
 ax = Axis(fig[1, 1])
 lines!(ax, train_loss)
-save("loss.png", fig)
+save("rmse_loss.png", fig)

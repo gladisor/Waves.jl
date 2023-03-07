@@ -4,6 +4,9 @@ using Statistics: mean
 
 using Waves
 
+include("../src/models/wave_encoder.jl")
+include("../src/models/wave_cnn_decoder.jl")
+
 grid_size = 5.0f0
 elements = 200
 fields = 6
@@ -28,56 +31,39 @@ pulse = Pulse(dim, pulse_x, pulse_y, pulse_intensity)
 wave = zeros(Float32, size(dim)..., fields)
 wave = pulse(wave) |> gpu
 
-encoder_layers = Chain(
-    Conv((3, 3), fields => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    MaxPool((2, 2)),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    MaxPool((2, 2)),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => 1, activation, pad = SamePad()),
-    MaxPool((2, 2)),
-    Flux.flatten,
-    Dense(625, z_elements * z_fields, activation),
-    z -> reshape(z, z_elements, z_fields)
-)
-
-decoder_layers = Chain(
-    Dense(z_elements * z_fields, 625, activation),
-    z -> reshape(z, 25, 25, 1, :),
-    Conv((3, 3), 1 => h_size, activation,      pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Upsample((2, 2)),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Upsample((2, 2)),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
-    Upsample((2, 2)),
-    Conv((3, 3), h_size => fields, activation, pad = SamePad())) |> gpu
-
 cell = WaveCell(split_wave_pml, runge_kutta)
 z_dim = OneDim(grid_size, z_elements)
 z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
-encoder = WaveEncoder(cell, z_dynamics, encoder_layers) |> gpu
+
+encoder = WaveEncoder(
+    wave_fields = 6,
+    h_fields = 12,
+    latent_fields = 2,
+    wave_dim = dim,
+    latent_dim = z_dim,
+    activation = relu,
+    cell = cell,
+    dynamics = z_dynamics
+)
+
+decoder = WaveCNNDecoder(
+    wave_fields = 6,
+    h_fields = 12,
+    latent_fields = 2,
+    wave_dim = dim,
+    latent_dim = z_dim,
+    activation = relu
+)
 
 Waves.reset!(dynamics)
 u = integrate(cell, wave, dynamics, steps)
 u_true = cat(u..., dims = 4)
-
 pushfirst!(u, wave)
 t = collect(range(0.0f0, dynamics.dt * steps, steps + 1))
 sol = WaveSol(dim, t, u)
 
 opt = Adam(0.0005)
-ps = Flux.params(encoder, decoder_layers)
+ps = Flux.params(encoder, decoder)
 
 for i ∈ 1:500
     Waves.reset!(encoder.dynamics)
@@ -113,5 +99,6 @@ function plot_comparison!(y_true, y_pred; path::String)
     save(path, fig)
 end
 
-u_pred = decoder_layers(encoder(sol, steps))
+u_pred = decoder(encoder(sol, steps))
 plot_comparison!(cpu(u_true), cpu(u_pred), path = "rmse_comparison.png")
+

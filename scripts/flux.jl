@@ -5,27 +5,6 @@ using Statistics: mean
 using Flux.Optimisers: Restructure
 Flux.CUDA.allowscalar(false)
 
-struct WaveEncoder
-    cell::WaveCell
-    dynamics::WaveDynamics
-    steps::Int
-    layers::Chain
-end
-
-Flux.@functor WaveEncoder
-Flux.trainable(encoder::WaveEncoder) = (encoder.layers,)
-
-function (encoder::WaveEncoder)(wave::AbstractArray{Float32, 3})
-    z = dropdims(encoder.layers(Flux.batch([wave])), dims = 3)
-    latents = integrate(encoder.cell, z, encoder.dynamics, encoder.steps)
-    latents = Flux.flatten(cat(latents..., dims = 3))
-    return latents
-end
-
-function (encoder::WaveEncoder)(sol::WaveSol{TwoDim})
-    return encoder(first(sol.u))
-end
-
 struct WaveDecoder
     dim::TwoDim
     points::AbstractMatrix{Float32}

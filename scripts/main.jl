@@ -1,48 +1,97 @@
-using Waves
+using Flux
 using CairoMakie
 
-dim = TwoDim(5.0f0, 200)
-pulse1 = Pulse(dim, 0.0f0, 2.0f0, 5.0f0)
-wave = zeros(Float32, size(dim)..., 6)
-wave = pulse1(wave)
+using Waves
 
-n = 600
+grid_size = 5.0f0
+elements = 200
+fields = 6
 
-dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 50.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
+pulse_x = 0.0f0
+pulse_y = 2.0f0
+pulse_intensity = 5.0f0
+
+h_size = 1
+activation = relu
+z_elements = 200
+z_fields = 2
+
+steps = 100
+
+dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 100.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
+
+dim = TwoDim(grid_size, elements)
+dynamics = WaveDynamics(dim = dim; dynamics_kwargs...)
+
+pulse = Pulse(dim, pulse_x, pulse_y, pulse_intensity)
+wave = zeros(Float32, size(dim)..., fields)
+wave = pulse(wave)
+
+encoder_layers = Chain(
+    Conv((3, 3), 6 => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    MaxPool((2, 2)),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    MaxPool((2, 2)),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    MaxPool((2, 2)),
+    Flux.flatten,
+    Dense(625, z_elements * z_fields, activation),
+    z -> reshape(z, z_elements, z_fields)
+)
+
+decoder_layers = Chain(
+    Dense(400, 625),
+    z -> reshape(z, 25, 25, 1, :),
+    Conv((3, 3), 1 => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Upsample((2, 2)),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Upsample((2, 2)),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Conv((3, 3), h_size => h_size, activation, pad = SamePad()),
+    Upsample((2, 2)),
+    Conv((3, 3), h_size => fields, activation, pad = SamePad())) |> gpu
+
 cell = WaveCell(split_wave_pml, runge_kutta)
-cyl = Cylinder([0.0f0, -2.0f0], 1.0f0, 0.1f0)
-dynamics = WaveDynamics(dim = dim, design = cyl; dynamics_kwargs...)
-action = Cylinder([0.0f0, 4.0f0], 0.0f0, 0.0f0)
-dynamics.design = DesignInterpolator(cyl, action, 0.0f0, n * dynamics.dt)
+z_dim = OneDim(grid_size, z_elements)
+z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...)
+encoder = WaveEncoder(cell, z_dynamics, encoder_layers) |> gpu
 
-traj = DesignTrajectory(dynamics, n)
+Waves.reset!(dynamics)
+u = integrate(cell, wave, dynamics, steps)
+u_true = cat(u..., dims = 4)
 
-@time u = integrate(cell, wave, dynamics, n)
 pushfirst!(u, wave)
-t = collect(range(0.0f0, dynamics.dt * n, n + 1))
+t = collect(range(0.0f0, dynamics.dt * steps, steps + 1))
 sol = WaveSol(dim, t, u)
-render!(sol, traj, path = "vid.mp4")
 
-fig = Figure(
-    resolution = (1920, 1080), 
-    fontsize = 40)
+opt = Adam(0.001)
+ps = Flux.params(encoder, decoder_layers)
 
-ax1 = Axis(fig[1, 1], title = "T = $(t[1])", aspect = AxisAspect(1.0))
-xlims!(ax1, dim.x[1], dim.x[end])
-ylims!(ax1, dim.y[1], dim.y[end])
-heatmap!(ax1, dim.x, dim.y, displacement(u[1]), colormap = :ice)
-mesh!(ax1, dynamics.design(0.0f0))
+for i ∈ 1:100
+    Waves.reset!(encoder.dynamics)
 
-ax2 = Axis(fig[1, 2], title = "T = $(t[end ÷ 2])", aspect = AxisAspect(1.0))
-xlims!(ax2, dim.x[1], dim.x[end])
-ylims!(ax2, dim.y[1], dim.y[end])
-heatmap!(ax2, dim.x, dim.y, displacement(u[end ÷ 2]), colormap = :ice)
-mesh!(ax2, dynamics.design((n * dynamics.dt) / 2))
+    gs = Flux.gradient(ps) do 
+        u_z = encoder(sol, steps)
+        u_pred = decoder_layers(u_z)
+        loss = sqrt.(mean((y_true .- y_pred) .^ 2))
 
-ax3 = Axis(fig[1, 3], title = "T = $(t[end])", aspect = AxisAspect(1.0))
-xlims!(ax3, dim.x[1], dim.x[end])
-ylims!(ax3, dim.y[1], dim.y[end])
-heatmap!(ax3, dim.x, dim.y, displacement(u[end]), colormap = :ice)
-mesh!(ax3, dynamics.design(n * dynamics.dt))
+        Flux.ignore() do 
+            println("Loss: $loss")
+        end
 
-save("sim.png", fig)
+        return loss
+    end
+
+    Flux.Optimise.update!(opt, ps, gs)
+end

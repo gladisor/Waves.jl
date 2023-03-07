@@ -33,6 +33,9 @@ include("integrator.jl")
 include("env.jl")
 include("design/design_trajectory.jl")     ## Structure for holding the sequence of designs
 
+## modeling
+include("models/wave_encoder.jl")
+
 include("reinforcement_learning/hooks.jl")
 include("reinforcement_learning/random_policy.jl")
 

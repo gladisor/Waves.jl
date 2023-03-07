@@ -5,21 +5,6 @@ using Statistics: mean
 using Flux.Optimisers: Restructure
 Flux.CUDA.allowscalar(false)
 
-function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
-    U = wave[:, 1]
-    V = wave[:, 2]
-
-    ∇ = dynamics.grad
-    σx = dynamics.pml
-    C = dynamics.ambient_speed
-    b = C ^ 2
-
-    dU = b * ∇ * V .- σx .* U
-    dV = ∇ * U .- σx .* V
-
-    return cat(dU, dV, dims = 2)
-end
-
 struct WaveEncoder
     cell::WaveCell
     dynamics::WaveDynamics
@@ -90,7 +75,6 @@ function training_data(sol::WaveSol, k::Int)
     return (x, y)
 end
 
-
 function plot_comparison!(y_true, y_pred; path::String)
     fig = Figure()
     ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
@@ -118,7 +102,7 @@ cell = WaveCell(split_wave_pml, runge_kutta)
 
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
-n = 100
+n = 200
 @time u = integrate(cell, wave, dynamics, n)
 pushfirst!(u, wave) ## add the initial state
 t = collect(range(0.0f0, dynamics.dt * n, n + 1))

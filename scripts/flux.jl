@@ -91,7 +91,8 @@ z_grid_size = 5.0f0
 z_elements = 200
 z_fields = 2
 
-z_cell = WaveCell(latent_wave, runge_kutta)
+# z_cell = WaveCell(latent_wave, runge_kutta)
+z_cell = WaveCell(split_wave_pml, runge_kutta)
 z_dim = OneDim(z_grid_size, z_elements)
 z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
 
@@ -122,7 +123,7 @@ decoder = Chain(
     Conv((5, 5), h_size => h_size, relu),
     Conv((4, 4), h_size => 6)) |> gpu
 
-encoder = WaveEncoder(z_cell, z_dynamics, length(sol)-1, layers) |> gpu
+encoder = WaveEncoder(z_cell, z_dynamics, layers) |> gpu
 y_true = cat(sol.u[2:end]..., dims = 4)
 
 ps = Flux.params(encoder, decoder)
@@ -135,7 +136,7 @@ for i ∈ 1:1000
     
     gs = Flux.gradient(ps) do
 
-        y_pred = decoder(encoder(sol))
+        y_pred = decoder(encoder(sol, length(sol) - 1))
         loss = sqrt(Flux.Losses.mse(y_pred, y_true))
 
         Flux.ignore() do 

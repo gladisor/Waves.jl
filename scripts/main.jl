@@ -32,7 +32,7 @@ pulse_x = 0.0f0
 pulse_y = 2.0f0
 pulse_intensity = 5.0f0
 
-h_fields = 12
+h_fields = 32
 activation = tanh
 z_fields = 2
 steps = 100
@@ -60,10 +60,10 @@ y = []
 
 pulse_x = Uniform(-2.0f0, 2.0f0)
 
-for i ∈ 1:10
+for i ∈ 1:100
     Waves.reset!(dynamics)
-    pulse = Pulse(dim, rand(pulse_x), rand(pulse_x), pulse_intensity)
-    sol = solve(cell, gpu(wave), dynamics, steps)
+    pulse = Pulse(dim, Float32(rand(pulse_x)), Float32(rand(pulse_x)), pulse_intensity)
+    sol = solve(cell, gpu(pulse(wave)), dynamics, steps) |> cpu
     u_true = cat(sol.u[2:end]..., dims = 4)
     push!(x, sol)
     push!(y, u_true)
@@ -74,14 +74,14 @@ ps = Flux.params(encoder, decoder)
 
 train_loss = Float32[]
 
-for i ∈ 1:20
+for i ∈ 1:10
 
     for i in axes(x, 1)
         Waves.reset!(encoder.dynamics)
 
         gs = Flux.gradient(ps) do 
-            u_pred = decoder(encoder(x[i], steps))
-            loss = sqrt(mse(y[i], u_pred))
+            u_pred = decoder(encoder(gpu(x[i]), steps))
+            loss = sqrt(mse(gpu(y[i]), u_pred))
     
             Flux.ignore() do 
                 println("Loss: $loss")
@@ -96,8 +96,9 @@ for i ∈ 1:20
 end
 
 for i in axes(x, 1)
-    u_pred = decoder(encoder(x[i], steps))
+    u_pred = decoder(encoder(gpu(x[i]), steps))
     plot_comparison!(cpu(y[i]), cpu(u_pred), path = "rmse_comparison_$i.png")
+    break
 end
 
 fig = Figure()

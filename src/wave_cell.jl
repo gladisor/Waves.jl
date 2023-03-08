@@ -1,4 +1,4 @@
-export WaveCell
+export WaveCell, solve
 
 struct WaveCell
     derivative_function::Function
@@ -16,4 +16,11 @@ end
 function integrate(cell::WaveCell, wave::AbstractArray{Float32}, dynamics::WaveDynamics, steps::Int)
     iter = Flux.Recur(cell, wave)
     return [iter(dynamics) for _ ∈ 1:steps]
+end
+
+function solve(cell::WaveCell, wave::AbstractArray{Float32}, dynamics::WaveDynamics, steps::Int)
+    u = integrate(cell, wave, dynamics, steps)
+    pushfirst!(u, wave)
+    t = collect(range(0.0f0, dynamics.dt * steps, steps + 1))
+    return WaveSol(dynamics.dim, t, u)
 end

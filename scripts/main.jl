@@ -1,86 +1,10 @@
 using Flux
+using Flux.Losses: mse
+Flux.CUDA.allowscalar(false)
 using CairoMakie
 using Statistics: mean
 
 using Waves
-
-include("../src/models/wave_encoder.jl")
-include("../src/models/wave_cnn_decoder.jl")
-
-grid_size = 5.0f0
-elements = 200
-fields = 6
-
-pulse_x = 0.0f0
-pulse_y = 2.0f0
-pulse_intensity = 5.0f0
-
-h_size = 12
-activation = relu
-z_elements = 200
-z_fields = 2
-
-steps = 100
-
-dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 100.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
-
-dim = TwoDim(grid_size, elements)
-dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
-
-pulse = Pulse(dim, pulse_x, pulse_y, pulse_intensity)
-wave = zeros(Float32, size(dim)..., fields)
-wave = pulse(wave) |> gpu
-
-cell = WaveCell(split_wave_pml, runge_kutta)
-z_dim = OneDim(grid_size, z_elements)
-z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
-
-encoder = WaveEncoder(
-    wave_fields = 6,
-    h_fields = 12,
-    latent_fields = 2,
-    wave_dim = dim,
-    latent_dim = z_dim,
-    activation = relu,
-    cell = cell,
-    dynamics = z_dynamics
-)
-
-decoder = WaveCNNDecoder(
-    wave_fields = 6,
-    h_fields = 12,
-    latent_fields = 2,
-    wave_dim = dim,
-    latent_dim = z_dim,
-    activation = relu
-)
-
-Waves.reset!(dynamics)
-u = integrate(cell, wave, dynamics, steps)
-u_true = cat(u..., dims = 4)
-pushfirst!(u, wave)
-t = collect(range(0.0f0, dynamics.dt * steps, steps + 1))
-sol = WaveSol(dim, t, u)
-
-opt = Adam(0.0005)
-ps = Flux.params(encoder, decoder)
-
-for i ∈ 1:500
-    Waves.reset!(encoder.dynamics)
-
-    gs = Flux.gradient(ps) do 
-        u_pred = decoder_layers(encoder(sol, steps))
-        loss = sqrt(Flux.Losses.mse(u_true, u_pred))
-
-        Flux.ignore() do 
-            println("Loss: $loss")
-        end
-
-        return loss
-    end
-
-    Flux.Optimise.update!(opt, ps, gs)
-end
 
 function plot_comparison!(y_true, y_pred; path::String)
     fig = Figure()
@@ -99,6 +23,114 @@ function plot_comparison!(y_true, y_pred; path::String)
     save(path, fig)
 end
 
-u_pred = decoder(encoder(sol, steps))
-plot_comparison!(cpu(u_true), cpu(u_pred), path = "rmse_comparison.png")
+function solve(cell::WaveCell, wave::AbstractArray{Float32}, dynamics::WaveDynamics, steps::Int)
+    u = integrate(cell, wave, dynamics, steps)
+    pushfirst!(u, wave)
+    t = collect(range(0.0f0, dynamics.dt * steps, steps + 1))
+    return WaveSol(dim, t, u)
+end
 
+# function solve(model, wave::AbstractArray{Float32}, dynamics::WaveDynamics, steps::Int)
+
+# end
+
+include("../src/models/wave_encoder.jl")
+include("../src/models/wave_cnn_decoder.jl")
+
+grid_size = 5.0f0
+elements = 200
+fields = 6
+
+pulse_x = 0.0f0
+pulse_y = 2.0f0
+pulse_intensity = 5.0f0
+
+h_fields = 12
+activation = tanh
+z_fields = 2
+steps = 100
+
+dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 100.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
+
+dim = TwoDim(grid_size, elements)
+cell = WaveCell(split_wave_pml, runge_kutta)
+latent_dim = OneDim(grid_size, elements)
+
+encoder = WaveEncoder(
+    wave_fields = fields,
+    h_fields = h_fields,
+    latent_fields = z_fields,
+    wave_dim = dim,
+    latent_dim = latent_dim,
+    activation = activation,
+    cell = cell,
+    dynamics = WaveDynamics(dim = latent_dim; dynamics_kwargs...) |> gpu
+) |> gpu
+
+decoder = WaveCNNDecoder(
+    wave_fields = fields,
+    h_fields = h_fields,
+    latent_fields = z_fields,
+    wave_dim = dim,
+    latent_dim = latent_dim,
+    activation = activation
+) |> gpu
+
+dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
+pulse = Pulse(dim, pulse_x, pulse_y, pulse_intensity) |> gpu
+
+wave = zeros(Float32, size(dim)..., fields) |> gpu
+wave = pulse(wave)
+
+Waves.reset!(dynamics)
+sol = solve(cell, wave, dynamics, steps)
+u_true = cat(sol.u[2:end]..., dims = 4)
+
+Waves.reset!(dynamics)
+pulse2 = Pulse(dim, -2.0f0, 2.0f0, pulse_intensity) |> gpu
+sol2 = solve(cell, pulse2(wave), dynamics, steps)
+u_true2 = cat(sol2.u[2:end]..., dims = 4)
+
+Waves.reset!(dynamics)
+pulse3 = Pulse(dim, 2.0f0, -2.0f0, pulse_intensity) |> gpu
+sol3 = solve(cell, pulse3(wave), dynamics, steps)
+u_true3 = cat(sol3.u[2:end]..., dims = 4)
+
+x = [sol, sol2, sol3]
+y = [u_true, u_true2, u_true3]
+
+opt = Adam(0.0005)
+ps = Flux.params(encoder, decoder)
+
+train_loss = Float32[]
+
+for i ∈ 1:100
+
+    for i in axes(x, 1)
+        Waves.reset!(encoder.dynamics)
+
+        gs = Flux.gradient(ps) do 
+            u_pred = decoder(encoder(x[i], steps))
+            loss = sqrt(mse(y[i], u_pred))
+    
+            Flux.ignore() do 
+                println("Loss: $loss")
+                push!(train_loss, loss)
+            end
+    
+            return loss
+        end
+    
+        Flux.Optimise.update!(opt, ps, gs)
+    end
+end
+
+for i in axes(x, 1)
+    u_pred = decoder(encoder(x[i], steps))
+    plot_comparison!(cpu(y[i]), cpu(u_pred), path = "rmse_comparison_$i.png")
+end
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, train_loss, linewidth = 3)
+save("loss_tanh.png", fig)

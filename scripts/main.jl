@@ -32,12 +32,12 @@ pulse_x = 0.0f0
 pulse_y = 2.0f0
 pulse_intensity = 5.0f0
 
-h_fields = 128
+h_fields = 32
 activation = tanh
 z_fields = 3
 steps = 100
 
-dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 100.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
+dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 50.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
 cell = WaveCell(split_wave_pml, runge_kutta)
 dim = TwoDim(grid_size, elements)
 latent_dim = OneDim(grid_size, elements)
@@ -70,14 +70,15 @@ decoder = WaveCNNDecoder(
 
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
-wave = zeros(Float32, size(dim)..., fields)
+wave = build_wave(dim, fields = fields)
+# wave = zeros(Float32, size(dim)..., fields)
 
 x = WaveSol[]
 y = []
 
 pulse_x = Uniform(-2.0f0, 2.0f0)
 
-for i ∈ 1:1000
+for i ∈ 1:10
     Waves.reset!(dynamics)
     pulse = Pulse(dim, Float32(rand(pulse_x)), Float32(rand(pulse_x)), pulse_intensity)
     sol = solve(cell, gpu(pulse(wave)), dynamics, steps) |> cpu

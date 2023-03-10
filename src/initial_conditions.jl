@@ -1,4 +1,8 @@
-export pulse, Pulse
+export pulse, Pulse, RandomPulseTwoDim
+
+function reset!(ic::InitialCondition)
+    return nothing
+end
 
 struct Pulse{D <: AbstractDim} <: InitialCondition
     mesh_grid::AbstractArray{Float32}
@@ -44,4 +48,47 @@ end
 
 function Flux.cpu(pulse::Pulse{D}) where D <: AbstractDim
     return Pulse{D}(cpu(pulse.mesh_grid), cpu(pulse.pos), pulse.intensity)
+end
+
+mutable struct RandomPulseTwoDim <: InitialCondition
+    x_distribution::Uniform
+    y_distribution::Uniform
+    pulse::Pulse
+end
+
+function RandomPulseTwoDim(
+        dim::TwoDim,
+        x_distribution::Uniform,
+        y_distribution::Uniform,
+        intensity::Float32)
+    
+    pulse = Pulse(
+        dim, 
+        Float32(rand(x_distribution)), 
+        Float32(rand(y_distribution)), 
+        intensity)
+
+    return RandomPulseTwoDim(x_distribution, y_distribution, pulse)
+end
+
+function Waves.reset!(random_pulse::RandomPulseTwoDim)
+    random_pulse.pulse = Pulse{TwoDim}(
+        random_pulse.pulse.mesh_grid,
+        [Float32(rand(random_pulse.x_distribution)), Float32(rand(random_pulse.y_distribution))],
+        random_pulse.pulse.intensity)
+    return nothing
+end
+
+function (random_pulse::RandomPulseTwoDim)(wave::AbstractArray{Float32, 3})
+    return random_pulse.pulse(wave)
+end
+
+function Flux.gpu(random_pulse::RandomPulseTwoDim)
+    random_pulse.pulse = gpu(random_pulse.pulse)
+    return random_pulse
+end
+
+function Flux.cpu(random_pulse::RandomPulseTwoDim)
+    random_pulse.pulse = cpu(random_pulse.pulse)
+    return random_pulse
 end

@@ -32,7 +32,7 @@ pulse_x = 0.0f0
 pulse_y = 2.0f0
 pulse_intensity = 5.0f0
 
-h_fields = 32
+h_fields = 128
 activation = tanh
 z_fields = 3
 steps = 100
@@ -43,10 +43,10 @@ dim = TwoDim(grid_size, elements)
 latent_dim = OneDim(grid_size, elements)
 
 layers =  Chain(
-    Dense(length(dim.x), h_fields, activation),
-    Dense(h_fields, length(dim.x), activation),
+    Dense(elements, h_fields, activation),
+    Dense(h_fields, elements, activation),
     b -> sum(b, dims = 2),
-    Dense(length(dim.x), length(dim.x), sigmoid))
+    Dense(elements, elements, sigmoid))
 
 encoder = WaveEncoder(
     wave_fields = fields, 
@@ -77,7 +77,7 @@ y = []
 
 pulse_x = Uniform(-2.0f0, 2.0f0)
 
-for i ∈ 1:100
+for i ∈ 1:1000
     Waves.reset!(dynamics)
     pulse = Pulse(dim, Float32(rand(pulse_x)), Float32(rand(pulse_x)), pulse_intensity)
     sol = solve(cell, gpu(pulse(wave)), dynamics, steps) |> cpu

@@ -72,59 +72,131 @@ dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
 wave = build_wave(dim, fields = fields)
 
-x = WaveSol[]
-y = []
+wave = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)(wave)
 
-pulse_x = Uniform(-2.0f0, 2.0f0)
+p = WavePlot(dim)
+plot_wave!(p, dim, wave)
+save("u.png", p.fig)
 
-for i ∈ 1:1000
-    Waves.reset!(dynamics)
-    pulse = Pulse(dim, Float32(rand(pulse_x)), Float32(rand(pulse_x)), pulse_intensity)
-    sol = solve(cell, gpu(pulse(wave)), dynamics, steps) |> cpu
-    u_true = cat(sol.u[2:end]..., dims = 4)
-    push!(x, sol)
-    push!(y, u_true)
+struct RandomPulseTwoDim <: InitialCondition
+    x_distribution::Uniform
+    y_distribution::Uniform
+    pulse::Pulse
 end
 
-opt = Adam(0.0005)
-ps = Flux.params(encoder, decoder)
-
-train_loss = Float32[]
-path = "long_results_linear"
-
-for i ∈ 1:10
-
-    for i in axes(x, 1)
-        Waves.reset!(encoder.dynamics)
-
-        gs = Flux.gradient(ps) do 
-            u_pred = decoder(encoder(gpu(x[i]), steps))
-            loss = sqrt(mse(gpu(y[i]), u_pred))
+function RandomPulseTwoDim(
+        dim::TwoDim,
+        x_distribution::Uniform,
+        y_distribution::Uniform,
+        intensity::Float32)
     
-            Flux.ignore() do 
-                println("Loss: $loss")
-                push!(train_loss, loss)
-            end
-    
-            return loss
-        end
-    
-        Flux.Optimise.update!(opt, ps, gs)
-    end
+    pulse = Pulse(
+        dim, 
+        Float32(rand(x_distribution)), 
+        Float32(rand(y_distribution)), 
+        intensity)
 
-    for i in axes(x, 1)
-        if i == 100
-            break
-        end
-        u_pred = decoder(encoder(gpu(x[i]), steps))
-        plot_comparison!(cpu(y[i]), cpu(u_pred), path = joinpath(path, "non_linear_rmse_comparison_$i.png"))
-    end
-
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, train_loss, linewidth = 3)
-    save(joinpath(path, "non_linear_loss_tanh.png"), fig)
+    return RandomPulseTwoDim(x_distribution, y_distribution, pulse)
 end
+
+function Waves.reset!(random_pulse::RandomPulseTwoDim)
+    random_pulse.pulse = Pulse(
+        random_pulse.pulse.dim,
+        Float32(rand(random_pulse.x_distribution)), 
+        Float32(rand(random_pulse.y_distribution)),
+        random_pulse.pulse.intensity
+        )
+    return nothing
+end
+
+function (random_pulse::RandomPulseTwoDim)(wave::AbstractArray{Float32, 3})
+    return random_pulse.pulse(wave)
+end
+
+function Flux.gpu(random_pulse::RandomPulseTwoDim)
+    random_pulse.pulse = gpu(random_pulse.pulse)
+    return random_pulse
+end
+
+function Flux.cpu(random_pulse::RandomPulseTwoDim)
+    random_pulse.pulse = cpu(random_pulse.pulse)
+    return random_pulse
+end
+
+random_pulse = RandomPulseTwoDim(
+    dim,
+    Uniform(-4.0f0, 4.0f0), 
+    Uniform(-4.0f0, 4.0f0), 
+    10.0f0
+    )
+
+wave = build_wave(dim, fields = 6)
+wave = gpu(random_pulse(wave))
+
+p = WavePlot(dim)
+plot_wave!(p, dim, wave)
+save("u.png", p.fig)
+
+
+# function build_random_pulse_dataset(x_range::Tuple, y_range::Tuple, intensity::Float32, dynamics::WaveDynamics, steps::Int, data_size::Int)
+#     wave = build_wave(dim, 6)
+#     pulse_x = Uniform(x_range...)
+#     pulse_y = Uniform(y_range...)
+
+#     solutions = WaveSol[]
+
+#     for _ ∈ 1:data_size
+#         wave = Pulse(dynamics.dim, rand(pulse_x), rand(pulse_y), intensity)(wave)
+#         sol = solve(cell, gpu(wave), dynamics, steps) |> cpu
+#         push!(solutions, sol)
+#     end
+
+#     return solutions
+# end
+
+
+
+
+
+# opt = Adam(0.0005)
+# ps = Flux.params(encoder, decoder)
+
+# train_loss = Float32[]
+# path = "long_results_linear"
+
+# for i ∈ 1:10
+
+#     for i in axes(x, 1)
+#         Waves.reset!(encoder.dynamics)
+
+#         gs = Flux.gradient(ps) do 
+#             u_pred = decoder(encoder(gpu(x[i]), steps))
+#             loss = sqrt(mse(gpu(y[i]), u_pred))
+    
+#             Flux.ignore() do 
+#                 println("Loss: $loss")
+#                 push!(train_loss, loss)
+#             end
+    
+#             return loss
+#         end
+    
+#         Flux.Optimise.update!(opt, ps, gs)
+#     end
+
+#     for i in axes(x, 1)
+#         if i == 100
+#             break
+#         end
+#         u_pred = decoder(encoder(gpu(x[i]), steps))
+#         plot_comparison!(cpu(y[i]), cpu(u_pred), path = joinpath(path, "non_linear_rmse_comparison_$i.png"))
+#     end
+
+#     fig = Figure()
+#     ax = Axis(fig[1, 1])
+#     lines!(ax, train_loss, linewidth = 3)
+#     save(joinpath(path, "non_linear_loss_tanh.png"), fig)
+# end
 
 
 

@@ -6,6 +6,7 @@ using Statistics: mean
 using Distributions: Uniform
 
 using Waves
+using Waves: InitialCondition
 
 function plot_comparison!(y_true, y_pred; path::String)
     fig = Figure()
@@ -35,7 +36,7 @@ pulse_intensity = 5.0f0
 h_fields = 32
 activation = tanh
 z_fields = 2
-steps = 100
+steps = 300
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 50.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
 cell = WaveCell(split_wave_pml, runge_kutta)
@@ -47,6 +48,14 @@ layers =  Chain(
     Dense(h_fields, elements, activation),
     b -> sum(b, dims = 2),
     Dense(elements, elements, sigmoid))
+
+model_kwargs = Dict(
+    :wave_fields => fields,
+    :h_fields => h_fields,
+    :latent_fields => z_fields,
+    :wave_dim => dim,
+    :latent_dim => latent_dim,
+    :activation => activation)
 
 encoder = WaveEncoder(
     wave_fields = fields, 
@@ -78,7 +87,7 @@ p = WavePlot(dim)
 plot_wave!(p, dim, wave)
 save("u.png", p.fig)
 
-struct RandomPulseTwoDim <: InitialCondition
+mutable struct RandomPulseTwoDim <: InitialCondition
     x_distribution::Uniform
     y_distribution::Uniform
     pulse::Pulse
@@ -100,6 +109,7 @@ function RandomPulseTwoDim(
 end
 
 function Waves.reset!(random_pulse::RandomPulseTwoDim)
+
     random_pulse.pulse = Pulse(
         random_pulse.pulse.dim,
         Float32(rand(random_pulse.x_distribution)), 
@@ -128,15 +138,13 @@ random_pulse = RandomPulseTwoDim(
     Uniform(-4.0f0, 4.0f0), 
     Uniform(-4.0f0, 4.0f0), 
     10.0f0
-    )
+    ) |> gpu
 
-wave = build_wave(dim, fields = 6)
-wave = gpu(random_pulse(wave))
+wave = build_wave(dim, fields = 6) |> gpu
+wave = random_pulse(wave)
 
-p = WavePlot(dim)
-plot_wave!(p, dim, wave)
-save("u.png", p.fig)
-
+@time sol = solve(cell, wave, dynamics, steps) |> cpu
+@time render!(sol, path = "vid.mp4")
 
 # function build_random_pulse_dataset(x_range::Tuple, y_range::Tuple, intensity::Float32, dynamics::WaveDynamics, steps::Int, data_size::Int)
 #     wave = build_wave(dim, 6)

@@ -16,7 +16,7 @@ function WaveEncoder(;
         activation::Function,
         wave_dim::TwoDim,
         latent_dim::OneDim,
-        cell::WaveCell,
+        cell::AbstractWaveCell,
         dynamics::WaveDynamics)
 
     reduced_size = prod(Int.(size(wave_dim) ./ (2 ^ 3)))

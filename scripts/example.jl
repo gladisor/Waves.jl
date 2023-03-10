@@ -2,41 +2,6 @@ using Waves
 using CairoMakie: save
 using Flux
 
-function build_wave(dim::AbstractDim; fields::Int)
-    return zeros(Float32, size(dim)..., fields)
-end
-
-function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
-    U = wave[:, 1]
-    V = wave[:, 2]
-    b = wave[:, 3]
-
-    ∇ = dynamics.grad
-    σx = dynamics.pml
-
-    dU = b .* (∇ * V) .- σx .* U
-    dV = ∇ * U .- σx .* V
-
-    return cat(dU, dV, b, dims = 2)
-end
-
-struct WaveRNNCell <: AbstractWaveCell
-    derivative_function::Function
-    integration_function::Function
-    layers::Chain
-end
-
-Flux.@functor WaveRNNCell
-Flux.trainable(cell::WaveRNNCell) = (cell.layers,)
-
-function (cell::WaveRNNCell)(z::AbstractMatrix{Float32}, dynamics::WaveDynamics)
-    b = cell.layers(z)
-    z = cat(z[:, [1, 2]], b, dims = 2)
-    z = z .+ cell.integration_function(cell.derivative_function, z, dynamics)
-    dynamics.t += 1
-    return z, z
-end
-
 ## Set some parameters
 grid_size = 5.0f0
 elements = 300
@@ -69,16 +34,15 @@ opt = Adam(0.001)
 sol = solve(cell, wave, dynamics, steps) |> cpu
 render!(sol, path = "vid.mp4")
 
-wave = pulse(wave)
-
 ps = Flux.params(cell)
 
 for i ∈ 1:100
 
     Waves.reset!(dynamics)
     gs = Flux.gradient(ps) do 
+
         latents = integrate(cell, wave, dynamics, steps)
-        e = sum(energy(displacement(latents[end])))
+        e = sum(sum.(energy.(displacement.(latents))))
 
         Flux.ignore() do 
             println(e)
@@ -90,7 +54,6 @@ for i ∈ 1:100
     Flux.Optimise.update!(opt, ps, gs)
 end
 
-wave = pulse(wave)
-
-sol = solve(cell, wave, dynamics, steps)
+# wave = pulse(wave)
+sol = solve(cell, wave, dynamics, steps) |> cpu
 render!(sol, path = "vid_opt.mp4")

@@ -1,4 +1,8 @@
-export runge_kutta, split_wave_pml
+export build_wave, runge_kutta, split_wave_pml, latent_wave
+
+function build_wave(dim::AbstractDim; fields::Int)
+    return zeros(Float32, size(dim)..., fields)
+end
 
 """
 Runge Kutta integration scheme for more accuratly estimating the rate of change of the
@@ -63,4 +67,18 @@ function split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDy
     dΩ = σx .* σy .* U
 
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+end
+
+function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
+    U = wave[:, 1]
+    V = wave[:, 2]
+    b = wave[:, 3]
+
+    ∇ = dynamics.grad
+    σx = dynamics.pml
+
+    dU = b .* (∇ * V) .- σx .* U
+    dV = ∇ * U .- σx .* V
+
+    return cat(dU, dV, b, dims = 2)
 end

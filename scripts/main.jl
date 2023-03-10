@@ -34,7 +34,7 @@ pulse_intensity = 5.0f0
 
 h_fields = 32
 activation = tanh
-z_fields = 2
+z_fields = 3
 steps = 100
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 100.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
@@ -42,14 +42,31 @@ cell = WaveCell(split_wave_pml, runge_kutta)
 dim = TwoDim(grid_size, elements)
 latent_dim = OneDim(grid_size, elements)
 
+layers =  Chain(
+    Dense(length(dim.x), h_fields, activation),
+    Dense(h_fields, length(dim.x), activation),
+    b -> sum(b, dims = 2),
+    Dense(length(dim.x), length(dim.x), sigmoid))
+
 encoder = WaveEncoder(
-    wave_fields = fields, h_fields = h_fields, latent_fields = z_fields,
-    wave_dim = dim, latent_dim = latent_dim, activation = activation, cell = cell,
-    dynamics = WaveDynamics(dim = latent_dim; dynamics_kwargs...) |> gpu) |> gpu
+    wave_fields = fields, 
+    h_fields = h_fields, 
+    latent_fields = z_fields,
+    wave_dim = dim, 
+    latent_dim = latent_dim, 
+    activation = activation, 
+    cell = WaveRNNCell(latent_wave, runge_kutta, layers) |> gpu,
+    # cell = cell,
+    dynamics = WaveDynamics(dim = latent_dim; dynamics_kwargs...) |> gpu
+    ) |> gpu
 
 decoder = WaveCNNDecoder(
-    wave_fields = fields, h_fields = h_fields, latent_fields = z_fields,
-    wave_dim = dim, latent_dim = latent_dim, activation = activation) |> gpu
+    wave_fields = fields, 
+    h_fields = h_fields, 
+    latent_fields = z_fields,
+    wave_dim = dim, 
+    latent_dim = latent_dim, 
+    activation = activation) |> gpu
 
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
@@ -97,11 +114,10 @@ end
 
 for i in axes(x, 1)
     u_pred = decoder(encoder(gpu(x[i]), steps))
-    plot_comparison!(cpu(y[i]), cpu(u_pred), path = "rmse_comparison_$i.png")
-    break
+    plot_comparison!(cpu(y[i]), cpu(u_pred), path = "non_linear_rmse_comparison_$i.png")
 end
 
 fig = Figure()
 ax = Axis(fig[1, 1])
 lines!(ax, train_loss, linewidth = 3)
-save("loss_tanh.png", fig)
+save("non_linear_loss_tanh.png", fig)

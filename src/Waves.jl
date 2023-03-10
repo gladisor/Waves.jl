@@ -1,6 +1,7 @@
 module Waves
 
 export AbstractDim, AbstractDesign, design_space
+export AbstractWaveCell
 
 using SparseArrays
 using IntervalSets
@@ -13,8 +14,9 @@ using ReinforcementLearning
 abstract type AbstractDim end
 abstract type AbstractDesign end
 abstract type Scatterer <: AbstractDesign end
-abstract type RewardSignal end
+# abstract type RewardSignal end
 abstract type InitialCondition end
+abstract type AbstractWaveCell end
 
 include("dims.jl")                         ## Core structures for defining dimensional spaces
 include("metrics.jl")

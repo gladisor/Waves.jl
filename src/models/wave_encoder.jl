@@ -1,7 +1,7 @@
 export WaveEncoder
 
 struct WaveEncoder
-    cell::WaveCell
+    cell::AbstractWaveCell
     dynamics::WaveDynamics
     layers::Chain
 end

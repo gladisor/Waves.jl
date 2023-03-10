@@ -7,7 +7,7 @@ end
 
 function WavePlot(dim::OneDim)
     fig = Figure(resolution = (1920, 1080))
-    ax = Axis(fig[1, 1])
+    ax = Axis(fig[1, 1], title = "1D Wave", xlabel = "X (m)")
     xlims!(ax, dim.x[1], dim.x[end])
     ylims!(ax, -1.0, 1.0)
     return WavePlot(fig, ax)

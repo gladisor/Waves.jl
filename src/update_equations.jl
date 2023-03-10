@@ -1,4 +1,4 @@
-export runge_kutta, split_wave_pml, latent_wave
+export runge_kutta, split_wave_pml
 
 """
 Runge Kutta integration scheme for more accuratly estimating the rate of change of the
@@ -63,19 +63,4 @@ function split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDy
     dΩ = σx .* σy .* U
 
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
-end
-
-function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
-    U = wave[:, 1]
-    V = wave[:, 2]
-
-    ∇ = dynamics.grad
-    σx = dynamics.pml
-    C = dynamics.ambient_speed
-    b = C ^ 2
-
-    dU = b * ∇ * V .- σx .* U
-    dV = ∇ * U .- σx .* V
-
-    return cat(dU, dV, dims = 2)
 end

@@ -34,7 +34,7 @@ pulse_intensity = 5.0f0
 
 h_fields = 32
 activation = tanh
-z_fields = 3
+z_fields = 2
 steps = 100
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 50.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
@@ -55,8 +55,8 @@ encoder = WaveEncoder(
     wave_dim = dim, 
     latent_dim = latent_dim, 
     activation = activation, 
-    cell = WaveRNNCell(latent_wave, runge_kutta, layers) |> gpu,
-    # cell = cell,
+    # cell = WaveRNNCell(latent_wave, runge_kutta, layers) |> gpu,
+    cell = cell,
     dynamics = WaveDynamics(dim = latent_dim; dynamics_kwargs...) |> gpu
     ) |> gpu
 
@@ -71,14 +71,13 @@ decoder = WaveCNNDecoder(
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
 
 wave = build_wave(dim, fields = fields)
-# wave = zeros(Float32, size(dim)..., fields)
 
 x = WaveSol[]
 y = []
 
 pulse_x = Uniform(-2.0f0, 2.0f0)
 
-for i ∈ 1:10
+for i ∈ 1:1000
     Waves.reset!(dynamics)
     pulse = Pulse(dim, Float32(rand(pulse_x)), Float32(rand(pulse_x)), pulse_intensity)
     sol = solve(cell, gpu(pulse(wave)), dynamics, steps) |> cpu
@@ -91,6 +90,7 @@ opt = Adam(0.0005)
 ps = Flux.params(encoder, decoder)
 
 train_loss = Float32[]
+path = "long_results_linear"
 
 for i ∈ 1:10
 
@@ -111,14 +111,20 @@ for i ∈ 1:10
     
         Flux.Optimise.update!(opt, ps, gs)
     end
+
+    for i in axes(x, 1)
+        if i == 100
+            break
+        end
+        u_pred = decoder(encoder(gpu(x[i]), steps))
+        plot_comparison!(cpu(y[i]), cpu(u_pred), path = joinpath(path, "non_linear_rmse_comparison_$i.png"))
+    end
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, train_loss, linewidth = 3)
+    save(joinpath(path, "non_linear_loss_tanh.png"), fig)
 end
 
-for i in axes(x, 1)
-    u_pred = decoder(encoder(gpu(x[i]), steps))
-    plot_comparison!(cpu(y[i]), cpu(u_pred), path = "non_linear_rmse_comparison_$i.png")
-end
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, train_loss, linewidth = 3)
-save("non_linear_loss_tanh.png", fig)
+

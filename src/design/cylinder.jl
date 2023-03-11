@@ -6,10 +6,14 @@ struct Cylinder <: Scatterer
     c::Float32
 end
 
+function Cylinder(x::Float32, y::Float32, r::Float32, c::Float32)
+    return Cylinder([x, y], r, c)
+end
+
 function Cylinder(dim::TwoDim; r::Float32, c::Float32, offset::Float32 = 0.0f0)
     x = rand(Uniform(dim.x[1] + r + offset, dim.x[end] - r - offset))
     y = rand(Uniform(dim.y[1] + r + offset, dim.y[end] - r - offset))
-    return Cylinder([x, y], r, c)
+    return Cylinder(x, y, r, c)
 end
 
 function Base.:+(cyl1::Cylinder, cyl2::Cylinder)

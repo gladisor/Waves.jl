@@ -16,17 +16,18 @@ function DesignTrajectory(dyn::WaveDynamics, n::Int)
     return DesignTrajectory(traj)
 end
 
-function DesignTrajectory(env::WaveEnv)
-    return DesignTrajectory(env.iter.dyn, env.design_steps)
-end
+function DesignTrajectory(dts::DesignTrajectory{D}...) where D <: AbstractDesign
+    traj = D[]
 
-function Base.vcat(dt1::DesignTrajectory, dt2::DesignTrajectory)
-    pop!(dt1.traj)
-    return DesignTrajectory(vcat(dt1.traj, dt2.traj))
-end
+    for design_trajectory ∈ dts
+        for i ∈ 1:(length(design_trajectory) - 1)
+            push!(traj, design_trajectory[i])
+        end
+    end
 
-function Base.vcat(dts::DesignTrajectory...)
-    return reduce(vcat, dts)
+    push!(traj, dts[end].traj[end])
+
+    return DesignTrajectory(traj)
 end
 
 function Base.length(dt::DesignTrajectory)

@@ -65,3 +65,20 @@ function render!(
         end
     end
 end
+
+function plot_comparison!(y_true, y_pred; path::String)
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
+    heatmap!(ax1, dim.x, dim.y, y_true[:, :, 1, end], colormap = :ice)
+    ax2 = Axis(fig[1, 2], aspect = AxisAspect(1.0))
+    heatmap!(ax2, dim.x, dim.y, y_pred[:, :, 1, end], colormap = :ice)
+    ax3 = Axis(fig[2, 1], aspect = AxisAspect(1.0))
+    heatmap!(ax3, dim.x, dim.y, y_true[:, :, 1, end ÷ 2], colormap = :ice)
+    ax4 = Axis(fig[2, 2], aspect = AxisAspect(1.0))
+    heatmap!(ax4, dim.x, dim.y, y_pred[:, :, 1, end ÷ 2], colormap = :ice)
+    ax5 = Axis(fig[3, 1], aspect = AxisAspect(1.0))
+    heatmap!(ax5, dim.x, dim.y, y_true[:, :, 1, 1], colormap = :ice)
+    ax6 = Axis(fig[3, 2], aspect = AxisAspect(1.0))
+    heatmap!(ax6, dim.x, dim.y, y_pred[:, :, 1, 1], colormap = :ice)
+    save(path, fig)
+end

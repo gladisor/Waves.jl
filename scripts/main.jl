@@ -8,21 +8,12 @@ using Distributions: Uniform
 using Waves
 using Waves: InitialCondition, AbstractWaveCell
 
-function plot_comparison!(y_true, y_pred; path::String)
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
-    heatmap!(ax1, dim.x, dim.y, y_true[:, :, 1, end], colormap = :ice)
-    ax2 = Axis(fig[1, 2], aspect = AxisAspect(1.0))
-    heatmap!(ax2, dim.x, dim.y, y_pred[:, :, 1, end], colormap = :ice)
-    ax3 = Axis(fig[2, 1], aspect = AxisAspect(1.0))
-    heatmap!(ax3, dim.x, dim.y, y_true[:, :, 1, end ÷ 2], colormap = :ice)
-    ax4 = Axis(fig[2, 2], aspect = AxisAspect(1.0))
-    heatmap!(ax4, dim.x, dim.y, y_pred[:, :, 1, end ÷ 2], colormap = :ice)
-    ax5 = Axis(fig[3, 1], aspect = AxisAspect(1.0))
-    heatmap!(ax5, dim.x, dim.y, y_true[:, :, 1, 1], colormap = :ice)
-    ax6 = Axis(fig[3, 2], aspect = AxisAspect(1.0))
-    heatmap!(ax6, dim.x, dim.y, y_pred[:, :, 1, 1], colormap = :ice)
-    save(path, fig)
+include("../src/env.jl")
+
+struct TotalWaveSol
+    incident::WaveSol
+    total::WaveSol
+    scattered::WaveSol
 end
 
 function generate_solutions(
@@ -33,7 +24,7 @@ function generate_solutions(
         steps::Int,
         num_solutions::Int)
 
-    solutions = WaveSol[]
+    solutions = FullWaveSol[]
 
     for _ ∈ 1:num_solutions
         Waves.reset!(initial_condition)
@@ -90,15 +81,12 @@ latent_dim = OneDim(grid_size, elements)
 #     latent_dim = latent_dim, 
 #     activation = activation) |> gpu
 
-dynamics = WaveDynamics(dim = dim; dynamics_kwargs...) |> gpu
+cyl = Cylinder([0.0f0, 0.0f0], 1.0f0, 0.1f0)
+dynamics = WaveDynamics(dim = dim, design = cyl; dynamics_kwargs...) |> gpu
 
 wave = build_wave(dim, fields = fields)
 
-wave = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)(wave)
-
-p = WavePlot(dim)
-plot_wave!(p, dim, wave)
-save("u.png", p.fig)
+# wave = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)(wave)
 
 random_pulse = RandomPulseTwoDim(
     dim,
@@ -108,8 +96,8 @@ random_pulse = RandomPulseTwoDim(
     )
 
 wave = build_wave(dim, fields = 6) |> gpu
-solutions = generate_solutions(random_pulse, cell, wave, dynamics, steps, 1)
 
+solutions = generate_solutions(random_pulse, cell, wave, dynamics, steps, 1)
 render!(solutions[end], path = "vid.mp4")
 
 # opt = Adam(0.0005)

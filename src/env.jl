@@ -1,42 +1,55 @@
-export WaveEnv
+export WaveEnv, num_steps
 
 """
 Structure for handling the effect of an action on the design.
 
     initial_condition:  how should the wave be reset!
     sol:                the wave propagation history since the previous action
-    iter:               the WaveIntegrator for propagating the wave in time
     design_space:       the set of actions to sample from
     design_steps:       number of simulation steps to apply the action over
     tmax:               the maximum physical time in the system before ending the episode.
 """
 mutable struct WaveEnv <: AbstractEnv
     initial_condition::InitialCondition
-    sol::WaveSol
-    iter::WaveIntegrator
-    design_space::Union{ClosedInterval, Nothing}
+    sol::TotalWaveSol
+
+    cell::AbstractWaveCell
+    total_dynamics::WaveDynamics
+    incident_dynamics::WaveDynamics
+
+    space::Union{ClosedInterval, Nothing}
     design_steps::Int
     tmax::Float32
 end
 
 function WaveEnv(;
-    initial_condition::InitialCondition,
-    iter::WaveIntegrator,
-    design_space::Union{ClosedInterval, Nothing},
-    design_steps::Int, tmax::Float32)
+        initial_condition::InitialCondition, 
+        wave::AbstractArray{Float32}, 
+        cell::AbstractWaveCell,
+        design::AbstractDesign,
+        space::Union{ClosedInterval, Nothing},
+        design_steps::Int,
+        tmax::Float32,
+        dynamics_kwargs...)
 
-    u = displacement(iter.wave)
-    sol = WaveSol(iter.dyn.dim, Float32[time(iter.dyn)], typeof(u)[u])
-    iter.wave = initial_condition(iter.wave)
+    total_dynamics = WaveDynamics(design = design; dynamics_kwargs...)
+    incident_dynamics = WaveDynamics(;dynamics_kwargs...)
 
-    return WaveEnv(initial_condition, sol, iter, design_space, design_steps, tmax)
+    Waves.reset!(initial_condition)
+
+    wave = initial_condition(wave)
+    total = solve(cell, wave, total_dynamics, 0)
+    incident = solve(cell, wave, incident_dynamics, 0)
+    sol = TotalWaveSol(total = total, incident = incident)
+
+    return WaveEnv(initial_condition, sol, cell, total_dynamics, incident_dynamics, space, design_steps, tmax)
 end
 
 """
 Retreive the physical time from the dynamics
 """
 function Base.time(env::WaveEnv)
-    return time(env.iter.dyn)
+    return time(env.total_dynamics)
 end
 
 """
@@ -45,8 +58,8 @@ time to the time after a specified number of design_steps.
 """
 function update_design!(env::WaveEnv, action::AbstractDesign)
     ti = time(env)
-    tf = ti + env.design_steps * env.iter.dyn.dt
-    env.iter.dyn.design = DesignInterpolator(env.iter.dyn.design(ti), action, ti, tf)
+    tf = ti + env.design_steps * env.total_dynamics.dt
+    env.total_dynamics.design = DesignInterpolator(env.total_dynamics.design(ti), action, ti, tf)
 end
 
 """
@@ -54,25 +67,27 @@ Updates the design and procedes to propagate the wave for the specified number o
 """
 function (env::WaveEnv)(action::AbstractDesign)
     update_design!(env, action)
-    env.sol = integrate(env.iter, env.design_steps)
+    total = solve(env.cell, env.sol.total.u[end], env.total_dynamics, env.design_steps)
+    incident = solve(env.cell, env.sol.incident.u[end], env.incident_dynamics, env.design_steps)
+    env.sol = TotalWaveSol(total = total, incident = incident)
 end
 
 """
 Retreives the state of the system
 """
 function RLBase.state(env::WaveEnv)
-    return displacement(env.iter.wave)
+    return env.sol
 end
 
 """
 Gets all possible actions.
 """
 function RLBase.action_space(env::WaveEnv)
-    env.design_space
+    env.space
 end
 
 function RLBase.reward(env::WaveEnv)
-    return 0.0f0
+    return -sum(sum.(energy.(displacement.(env.sol.scattered.u))))
 end
 
 function RLBase.state_space(env::WaveEnv)
@@ -84,8 +99,15 @@ Resets the environment by reverting the wave back to the initial condition and
 resetting the time of the dynamics to zero
 """
 function RLBase.reset!(env::WaveEnv)
-    env.iter.wave = env.initial_condition(env.iter.wave)
-    reset!(env.iter)
+    Waves.reset!(env.initial_condition)
+    Waves.reset!(env.total_dynamics)
+    Waves.reset!(env.incident_dynamics)
+
+    wave = env.initial_condition(env.sol.total.u[end])
+
+    total = solve(env.cell, wave, env.total_dynamics, 0)
+    incident = solve(env.cell, wave, env.incident_dynamics, 0)
+    env.sol = TotalWaveSol(total = total, incident = incident)
 end
 
 """
@@ -99,8 +121,11 @@ function Flux.gpu(env::WaveEnv)
     return WaveEnv(
         gpu(env.initial_condition),
         gpu(env.sol),
-        gpu(env.iter), 
-        env.design_space,
+        gpu(env.cell),
+        gpu(env.total_dynamics), 
+        gpu(env.incident_dynamics),
+
+        env.space,
         env.design_steps, 
         env.tmax)
 end
@@ -109,8 +134,19 @@ function Flux.cpu(env::WaveEnv)
     return WaveEnv(
         cpu(env.initial_condition),
         cpu(env.sol), 
-        cpu(env.iter), 
-        env.design_space,
+        cpu(env.cell),
+        cpu(env.total_dynamics), 
+        cpu(env.incident_dynamics),
+
+        env.space,
         env.design_steps, 
         env.tmax)
+end
+
+function num_steps(env::WaveEnv)
+    return Int(round(env.tmax / env.total_dynamics.dt))
+end
+
+function DesignTrajectory(env::WaveEnv)
+    return DesignTrajectory(env.total_dynamics, env.design_steps)
 end

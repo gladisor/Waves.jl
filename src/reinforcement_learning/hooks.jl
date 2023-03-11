@@ -1,16 +1,16 @@
 export SaveData
 
 mutable struct SaveData <: AbstractHook
-    sols::Vector{WaveSol}
+    sols::Vector{TotalWaveSol}
     designs::Vector{DesignTrajectory}
 end
 
 function SaveData()
-    return SaveData(WaveSol[], DesignTrajectory[])
+    return SaveData(TotalWaveSol[], DesignTrajectory[])
 end
 
 function (hook::SaveData)(::PreEpisodeStage, agent, env::WaveEnv)
-    hook.sols = WaveSol[]
+    hook.sols = TotalWaveSol[]
     hook.designs = DesignTrajectory[]
 end
 

@@ -4,18 +4,6 @@ struct DesignTrajectory{D <: AbstractDesign}
     traj::Vector{D}
 end
 
-function DesignTrajectory(dyn::WaveDynamics, n::Int)
-    design = dyn.design
-    t = collect(range(design.ti, design.tf, n + 1))
-    traj = typeof(design.initial)[]
-
-    for i ∈ axes(t, 1)
-        push!(traj, design(t[i]))
-    end
-
-    return DesignTrajectory(traj)
-end
-
 function DesignTrajectory(dts::DesignTrajectory{D}...) where D <: AbstractDesign
     traj = D[]
 
@@ -36,6 +24,10 @@ end
 
 function Base.getindex(dt::DesignTrajectory, i::Int64)
     return dt.traj[i]
+end
+
+function Flux.gpu(dt::DesignTrajectory)
+    return DesignTrajectory(gpu.(dt.traj))
 end
 
 function Flux.cpu(dt::DesignTrajectory)

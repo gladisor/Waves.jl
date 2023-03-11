@@ -86,3 +86,15 @@ function Flux.cpu(dyn::WaveDynamics)
         cpu(dyn.pml),
         dyn.ambient_speed, dyn.t, dyn.dt)
 end
+
+function DesignTrajectory(dyn::WaveDynamics, n::Int)
+    design = dyn.design
+    t = collect(range(design.ti, design.tf, n + 1))
+    traj = typeof(design.initial)[]
+
+    for i ∈ axes(t, 1)
+        push!(traj, design(t[i]))
+    end
+
+    return DesignTrajectory(traj)
+end

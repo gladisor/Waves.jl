@@ -21,11 +21,20 @@ function (interp::DesignInterpolator)(t::Float32)
     return interp.initial + t * interp.Δ
 end
 
-function Flux.gpu(interp::DesignInterpolator)
+function Flux.gpu(design::DesignInterpolator)
     return DesignInterpolator(
-        gpu(interp.initial),
-        gpu(interp.Δ),
-        interp.ti,
-        interp.tf
+        gpu(design.initial),
+        gpu(design.Δ),
+        design.ti,
+        design.tf
+    )
+end
+
+function Flux.cpu(design::DesignInterpolator)
+    return DesignInterpolator(
+        cpu(design.initial),
+        cpu(design.Δ),
+        design.ti,
+        design.tf
     )
 end

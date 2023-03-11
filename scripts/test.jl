@@ -4,7 +4,20 @@ Flux.CUDA.allowscalar(false)
 
 using Waves
 
-dim = TwoDim(5.0f0, 1024)
+mutable struct DesignStates <: AbstractHook
+    states::Vector{<: AbstractDesign}
+end
+
+function DesignStates()
+    return DesignStates(AbstractDesign[])
+end
+
+function (hook::DesignStates)(::PreActStage, agent, env::WaveEnv, action)
+    println(time(env))
+    push!(hook.states, env.total_dynamics.design(time(env)))
+end
+
+dim = TwoDim(5.0f0, 128)
 dynamics_kwargs = Dict(:dim => dim, :pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 cyl = Cylinder(0.0f0, 0.0f0, 0.5f0, 0.5f0)
 tmax = 10.0f0
@@ -20,15 +33,12 @@ env = WaveEnv(
     dynamics_kwargs...) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
+traj = episode_trajectory(env)
+agent = Agent(policy, traj)
 
-data = SaveData()
-@time run(policy, env, StopWhenDone(), data)
+design_states = DesignStates()
+@time run(agent, env, StopWhenDone(), design_states)
 
-sol = TotalWaveSol(data.sols...)
-actions = DesignTrajectory(data.designs...)
-
-@time render!(sol.total, actions, path = "total.mp4")
-@time render!(sol.incident, path = "incident.mp4")
-@time render!(sol.scattered, actions, path = "scattered.mp4")
-
-
+wave_states = traj.traces.state[2:end]
+design_states = design_states.states
+a = traj.traces.action[1:end-1]

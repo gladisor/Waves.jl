@@ -4,8 +4,8 @@ Flux.CUDA.allowscalar(false)
 
 using Waves
 
-dim = TwoDim(5.0f0, 512)
-dynamics_kwargs = Dict(:dim => dim, :pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 2.0f0, :dt => 0.01f0)
+dim = TwoDim(5.0f0, 1024)
+dynamics_kwargs = Dict(:dim => dim, :pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 cyl = Cylinder(0.0f0, 0.0f0, 0.5f0, 0.5f0)
 tmax = 10.0f0
 
@@ -28,3 +28,7 @@ sol = TotalWaveSol(data.sols...)
 actions = DesignTrajectory(data.designs...)
 
 @time render!(sol.total, actions, path = "total.mp4")
+@time render!(sol.incident, path = "incident.mp4")
+@time render!(sol.scattered, actions, path = "scattered.mp4")
+
+

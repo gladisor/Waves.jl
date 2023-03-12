@@ -85,7 +85,7 @@ function WaveNet(;grid_size::Float32, elements::Int, cell::AbstractWaveCell, fie
     up1 = UpBlock(3, z_fields, h_fields, activation)
     up2 = UpBlock(3, h_fields, h_fields, activation)
     up3 = UpBlock(3, h_fields, h_fields, activation)
-    out = Conv((3, 3), h_fields => fields, pad = SamePad())
+    out = Conv((3, 3), h_fields => fields, tanh, pad = SamePad())
 
     return WaveNet(z_elements, z_fields, cell, z_dynamics, down1, down2, down3, up1, up2, up3, out)
 end
@@ -145,7 +145,7 @@ function Flux.cpu(net::WaveNet)
 end
 
 grid_size = 5.0f0
-elements = 64
+elements = 128
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -180,32 +180,34 @@ tmax = 10.0f0
 # design_images = [Waves.speed(design, env.total_dynamics.g, env.total_dynamics.ambient_speed) for design in design_states.states]
 # a = traj.traces.action[1:end-1]
 
+steps = 100
 cell = WaveCell(split_wave_pml, runge_kutta)
 ic = Pulse(dim, -4.0f0, 0.0f0, 10.0f0)
 wave = ic(build_wave(dim, fields = 6))
 dynamics = WaveDynamics(dim = dim; dynamics_kwargs...)
-@time sol = solve(cell, wave, dynamics, 600) |> gpu
+@time sol = solve(cell, wave, dynamics, steps) |> gpu
 
 z_elements = (elements ÷ (2^3)) ^ 2
 
 layers = Chain(
-    Dense(z_elements, z_elements, relu),
+    Dense(z_elements, z_elements * 2, relu),
+    Dense(z_elements * 2, z_elements * 2, relu),
     z -> sum(z, dims = 2),
-    sigmoid)
+    Dense(z_elements * 2, z_elements, sigmoid))
 
 net = WaveNet(
     grid_size = grid_size, elements = elements,
-    cell = WaveCell(nonlinear_latent_wave, runge_kutta),
+    cell = WaveCell(split_wave_pml, runge_kutta),
     # cell = WaveRNNCell(nonlinear_latent_wave, runge_kutta, layers),
-    fields = fields, h_fields = 1, z_fields = 3,
-    activation = tanh;
+    fields = fields, h_fields = 32, z_fields = 2,
+    activation = relu;
     dynamics_kwargs...) |> gpu
 
 ps = Flux.params(net)
 opt = Adam(0.0005)
 u = cat(sol.u[2:end]..., dims = 4) |> gpu
 
-for epoch ∈ 1:1000
+for epoch ∈ 1:200
     Waves.reset!(net.z_dynamics)
 
     gs = Flux.gradient(ps) do 
@@ -221,8 +223,8 @@ for epoch ∈ 1:1000
     end
 
     Flux.Optimise.update!(opt, ps, gs)
-
-    p = WavePlot(dim)
-    heatmap!(p.ax, dim.x, dim.y, net(sol)[:, :, 1, end])
-    save("u.png", p.fig)
 end
+
+p = WavePlot(dim)
+heatmap!(p.ax, dim.x, dim.y, cpu(net(sol)[:, :, 1, end]), colormap = :ice)
+save("u.png", p.fig)

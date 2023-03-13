@@ -25,8 +25,8 @@ function CairoMakie.mesh!(ax::Axis, cyl::Cylinder)
     mesh!(ax, Circle(Point(cyl.pos...), cyl.r), color = :gray)
 end
 
-function plot_design!(p::WavePlot, cyl::Cylinder)
-    mesh!(p.ax, cyl)
+function plot_design!(p::WavePlot, design::AbstractDesign)
+    mesh!(p.ax, design)
 end
 
 function plot_wave!(p::WavePlot, dim::OneDim, wave::AbstractMatrix{Float32})

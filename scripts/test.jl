@@ -78,4 +78,4 @@ traj = episode_trajectory(env)
 agent = Agent(policy, traj)
 
 @time run(agent, env, StopWhenDone())
-render!(cpu(traj), path = "vid.mp4")
+render!(traj, path = "vid.mp4")

@@ -16,16 +16,35 @@ function radii_design_space(config::Scatterers, scale::Float32)
     return Scatterers(pos, radii_low, c)..Scatterers(pos, radii_high, c)
 end
 
-function circular_points(radius::Float32, spacing::Float32)
-    θ = acos(spacing ^ 2 / (2 * radius ^ 2))
+function circular_points(radius::Float32, spacing::Float32, num::Int)
+    θ = acos(spacing ^ 2 / (2 * radius ^ 2) - 1)
 
-    x0 = radius * cos(π + θ)
-    y0 = radius * sin(π + θ)
-    x1 = radius * cos(π)
-    y1 = radius * sin(π)
-    x2 = radius * cos(π - θ)
-    y2 = radius * sin(π - θ)
-    return [x0 y0; x1 y1; x2 y2]
+    points = []
+    
+    push!(points, [radius * cos(π) radius * sin(π)])
+
+    for i ∈ 1:num
+        push!(points, [radius * cos(π + i*θ) radius * sin(π + i*θ)])
+        push!(points, [radius * cos(π - i*θ) radius * sin(π - i*θ)])
+    end
+
+    return vcat(points...)
+end
+
+function square_formation()
+    points = [
+         0.0f0   0.0f0;
+        -1.0f0   0.0f0;
+        -1.0f0   1.0f0;
+         0.0f0   1.0f0;
+         1.0f0   1.0f0;
+         1.0f0   0.0f0;
+         1.0f0  -1.0f0;
+         0.0f0  -1.0f0;
+        -1.0f0  -1.0f0;  
+        ]
+
+    return points * 2
 end
 
 grid_size = 5.0f0
@@ -34,7 +53,9 @@ fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
-pos = circular_points(2.0f0, 2.0f0)
+# pos = circular_points(2.0f0, 2.5f0, 2)
+pos = square_formation()
+
 r = ones(Float32, size(pos, 1)) * 0.5f0
 c = ones(Float32, size(pos, 1)) * 0.5f0
 
@@ -58,4 +79,3 @@ agent = Agent(policy, traj)
 
 @time run(agent, env, StopWhenDone())
 render!(traj, path = "vid.mp4")
-

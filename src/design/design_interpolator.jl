@@ -38,3 +38,11 @@ function Flux.cpu(design::DesignInterpolator)
         design.tf
     )
 end
+
+function initial_design(design::DesignInterpolator)
+    return design(design.ti)
+end
+
+function final_design(design::DesignInterpolator)
+    return design(design.tf)
+end

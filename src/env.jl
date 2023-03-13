@@ -72,11 +72,17 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.sol = TotalWaveSol(total = total, incident = incident)
 end
 
+
+struct WaveEnvState{D <: AbstractDesign}
+    sol::TotalWaveSol
+    design::D
+end
+
 """
 Retreives the state of the system
 """
 function RLBase.state(env::WaveEnv)
-    return env.sol
+    return WaveEnvState(env.sol, initial_design(env.total_dynamics.design))
 end
 
 """

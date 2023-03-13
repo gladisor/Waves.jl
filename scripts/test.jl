@@ -32,8 +32,8 @@ function square_formation()
     return points * 2
 end
 
-grid_size = 8.0f0
-elements = 256
+grid_size = 5.0f0
+elements = 512
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)

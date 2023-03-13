@@ -1,10 +1,16 @@
 export Scatterers, random_pos
 
+const MIN_RADII = 0.2f0
+const MAX_RADII = 1.0f0
+const MIN_SPEED = 0.0f0
+
 struct Scatterers <: AbstractDesign
     pos::AbstractMatrix{Float32}
     r::AbstractVector{Float32}
     c::AbstractVector{Float32}
 end
+
+Flux.@functor Scatterers
 
 function random_pos(r::AbstractVector{Float32}, disk_r::Float32)
     r = rand.(Uniform.(0.0f0, disk_r .- r))
@@ -21,11 +27,15 @@ function Scatterers(;M::Int, r::Float32, disk_r::Float32, c::Float32)
 end
 
 function Base.:+(config1::Scatterers, config2::Scatterers)
-    return Scatterers(config1.pos .+ config2.pos, config1.r .+ config2.r, config1.c .+ config2.c)
+    r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
+    c = max.(config1.c .+ config2.c, MIN_SPEED)
+    return Scatterers(config1.pos .+ config2.pos, r, c)
 end
 
 function Base.:-(config1::Scatterers, config2::Scatterers)
-    return Scatterers(config1.pos .- config2.pos, config1.r .- config2.r, config1.c .- config2.c)
+    r = config1.r .- config2.r
+    c = config1.c .- config2.c
+    return Scatterers(config1.pos .- config2.pos, r, c)
 end
 
 function Base.:*(config::Scatterers, n::AbstractFloat)
@@ -85,8 +95,26 @@ function design_space(config::Scatterers, scale::Float32)
 end
 
 function Base.rand(config::ClosedInterval{Scatterers})
-    pos = rand.(Uniform.(config.left.pos, config.right.pos))
-    r = zeros(Float32, size(config.left.r))
-    c = zeros(Float32, size(config.left.c))
+    if all(config.left.pos .< config.right.pos)
+        pos = rand.(Uniform.(config.left.pos, config.right.pos))
+    else
+        pos = config.left.pos
+    end
+
+    if all(config.left.r .< config.right.r)
+        r = rand.(Uniform.(config.left.r, config.right.r))
+    else
+        r = zeros(Float32, size(config.left.r))
+    end
+
+    if all(config.left.c .< config.right.c)
+        c = rand.(Uniform.(config.left.c, config.right.c))
+    else
+        c = zeros(Float32, size(config.left.c))
+    end
     return Scatterers(pos, r, c)
+end
+
+function Base.vec(config::Scatterers)
+    return vcat(vec(config.pos), config.r, config.c)
 end

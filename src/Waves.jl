@@ -36,6 +36,7 @@ include("env.jl")
 include("data.jl")
 
 ## modeling
+include("models/blocks.jl")
 # include("models/wave_encoder.jl")
 # include("models/wave_cnn_decoder.jl")
 

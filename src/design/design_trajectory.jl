@@ -18,6 +18,18 @@ function DesignTrajectory(dts::DesignTrajectory{D}...) where D <: AbstractDesign
     return DesignTrajectory(traj)
 end
 
+function DesignTrajectory(design::DesignInterpolator, n::Int)
+
+    t = collect(range(design.ti, design.tf, n + 1))
+    traj = typeof(design.initial)[]
+
+    for i ∈ axes(t, 1)
+        push!(traj, design(t[i]))
+    end
+
+    return DesignTrajectory(traj)
+end
+
 function Base.length(dt::DesignTrajectory)
     return length(dt.traj)
 end

@@ -66,6 +66,24 @@ function render!(
     end
 end
 
+function Waves.render!(traj::Trajectory; path::String)
+    states = traj.traces.state[2:end]
+    actions = traj.traces.action[1:end-1]
+
+    design = DesignTrajectory[]
+
+    for (s, a) ∈ zip(states, actions)
+        interp = DesignInterpolator(s.design, a, s.sol.total.t[1], s.sol.total.t[end])
+        dt = DesignTrajectory(interp, length(s.sol.total)-1)
+        push!(design, dt)
+    end
+
+    sol = WaveSol([s.sol.total for s ∈ states]...)
+    design = DesignTrajectory(design...)
+
+    render!(sol, design, path =  path)
+end
+
 function plot_comparison!(y_true, y_pred; path::String)
     fig = Figure()
     ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))

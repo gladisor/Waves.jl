@@ -84,7 +84,7 @@ function Waves.render!(traj::Trajectory; path::String)
     render!(sol, design, path =  path)
 end
 
-function Waves.plot_comparison!(dim, y_true, y_pred; path::String)
+function plot_comparison!(dim, y_true, y_pred; path::String)
     fig = Figure()
     ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))
     heatmap!(ax1, dim.x, dim.y, y_true[:, :, 1, end], colormap = :ice)

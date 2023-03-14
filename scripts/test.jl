@@ -55,14 +55,34 @@ function (encoder::DesignEncoder)(design::AbstractDesign, action::AbstractDesign
     return x |> encoder.dense1 |> encoder.dense2 |> encoder.dense3
 end
 
+struct PlaneWave <: InitialCondition
+    mesh_grid::AbstractArray{Float32}
+    x::Float32
+    intensity::Float32
+end
+
+function PlaneWave(dim::TwoDim, x::Float32, intensity::Float32)
+    return PlaneWave(grid(dim), x, intensity)
+end
+
+function (ic::PlaneWave)()
+    return exp.(- ic.intensity * (ic.mesh_grid[:, :, 1] .- ic.x) .^ 2)
+end
+
+function (ic::PlaneWave)(wave::AbstractArray{Float32, 3})
+    u = ic()
+    z = dropdims(sum(ic.mesh_grid, dims = 3), dims = 3) * 0.0f0
+    z = repeat(z, 1, 1, size(wave, 3) - 1)
+    return cat(u, z, dims = 3)
+end
+
 grid_size = 5.0f0
-elements = 128
+elements = 512
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
 pos = square_formation()
-
 r = ones(Float32, size(pos, 1)) * 0.5f0
 c = ones(Float32, size(pos, 1)) * 0.5f0
 
@@ -70,7 +90,7 @@ translation = [-1.0f0, 0.0f0]
 config = Scatterers(pos .- translation', r, c)
 
 env = gpu(WaveEnv(
-    initial_condition = Pulse(dim, -4.0f0, 0.0f0, 10.0f0),
+    initial_condition = PlaneWave(dim, -4.0f0, 10.0f0),
     wave = build_wave(dim, fields = fields),
     cell = WaveCell(split_wave_pml, runge_kutta),
     design = config,
@@ -85,67 +105,67 @@ policy = RandomDesignPolicy(action_space(env))
 traj = episode_trajectory(env)
 agent = Agent(policy, traj)
 @time run(agent, env, StopWhenDone())
-# @time render!(traj, path = "vid.mp4")
+@time render!(traj, path = "vid.mp4")
 
-states = traj.traces.state[2:end]
-actions = traj.traces.action[1:end-1]
+# states = traj.traces.state[2:end]
+# actions = traj.traces.action[1:end-1]
 
-z_size = Int.(size(dim) ./ (2 ^ 3))
-h_fields = 64 ## wave_encoder
-h_size = 128 ## design_encoder
-z_fields = 2
-activation = relu
+# z_size = Int.(size(dim) ./ (2 ^ 3))
+# h_fields = 64 ## wave_encoder
+# h_size = 128 ## design_encoder
+# z_fields = 2
+# activation = relu
 
-design_size = 2 * length(vec(config))
-cell = WaveCell(nonlinear_latent_wave, runge_kutta)
-z_dim = OneDim(grid_size, prod(z_size))
-z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
+# design_size = 2 * length(vec(config))
+# cell = WaveCell(nonlinear_latent_wave, runge_kutta)
+# z_dim = OneDim(grid_size, prod(z_size))
+# z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
 
-wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation) |> gpu
-wave_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation) |> gpu
-design_encoder = DesignEncoder(design_size, h_size, prod(z_size), activation) |> gpu
+# wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation) |> gpu
+# wave_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation) |> gpu
+# design_encoder = DesignEncoder(design_size, h_size, prod(z_size), activation) |> gpu
 
-opt = Adam(0.0001)
-ps = Flux.params(wave_encoder, wave_decoder, design_encoder)
+# opt = Adam(0.0001)
+# ps = Flux.params(wave_encoder, wave_decoder, design_encoder)
 
-for _ in 1:1000
+# for _ in 1:1000
 
-    for (s, a) in zip(states, actions)
+#     for (s, a) in zip(states, actions)
 
-        s, a = gpu(s), gpu(a)
-        u = cat(s.sol.total.u[2:end]..., dims = 4)
+#         s, a = gpu(s), gpu(a)
+#         u = cat(s.sol.total.u[2:end]..., dims = 4)
 
-        Waves.reset!(z_dynamics)
+#         Waves.reset!(z_dynamics)
 
-        gs = Flux.gradient(ps) do
+#         gs = Flux.gradient(ps) do
 
-            z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, a))
-            latents = cat(integrate(cell, z, z_dynamics, env.design_steps)..., dims = 3)
-            u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
-            loss = sqrt(Flux.Losses.mse(u, u_pred))
+#             z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, a))
+#             latents = cat(integrate(cell, z, z_dynamics, env.design_steps)..., dims = 3)
+#             u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
+#             loss = sqrt(Flux.Losses.mse(u, u_pred))
 
-            Flux.ignore() do
-                println(loss)
-            end
+#             Flux.ignore() do
+#                 println(loss)
+#             end
 
-            return loss
-        end
+#             return loss
+#         end
 
-        Flux.Optimise.update!(opt, ps, gs)
-    end
-end
+#         Flux.Optimise.update!(opt, ps, gs)
+#     end
+# end
 
-idx = 1
-s = gpu(states[idx])
-action = actions[idx]
-z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, action))
-Waves.reset!(z_dynamics)
-z_sol = solve(cell, z, z_dynamics, env.design_steps) |> cpu
-# render!(z_sol, path = "z_sol.mp4")
+# idx = 1
+# s = gpu(states[idx])
+# action = actions[idx]
+# z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, action))
+# Waves.reset!(z_dynamics)
+# z_sol = solve(cell, z, z_dynamics, env.design_steps) |> cpu
+# # render!(z_sol, path = "z_sol.mp4")
 
-latents = cat(z_sol.u[2:end]..., dims = 3) |> gpu
-u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
-u_true = cat(s.sol.total.u[2:end]..., dims = 4)
-using CairoMakie
-Waves.plot_comparison!(dim, cpu(u_true), cpu(u_pred), path = "comparison_$idx.png")
+# latents = cat(z_sol.u[2:end]..., dims = 3) |> gpu
+# u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
+# u_true = cat(s.sol.total.u[2:end]..., dims = 4)
+# using CairoMakie
+# Waves.plot_comparison!(dim, cpu(u_true), cpu(u_pred), path = "comparison_$idx.png")
 

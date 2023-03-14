@@ -1,7 +1,7 @@
 export Scatterers, random_pos
 
 const MIN_RADII = 0.2f0
-const MAX_RADII = 1.0f0
+const MAX_RADII = 0.5f0
 const MIN_SPEED = 0.0f0
 
 struct Scatterers <: AbstractDesign

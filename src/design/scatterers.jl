@@ -1,4 +1,4 @@
-export Scatterers, random_pos
+export Scatterers, random_pos, radii_design_space
 
 const MIN_RADII = 0.2f0
 const MAX_RADII = 0.5f0
@@ -94,6 +94,17 @@ function design_space(config::Scatterers, scale::Float32)
     return Scatterers(pos_low, r, c)..Scatterers(pos_high, r, c)
 end
 
+function radii_design_space(config::Scatterers, scale::Float32)
+
+    pos = zeros(Float32, size(config.pos))
+
+    radii_low = - scale * ones(Float32, size(config.r))
+    radii_high =  scale * ones(Float32, size(config.r))
+    c = zeros(Float32, size(config.c))
+
+    return Scatterers(pos, radii_low, c)..Scatterers(pos, radii_high, c)
+end
+
 function Base.rand(config::ClosedInterval{Scatterers})
     if all(config.left.pos .< config.right.pos)
         pos = rand.(Uniform.(config.left.pos, config.right.pos))
@@ -117,4 +128,9 @@ end
 
 function Base.vec(config::Scatterers)
     return vcat(vec(config.pos), config.r, config.c)
+end
+
+function Base.display(design::Scatterers)
+    println(typeof(design))
+    println("M = $(length(design.r))")
 end

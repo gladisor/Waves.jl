@@ -86,6 +86,14 @@ function Flux.cpu(s::WaveEnvState)
     return WaveEnvState(cpu(s.sol), cpu(s.design))
 end
 
+function Base.display(s::WaveEnvState)
+    println(typeof(s))
+    println("\nSolution:")
+    display(s.sol)
+    println("\nDesign:")
+    display(s.design)
+end
+
 """
 Retreives the state of the system
 """
@@ -163,4 +171,8 @@ end
 
 function DesignTrajectory(env::WaveEnv)
     return DesignTrajectory(env.total_dynamics, env.design_steps)
+end
+
+function Base.display(env::WaveEnv)
+    println(typeof(env))
 end

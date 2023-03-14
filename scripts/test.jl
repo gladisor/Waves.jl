@@ -2,127 +2,58 @@ using ReinforcementLearning
 using Flux
 Flux.CUDA.allowscalar(false)
 using IntervalSets
+using CairoMakie
+using Statistics: mean
 
 using Waves
+using Flux.Data: DataLoader
 
 include("wave_encoder.jl")
 include("wave_decoder.jl")
 
-function radii_design_space(config::Scatterers, scale::Float32)
+function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})
+    pos = []
 
-    pos = zeros(Float32, size(config.pos))
+    for i ∈ 1:width
+        for j ∈ 1:hight
+            point = [(i - 1) * (2 * r + spacing), (j - 1) * (2 * r + spacing)]
+            push!(pos, point)
+        end
+    end
 
-    radii_low = - scale * ones(Float32, size(config.r))
-    radii_high =  scale * ones(Float32, size(config.r))
-    c = zeros(Float32, size(config.c))
+    pos = hcat(pos...)'
+    pos = (pos .- mean(pos, dims = 1)) .+ center'
 
-    return Scatterers(pos, radii_low, c)..Scatterers(pos, radii_high, c)
+    r = ones(Float32, size(pos, 1)) * r
+    c = ones(Float32, size(pos, 1)) * c
+
+    return Scatterers(pos, r, c)
 end
 
-function square_formation()
-    points = [
-         0.0f0   0.0f0;
-        -1.0f0   0.0f0;
-        -1.0f0   1.0f0;
-         0.0f0   1.0f0;
-         1.0f0   1.0f0;
-         1.0f0   0.0f0;
-         1.0f0  -1.0f0;
-         0.0f0  -1.0f0;
-        -1.0f0  -1.0f0;  
-        ]
+function generate_episode_data(policy::AbstractPolicy, env::WaveEnv)
+    traj = episode_trajectory(env)
+    agent = Agent(policy, traj)
+    run(agent, env, StopWhenDone())
 
-    return points * 2
+    states = traj.traces.state[2:end]
+    actions = traj.traces.action[1:end-1]
+
+    return [zip(states, actions)...]
 end
 
-struct DesignEncoder
-    dense1::Dense
-    dense2::Dense
-    dense3::Dense
-end
-
-Flux.@functor DesignEncoder
-
-function DesignEncoder(in_size::Int, h_size::Int, out_size::Int, activation::Function)
-    dense1 = Dense(in_size, h_size, activation)
-    dense2 = Dense(h_size, h_size, activation)
-    dense3 = Dense(h_size, out_size, sigmoid)
-    return DesignEncoder(dense1, dense2, dense3)
-end
-
-function (encoder::DesignEncoder)(design::AbstractDesign, action::AbstractDesign)
-    x = vcat(vec(design), vec(action))
-    return x |> encoder.dense1 |> encoder.dense2 |> encoder.dense3
-end
-
-struct PlaneWave <: InitialCondition
-    mesh_grid::AbstractArray{Float32}
-    x::Float32
-    intensity::Float32
-end
-
-function PlaneWave(dim::TwoDim, x::Float32, intensity::Float32)
-    return PlaneWave(grid(dim), x, intensity)
-end
-
-function (ic::PlaneWave)()
-    return exp.(- ic.intensity * (ic.mesh_grid[:, :, 1] .- ic.x) .^ 2)
-end
-
-function (ic::PlaneWave)(wave::AbstractArray{Float32, 3})
-    u = ic()
-    z = dropdims(sum(ic.mesh_grid, dims = 3), dims = 3) * 0.0f0
-    z = repeat(z, 1, 1, size(wave, 3) - 1)
-    return cat(u, z, dims = 3)
-end
-
-function Flux.gpu(ic::PlaneWave)
-    return PlaneWave(gpu(ic.mesh_grid), ic.x, ic.intensity)
-end
-
-function Flux.cpu(ic::PlaneWave)
-    return PlaneWave(cpu(ic.mesh_grid), ic.x, ic.intensity)
-end
-
-function Base.display(sol::TotalWaveSol)
-    println(typeof(sol))
-    println("Length: $(length(sol.total))")
-end
-
-function Base.display(sol::TotalWaveSol)
-    println(typeof(sol))
-    println("Length: $(length(sol.total))")
-end
-
-function Base.display(design::Scatterers)
-    println(typeof(design))
-    println("M = $(length(design.r))")
-end
-
-function Base.display(s::WaveEnvState)
-    println(typeof(s))
-    println("\nSolution:")
-    display(s.sol)
-    println("\nDesign:")
-    display(s.design)
-end
-
-function Base.display(env::WaveEnv)
-    println(typeof(env))
-end
+config = scatterer_formation(
+    width = 3, 
+    hight = 5, 
+    spacing = 0.2f0, 
+    r = 0.5f0, 
+    c = 0.50f0,
+    center = [2.0f0, 0.0f0])
 
 grid_size = 5.0f0
 elements = 512
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
-
-pos = square_formation()
-r = ones(Float32, size(pos, 1)) * 0.5f0
-c = ones(Float32, size(pos, 1)) * 0.5f0
-
-translation = [-1.0f0, 0.0f0]
-config = Scatterers(pos .- translation', r, c)
 
 env = gpu(WaveEnv(
     initial_condition = PlaneWave(dim, -4.0f0, 10.0f0),
@@ -136,12 +67,12 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-
 traj = episode_trajectory(env)
 agent = Agent(policy, traj)
 @time run(agent, env, StopWhenDone())
 @time render!(traj, path = "vid.mp4")
 
+# data = generate_episode_data(policy, env)
 # states = traj.traces.state[2:end]
 # actions = traj.traces.action[1:end-1]
 

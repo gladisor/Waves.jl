@@ -82,3 +82,8 @@ end
 function Flux.cpu(sol::TotalWaveSol)
     return TotalWaveSol(cpu(sol.total), cpu(sol.incident), cpu(sol.scattered))
 end
+
+function Base.display(sol::TotalWaveSol)
+    println(typeof(sol))
+    println("Length: $(length(sol.total))")
+end

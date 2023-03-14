@@ -1,4 +1,4 @@
-export pulse, Pulse, RandomPulseTwoDim
+export pulse, Pulse, RandomPulseTwoDim, PlaneWave
 
 function reset!(ic::InitialCondition)
     return nothing
@@ -91,4 +91,34 @@ end
 function Flux.cpu(random_pulse::RandomPulseTwoDim)
     random_pulse.pulse = cpu(random_pulse.pulse)
     return random_pulse
+end
+
+
+struct PlaneWave <: InitialCondition
+    mesh_grid::AbstractArray{Float32}
+    x::Float32
+    intensity::Float32
+end
+
+function PlaneWave(dim::TwoDim, x::Float32, intensity::Float32)
+    return PlaneWave(grid(dim), x, intensity)
+end
+
+function (ic::PlaneWave)()
+    return exp.(- ic.intensity * (ic.mesh_grid[:, :, 1] .- ic.x) .^ 2)
+end
+
+function (ic::PlaneWave)(wave::AbstractArray{Float32, 3})
+    u = ic()
+    z = dropdims(sum(ic.mesh_grid, dims = 3), dims = 3) * 0.0f0
+    z = repeat(z, 1, 1, size(wave, 3) - 1)
+    return cat(u, z, dims = 3)
+end
+
+function Flux.gpu(ic::PlaneWave)
+    return PlaneWave(gpu(ic.mesh_grid), ic.x, ic.intensity)
+end
+
+function Flux.cpu(ic::PlaneWave)
+    return PlaneWave(cpu(ic.mesh_grid), ic.x, ic.intensity)
 end

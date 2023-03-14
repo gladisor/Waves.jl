@@ -68,7 +68,7 @@ end
 
 function Waves.render!(traj::Trajectory; path::String)
     states = traj.traces.state[2:end]
-    actions = traj.traces.action[1:end-1]
+    actions = cpu(traj.traces.action[1:end-1])
 
     design = DesignTrajectory[]
 
@@ -78,8 +78,8 @@ function Waves.render!(traj::Trajectory; path::String)
         push!(design, dt)
     end
 
-    sol = cpu(WaveSol([s.sol.total for s ∈ states]...))
-    design = cpu(DesignTrajectory(design...))
+    sol = WaveSol([s.sol.total for s ∈ states]...)
+    design = DesignTrajectory(design...)
 
     render!(sol, design, path =  path)
 end

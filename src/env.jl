@@ -1,4 +1,4 @@
-export WaveEnv, num_steps
+export WaveEnv, WaveEnvState, num_steps
 
 """
 Structure for handling the effect of an action on the design.
@@ -90,7 +90,7 @@ end
 Retreives the state of the system
 """
 function RLBase.state(env::WaveEnv)
-    return WaveEnvState(cpu(env.sol), cpu(initial_design(env.total_dynamics.design)))
+    return cpu(WaveEnvState(env.sol, initial_design(env.total_dynamics.design)))
 end
 
 """

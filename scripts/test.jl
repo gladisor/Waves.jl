@@ -76,6 +76,41 @@ function (ic::PlaneWave)(wave::AbstractArray{Float32, 3})
     return cat(u, z, dims = 3)
 end
 
+function Flux.gpu(ic::PlaneWave)
+    return PlaneWave(gpu(ic.mesh_grid), ic.x, ic.intensity)
+end
+
+function Flux.cpu(ic::PlaneWave)
+    return PlaneWave(cpu(ic.mesh_grid), ic.x, ic.intensity)
+end
+
+function Base.display(sol::TotalWaveSol)
+    println(typeof(sol))
+    println("Length: $(length(sol.total))")
+end
+
+function Base.display(sol::TotalWaveSol)
+    println(typeof(sol))
+    println("Length: $(length(sol.total))")
+end
+
+function Base.display(design::Scatterers)
+    println(typeof(design))
+    println("M = $(length(design.r))")
+end
+
+function Base.display(s::WaveEnvState)
+    println(typeof(s))
+    println("\nSolution:")
+    display(s.sol)
+    println("\nDesign:")
+    display(s.design)
+end
+
+function Base.display(env::WaveEnv)
+    println(typeof(env))
+end
+
 grid_size = 5.0f0
 elements = 512
 fields = 6

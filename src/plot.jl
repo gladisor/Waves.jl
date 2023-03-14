@@ -84,6 +84,13 @@ function Waves.render!(traj::Trajectory; path::String)
     render!(sol, design, path =  path)
 end
 
+function render!(policy::AbstractPolicy, env::WaveEnv; path::String)
+    traj = episode_trajectory(env)
+    agent = Agent(policy, traj)
+    run(agent, env, StopWhenDone())
+    render!(traj, path = path)
+end
+
 function plot_comparison!(dim, y_true, y_pred; path::String)
     fig = Figure()
     ax1 = Axis(fig[1, 1], aspect = AxisAspect(1.0))

@@ -1,4 +1,4 @@
-export Scatterers, random_pos, radii_design_space
+export Scatterers, random_pos, radii_design_space, scatterer_formation
 
 const MIN_RADII = 0.2f0
 const MAX_RADII = 0.5f0
@@ -133,4 +133,23 @@ end
 function Base.display(design::Scatterers)
     println(typeof(design))
     println("M = $(length(design.r))")
+end
+
+function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})
+    pos = []
+
+    for i ∈ 1:width
+        for j ∈ 1:hight
+            point = [(i - 1) * (2 * r + spacing), (j - 1) * (2 * r + spacing)]
+            push!(pos, point)
+        end
+    end
+
+    pos = hcat(pos...)'
+    pos = (pos .- mean(pos, dims = 1)) .+ center'
+
+    r = ones(Float32, size(pos, 1)) * r
+    c = ones(Float32, size(pos, 1)) * c
+
+    return Scatterers(pos, r, c)
 end

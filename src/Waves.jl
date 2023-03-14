@@ -9,6 +9,7 @@ using CairoMakie
 using Interpolations
 using Flux
 using ReinforcementLearning
+using Statistics: mean
 
 abstract type AbstractDim end
 abstract type AbstractDesign end

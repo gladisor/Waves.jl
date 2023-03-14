@@ -5,5 +5,5 @@ mutable struct RandomDesignPolicy <: AbstractPolicy
 end
 
 function (policy::RandomDesignPolicy)(::WaveEnv)
-    return gpu(rand(policy.action))
+    return rand(policy.action)
 end

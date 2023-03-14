@@ -66,7 +66,7 @@ end
 Updates the design and procedes to propagate the wave for the specified number of design_steps
 """
 function (env::WaveEnv)(action::AbstractDesign)
-    update_design!(env, action)
+    update_design!(env, gpu(action))
     total = solve(env.cell, env.sol.total.u[end], env.total_dynamics, env.design_steps)
     incident = solve(env.cell, env.sol.incident.u[end], env.incident_dynamics, env.design_steps)
     env.sol = TotalWaveSol(total = total, incident = incident)
@@ -98,7 +98,7 @@ end
 Retreives the state of the system
 """
 function RLBase.state(env::WaveEnv)
-    return cpu(WaveEnvState(env.sol, initial_design(env.total_dynamics.design)))
+    return WaveEnvState(cpu(env.sol), cpu(initial_design(env.total_dynamics.design)))
 end
 
 """

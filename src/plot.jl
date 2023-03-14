@@ -68,7 +68,7 @@ end
 
 function Waves.render!(traj::Trajectory; path::String)
     states = traj.traces.state[2:end]
-    actions = cpu(traj.traces.action[1:end-1])
+    actions = traj.traces.action[1:end-1]
 
     design = DesignTrajectory[]
 

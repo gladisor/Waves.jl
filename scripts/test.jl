@@ -41,6 +41,13 @@ function generate_episode_data(policy::AbstractPolicy, env::WaveEnv)
     return [zip(states, actions)...]
 end
 
+function Waves.render!(policy::AbstractPolicy, env::WaveEnv; path::String)
+    traj = episode_trajectory(env)
+    agent = Agent(policy, traj)
+    run(agent, env, StopWhenDone())
+    render!(traj, path = path)
+end
+
 config = scatterer_formation(
     width = 3, 
     hight = 5, 
@@ -50,7 +57,7 @@ config = scatterer_formation(
     center = [2.0f0, 0.0f0])
 
 grid_size = 5.0f0
-elements = 512
+elements = 256
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -67,12 +74,10 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-traj = episode_trajectory(env)
-agent = Agent(policy, traj)
-@time run(agent, env, StopWhenDone())
-@time render!(traj, path = "vid.mp4")
+# @time render!(policy, env, path = "vid.mp4")
+@time data = generate_episode_data(policy, env)
+;
 
-# data = generate_episode_data(policy, env)
 # states = traj.traces.state[2:end]
 # actions = traj.traces.action[1:end-1]
 

@@ -12,7 +12,7 @@ function WaveEncoder(fields::Int, h_fields::Int, z_fields::Int, activation::Func
 
     down1 = DownBlock(3, fields,   h_fields, activation)
     down2 = DownBlock(3, h_fields, h_fields, activation)
-    down3 = DownBlock(3, h_fields, z_fields, activation)
+    down3 = DownBlock(3, h_fields, z_fields, tanh)
 
     return WaveEncoder(down1, down2, down3)
 end

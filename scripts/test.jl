@@ -81,14 +81,14 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-action = policy(env)
-env(action)
-s = state(env)
 
-# traj = episode_trajectory(env)
-# agent = Agent(policy, traj)
-# @time run(agent, env, StopWhenDone())
+traj = episode_trajectory(env)
+agent = Agent(policy, traj)
+@time run(agent, env, StopWhenDone())
 # @time render!(traj, path = "vid.mp4")
+
+states = traj.traces.state[2:end]
+actions = traj.traces.action[1:end-1]
 
 z_size = Int.(size(dim) ./ (2 ^ 3))
 h_fields = 64 ## wave_encoder
@@ -96,8 +96,7 @@ h_size = 128 ## design_encoder
 z_fields = 2
 activation = relu
 
-design_size = 2 * length(vec(s.design))
-
+design_size = 2 * length(vec(config))
 cell = WaveCell(nonlinear_latent_wave, runge_kutta)
 z_dim = OneDim(grid_size, prod(z_size))
 z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
@@ -106,33 +105,47 @@ wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation) |> gpu
 wave_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation) |> gpu
 design_encoder = DesignEncoder(design_size, h_size, prod(z_size), activation) |> gpu
 
-opt = Adam(0.0005)
+opt = Adam(0.0001)
 ps = Flux.params(wave_encoder, wave_decoder, design_encoder)
 
-u = cat(s.sol.total.u[2:end]..., dims = 4) |> gpu
+for _ in 1:1000
 
-for _ ∈ 1:20
-    Waves.reset!(z_dynamics)
+    for (s, a) in zip(states, actions)
 
-    gs = Flux.gradient(ps) do
+        s, a = gpu(s), gpu(a)
+        u = cat(s.sol.total.u[2:end]..., dims = 4)
 
-        z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, action))
-        latents = cat(integrate(cell, z, z_dynamics, env.design_steps)..., dims = 3)
-        u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
+        Waves.reset!(z_dynamics)
 
-        loss = sqrt(Flux.Losses.mse(u, u_pred))
+        gs = Flux.gradient(ps) do
 
-        Flux.ignore() do
-            println(loss)
+            z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, a))
+            latents = cat(integrate(cell, z, z_dynamics, env.design_steps)..., dims = 3)
+            u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
+            loss = sqrt(Flux.Losses.mse(u, u_pred))
+
+            Flux.ignore() do
+                println(loss)
+            end
+
+            return loss
         end
 
-        return loss
+        Flux.Optimise.update!(opt, ps, gs)
     end
-
-    Flux.Optimise.update!(opt, ps, gs)
 end
 
+idx = 1
+s = gpu(states[idx])
+action = actions[idx]
 z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, action))
 Waves.reset!(z_dynamics)
-z_sol = solve(cell, z, z_dynamics, env.design_steps)
-render!(z_sol, path = "z_sol.mp4")
+z_sol = solve(cell, z, z_dynamics, env.design_steps) |> cpu
+# render!(z_sol, path = "z_sol.mp4")
+
+latents = cat(z_sol.u[2:end]..., dims = 3) |> gpu
+u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
+u_true = cat(s.sol.total.u[2:end]..., dims = 4)
+using CairoMakie
+Waves.plot_comparison!(dim, cpu(u_true), cpu(u_pred), path = "comparison_$idx.png")
+

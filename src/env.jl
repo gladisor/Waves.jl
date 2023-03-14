@@ -78,11 +78,19 @@ struct WaveEnvState{D <: AbstractDesign}
     design::D
 end
 
+function Flux.gpu(s::WaveEnvState)
+    return WaveEnvState(gpu(s.sol), gpu(s.design))
+end
+
+function Flux.cpu(s::WaveEnvState)
+    return WaveEnvState(cpu(s.sol), cpu(s.design))
+end
+
 """
 Retreives the state of the system
 """
 function RLBase.state(env::WaveEnv)
-    return WaveEnvState(env.sol, initial_design(env.total_dynamics.design))
+    return WaveEnvState(cpu(env.sol), cpu(initial_design(env.total_dynamics.design)))
 end
 
 """

@@ -5,6 +5,9 @@ using IntervalSets
 
 using Waves
 
+include("wave_encoder.jl")
+include("wave_decoder.jl")
+
 function radii_design_space(config::Scatterers, scale::Float32)
 
     pos = zeros(Float32, size(config.pos))
@@ -32,8 +35,28 @@ function square_formation()
     return points * 2
 end
 
+struct DesignEncoder
+    dense1::Dense
+    dense2::Dense
+    dense3::Dense
+end
+
+Flux.@functor DesignEncoder
+
+function DesignEncoder(in_size::Int, h_size::Int, out_size::Int, activation::Function)
+    dense1 = Dense(in_size, h_size, activation)
+    dense2 = Dense(h_size, h_size, activation)
+    dense3 = Dense(h_size, out_size, sigmoid)
+    return DesignEncoder(dense1, dense2, dense3)
+end
+
+function (encoder::DesignEncoder)(design::AbstractDesign, action::AbstractDesign)
+    x = vcat(vec(design), vec(action))
+    return x |> encoder.dense1 |> encoder.dense2 |> encoder.dense3
+end
+
 grid_size = 5.0f0
-elements = 512
+elements = 128
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -58,8 +81,58 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-traj = episode_trajectory(env)
-agent = Agent(policy, traj)
+action = policy(env)
+env(action)
+s = state(env)
 
-@time run(agent, env, StopWhenDone())
-@time render!(traj, path = "vid.mp4")
+# traj = episode_trajectory(env)
+# agent = Agent(policy, traj)
+# @time run(agent, env, StopWhenDone())
+# @time render!(traj, path = "vid.mp4")
+
+z_size = Int.(size(dim) ./ (2 ^ 3))
+h_fields = 64 ## wave_encoder
+h_size = 128 ## design_encoder
+z_fields = 2
+activation = relu
+
+design_size = 2 * length(vec(s.design))
+
+cell = WaveCell(nonlinear_latent_wave, runge_kutta)
+z_dim = OneDim(grid_size, prod(z_size))
+z_dynamics = WaveDynamics(dim = z_dim; dynamics_kwargs...) |> gpu
+
+wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation) |> gpu
+wave_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation) |> gpu
+design_encoder = DesignEncoder(design_size, h_size, prod(z_size), activation) |> gpu
+
+opt = Adam(0.0005)
+ps = Flux.params(wave_encoder, wave_decoder, design_encoder)
+
+u = cat(s.sol.total.u[2:end]..., dims = 4) |> gpu
+
+for _ ∈ 1:20
+    Waves.reset!(z_dynamics)
+
+    gs = Flux.gradient(ps) do
+
+        z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, action))
+        latents = cat(integrate(cell, z, z_dynamics, env.design_steps)..., dims = 3)
+        u_pred = wave_decoder(reshape(latents, z_size..., z_fields + 1, env.design_steps))
+
+        loss = sqrt(Flux.Losses.mse(u, u_pred))
+
+        Flux.ignore() do
+            println(loss)
+        end
+
+        return loss
+    end
+
+    Flux.Optimise.update!(opt, ps, gs)
+end
+
+z = hcat(wave_encoder(s.sol.total), design_encoder(s.design, action))
+Waves.reset!(z_dynamics)
+z_sol = solve(cell, z, z_dynamics, env.design_steps)
+render!(z_sol, path = "z_sol.mp4")

@@ -80,5 +80,5 @@ function nonlinear_latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynami
     dU = b .* (∇ * V) .- σx .* U
     dV = ∇ * U .- σx .* V
 
-    return cat(dU, dV, b, dims = 2)
+    return cat(dU, dV, b * 0.0f0, dims = 2)
 end

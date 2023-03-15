@@ -40,7 +40,7 @@ function random_radii_scatterer_formation()
     config = scatterer_formation(width = 3, hight = 5, spacing = 0.2f0, r = 0.5f0, c = 0.50f0, center = [2.0f0, 0.0f0])
     r = rand(Float32, size(config.r))
     r = r * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
-    return gpu(Scatterers(config.pos, r, config.c))
+    return Scatterers(config.pos, r, config.c)
 end
 
 config = random_radii_scatterer_formation()

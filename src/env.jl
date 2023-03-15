@@ -127,7 +127,7 @@ function RLBase.reset!(env::WaveEnv)
     Waves.reset!(env.total_dynamics)
     Waves.reset!(env.incident_dynamics)
 
-    env.total_dynamics.design = DesignInterpolator(env.random_design())
+    env.total_dynamics.design = gpu(DesignInterpolator(env.random_design()))
     wave = env.initial_condition(env.sol.total.u[end])
 
     total = solve(env.cell, wave, env.total_dynamics, 0)

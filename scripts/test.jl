@@ -64,8 +64,8 @@ env = gpu(WaveEnv(
 
 policy = RandomDesignPolicy(action_space(env))
 
-@time train_data = generate_episode_data(policy, env, 1)
-@time test_data = generate_episode_data(policy, env, 1)
+@time train_data = generate_episode_data(policy, env, 50)
+@time test_data = generate_episode_data(policy, env, 5)
 @time val_data = generate_episode_data(policy, env, 1)
 
 train_data_loader = DataLoader(train_data, shuffle = true)

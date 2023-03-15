@@ -143,7 +143,7 @@ for epoch in 1:100
         z_sequence = reshape(latents, z_size..., z_fields + 1, env.design_steps)
         u_pred = wave_decoder(z_sequence)
 
-        Waves.plot_comparison!(dim, u_true, u_pred, path = "comparison_$(i).png")
+        Waves.plot_comparison!(dim, cpu(u_true), cpu(u_pred), path = "comparison_$(i).png")
     end
 
     push!(test_loss, mean(batch_test_loss))

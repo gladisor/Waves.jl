@@ -501,3 +501,62 @@ Train Loss: 0.07988424
 Train Loss: 0.094208546
 Train Loss: 0.07819839
 Train Loss: 0.07882545
+ERROR: LoadError: Scalar indexing is disallowed.
+Invocation of getindex resulted in scalar indexing of a GPU array.
+This is typically caused by calling an iterating implementation of a method.
+Such implementations *do not* execute on the GPU, but very slowly on the CPU,
+and therefore are only permitted from the REPL for prototyping purposes.
+If you did intend to index this array, annotate the caller with @allowscalar.
+Stacktrace:
+  [1] error(s::String)
+    @ Base ./error.jl:35
+  [2] assertscalar(op::String)
+    @ GPUArraysCore ~/.julia/packages/GPUArraysCore/HaQcr/src/GPUArraysCore.jl:103
+  [3] getindex(xs::CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}, I::Int64)
+    @ GPUArrays ~/.julia/packages/GPUArrays/6STCb/src/host/indexing.jl:9
+  [4] iterate
+    @ ./abstractarray.jl:1167 [inlined]
+  [5] iterate
+    @ ./abstractarray.jl:1165 [inlined]
+  [6] extrema_nan
+    @ ~/.julia/packages/Makie/LCBYx/src/layouting/data_limits.jl:13 [inlined]
+  [7] distinct_extrema_nan(x::CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/layouting/data_limits.jl:34
+  [8] #map#13
+    @ ~/.julia/packages/Observables/PHGQ8/src/Observables.jl:564 [inlined]
+  [9] map
+    @ ~/.julia/packages/Observables/PHGQ8/src/Observables.jl:562 [inlined]
+ [10] (::Makie.var"#131#136"{Observable{Any}})()
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:28
+ [11] replace_automatic!(f::Makie.var"#131#136"{Observable{Any}}, dict::Heatmap{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}}, key::Symbol)
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/utilities/utilities.jl:62
+ [12] color_and_colormap!(plot::Heatmap{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}}, intensity::Observable{Any})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:27
+ [13] color_and_colormap!(plot::Heatmap{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:24
+ [14] calculated_attributes!
+    @ ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:59 [inlined]
+ [15] calculated_attributes!
+    @ ~/.julia/packages/MakieCore/77C6Z/src/basic_plots.jl:12 [inlined]
+ [16] Heatmap{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}}(scene::Scene, attributes::Attributes, input::Tuple{Observable{Vector{Float32}}, Observable{Vector{Float32}}, Observable{CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}}, args::Observable{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:234
+ [17] plot!(scene::Scene, P::Type{Heatmap{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}}}, attributes::Attributes, input::Tuple{Observable{Vector{Float32}}, Observable{Vector{Float32}}, Observable{CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}}, args::Observable{Tuple{Vector{Float32}, Vector{Float32}, CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer}}})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:411
+ [18] plot!(::Scene, ::Type{Heatmap}, ::Attributes, ::Vector{Float32}, ::Vararg{Any}; kw_attributes::Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:335
+ [19] plot!(::Scene, ::Type{Heatmap}, ::Attributes, ::Vector{Float32}, ::Vector{Float32}, ::CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/interfaces.jl:302
+ [20] plot!(::Axis, ::Type{Heatmap}, ::Attributes, ::Vector{Float32}, ::Vararg{Any}; kw_attributes::Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/makielayout/blocks/axis.jl:775
+ [21] plot!(::Axis, ::Type{Heatmap}, ::Attributes, ::Vector{Float32}, ::Vector{Float32}, ::CUDA.CuArray{Float32, 2, CUDA.Mem.DeviceBuffer})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/makielayout/blocks/axis.jl:762
+ [22] plot!(::Type{Heatmap}, ::Axis, ::Vector{Float32}, ::Vararg{Any}; kw_attributes::Base.Pairs{Symbol, Symbol, Tuple{Symbol}, NamedTuple{(:colormap,), Tuple{Symbol}}})
+    @ Makie ~/.julia/packages/Makie/LCBYx/src/makielayout/blocks/axis.jl:792
+ [23] heatmap!(::Axis, ::Vararg{Any}; attributes::Base.Pairs{Symbol, Symbol, Tuple{Symbol}, NamedTuple{(:colormap,), Tuple{Symbol}}})
+    @ MakieCore ~/.julia/packages/MakieCore/77C6Z/src/recipes.jl:38
+ [24] plot_comparison!(dim::TwoDim, y_true::CUDA.CuArray{Float32, 4, CUDA.Mem.DeviceBuffer}, y_pred::CUDA.CuArray{Float32, 4, CUDA.Mem.DeviceBuffer}; path::String)
+    @ Waves /lts/home/012761749/Waves.jl/src/plot.jl:97
+ [25] top-level scope
+    @ /lts/home/012761749/Waves.jl/scripts/test.jl:146
+in expression starting at /lts/home/012761749/Waves.jl/scripts/test.jl:92
+srun: error: cs001: task 0: Exited with exit code 1

@@ -45,7 +45,7 @@ end
 
 config = random_radii_scatterer_formation()
 grid_size = 5.0f0
-elements = 128
+elements = 256
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -66,7 +66,7 @@ policy = RandomDesignPolicy(action_space(env))
 
 @time train_data = generate_episode_data(policy, env, 50)
 @time test_data = generate_episode_data(policy, env, 5)
-@time val_data = generate_episode_data(policy, env, 1)
+@time val_data = generate_episode_data(policy, env, 1);
 
 train_data_loader = DataLoader(train_data, shuffle = true)
 test_data_loader = DataLoader(test_data, shuffle = true)

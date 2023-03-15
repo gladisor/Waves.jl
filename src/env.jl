@@ -17,6 +17,7 @@ mutable struct WaveEnv <: AbstractEnv
     total_dynamics::WaveDynamics
     incident_dynamics::WaveDynamics
 
+    random_design::Function
     space::Union{ClosedInterval, Nothing}
     design_steps::Int
     tmax::Float32
@@ -27,6 +28,7 @@ function WaveEnv(;
         wave::AbstractArray{Float32}, 
         cell::AbstractWaveCell,
         design::AbstractDesign,
+        random_design::Function,
         space::Union{ClosedInterval, Nothing},
         design_steps::Int,
         tmax::Float32,
@@ -42,7 +44,7 @@ function WaveEnv(;
     incident = solve(cell, wave, incident_dynamics, 0)
     sol = TotalWaveSol(total = total, incident = incident)
 
-    return WaveEnv(initial_condition, sol, cell, total_dynamics, incident_dynamics, space, design_steps, tmax)
+    return WaveEnv(initial_condition, sol, cell, total_dynamics, incident_dynamics, random_design, space, design_steps, tmax)
 end
 
 """
@@ -125,6 +127,7 @@ function RLBase.reset!(env::WaveEnv)
     Waves.reset!(env.total_dynamics)
     Waves.reset!(env.incident_dynamics)
 
+    env.total_dynamics.design = DesignInterpolator(env.random_design())
     wave = env.initial_condition(env.sol.total.u[end])
 
     total = solve(env.cell, wave, env.total_dynamics, 0)
@@ -147,6 +150,7 @@ function Flux.gpu(env::WaveEnv)
         gpu(env.total_dynamics), 
         gpu(env.incident_dynamics),
 
+        env.random_design,
         env.space,
         env.design_steps, 
         env.tmax)
@@ -160,6 +164,7 @@ function Flux.cpu(env::WaveEnv)
         cpu(env.total_dynamics), 
         cpu(env.incident_dynamics),
 
+        env.random_design,
         env.space,
         env.design_steps, 
         env.tmax)

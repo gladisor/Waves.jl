@@ -55,10 +55,10 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-train_data = generate_episode_data(policy, env, 3)
+train_data = generate_episode_data(policy, env, 50)
 train_data_loader = DataLoader(train_data, shuffle = true);
 
-h_fields = 64
+h_fields = 32
 z_fields = 2
 activation = relu
 z_size = Int.(size(dim) ./ (2 ^ 3))
@@ -76,7 +76,7 @@ opt = Adam(0.0001)
 ps = Flux.params(wave_encoder, wave_decoder, design_encoder)
 train_loss = Float32[]
 
-for epoch in 1:10
+for epoch in 1:100
     for (s, a) in train_data_loader
         s = gpu(first(s))
         a = gpu(first(a))

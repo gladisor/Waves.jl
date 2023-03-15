@@ -1,6 +1,0 @@
-401.766814 seconds (790.83 M allocations: 266.958 GiB, 10.39% gc time, 7.89% compilation time: 0% of which was recompilation)
- 39.023757 seconds (65.07 M allocations: 25.982 GiB, 11.85% gc time)
- 11.080758 seconds (13.09 M allocations: 5.200 GiB, 19.54% gc time, 12.41% compilation time)
-Train Loss: 0.09887158
-srun: error: cs001: task 0: Killed
-srun: Force Terminated StepId=1324.0

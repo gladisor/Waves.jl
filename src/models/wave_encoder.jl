@@ -1,54 +1,29 @@
 export WaveEncoder
 
 struct WaveEncoder
-    cell::AbstractWaveCell
-    dynamics::WaveDynamics
-    layers::Chain
+    down1::DownBlock
+    down2::DownBlock
+    down3::DownBlock
 end
 
 Flux.@functor WaveEncoder
-Flux.trainable(encoder::WaveEncoder) = (encoder.layers,)
 
-function WaveEncoder(;
-        wave_fields::Int,
-        h_fields::Int,
-        latent_fields::Int,
-        activation::Function,
-        wave_dim::TwoDim,
-        latent_dim::OneDim,
-        cell::AbstractWaveCell,
-        dynamics::WaveDynamics)
+function WaveEncoder(fields::Int, h_fields::Int, z_fields::Int, activation::Function)
 
-    reduced_size = prod(Int.(size(wave_dim) ./ (2 ^ 3)))
-    latent_elements = size(latent_dim)[1]
+    down1 = DownBlock(3, fields,   h_fields, activation)
+    down2 = DownBlock(3, h_fields, h_fields, activation)
+    down3 = DownBlock(3, h_fields, z_fields, tanh)
 
-    encoder_layers = Chain(
-        Conv((3, 3), wave_fields => h_fields, activation, pad = SamePad()),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        MaxPool((2, 2)),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        MaxPool((2, 2)),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        Conv((3, 3), h_fields => h_fields, activation,    pad = SamePad()),
-        Conv((3, 3), h_fields => 1, activation,           pad = SamePad()),
-        MaxPool((2, 2)),
-        Flux.flatten,
-        Dense(reduced_size, latent_elements * latent_fields, activation),
-        z -> reshape(z, latent_elements, latent_fields))
-
-    return WaveEncoder(cell, dynamics, encoder_layers)
+    return WaveEncoder(down1, down2, down3)
 end
 
-function (encoder::WaveEncoder)(wave::AbstractArray{Float32, 3}, steps::Int)
-    z = encoder.layers(Flux.batch([wave]))
-    latents = integrate(encoder.cell, z, encoder.dynamics, steps)
-    latents = Flux.flatten(cat(latents..., dims = 3))
-    return latents
+function (encoder::WaveEncoder)(wave::AbstractArray{Float32, 3})
+    z = encoder.down1(wave[:, :, :, :])
+    z = encoder.down2(z)
+    z = encoder.down3(z)
+    return Flux.flatten(z[:, :, :, 1])
 end
 
-function (encoder::WaveEncoder)(sol::WaveSol{TwoDim}, steps::Int)
-    return encoder(first(sol.u), steps)
+function (encoder::WaveEncoder)(sol::WaveSol)
+    return encoder(sol.u[1])
 end

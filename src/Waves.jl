@@ -38,8 +38,8 @@ include("data.jl")
 
 ## modeling
 include("models/blocks.jl")
-# include("models/wave_encoder.jl")
-# include("models/wave_cnn_decoder.jl")
+include("models/wave_encoder.jl")
+include("models/wave_decoder.jl")
 
 include("reinforcement_learning/hooks.jl")
 include("reinforcement_learning/random_policy.jl")

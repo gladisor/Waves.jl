@@ -8,36 +8,18 @@ using Flux.Data: DataLoader
 
 using Waves
 
-include("wave_encoder.jl")
 include("design_encoder.jl")
-include("wave_decoder.jl")
 
-function generate_episode_data(policy::AbstractPolicy, env::WaveEnv)
-    traj = episode_trajectory(env)
-    agent = Agent(policy, traj)
-    run(agent, env, StopWhenDone())
+design_kwargs = Dict(
+    :width => 1, 
+    :hight => 2, 
+    :spacing => 1.0f0, 
+    :r => 0.5f0, 
+    :c => 0.20f0, 
+    :center => [0.0f0, 0.0f0])
 
-    states = traj.traces.state[2:end]
-    actions = traj.traces.action[1:end-1]
-
-    return (states, actions)
-end
-
-function generate_episode_data(policy::AbstractPolicy, env::WaveEnv, episodes::Int)
-    states = []
-    actions = []
-
-    for _ ∈ 1:episodes
-        s, a = generate_episode_data(policy, env)
-        push!(states, s)
-        push!(actions, a)
-    end
-
-    return (vcat(states...), vcat(actions...))
-end
-
-function random_radii_scatterer_formation()
-    config = scatterer_formation(width = 1, hight = 2, spacing = 1.0f0, r = 0.5f0, c = 0.20f0, center = [0.0f0, 0.0f0])
+function random_radii_scatterer_formation(;kwargs...)
+    config = scatterer_formation(;kwargs)
     r = rand(Float32, size(config.r))
     r = r * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
     return Scatterers(config.pos, r, config.c)
@@ -45,7 +27,7 @@ end
 
 path = "dynamic_b"
 
-config = random_radii_scatterer_formation()
+config = random_radii_scatterer_formation(;design_kwargs...)
 grid_size = 4.0f0
 elements = 128
 fields = 6
@@ -57,7 +39,7 @@ env = gpu(WaveEnv(
     wave = build_wave(dim, fields = fields),
     cell = WaveCell(split_wave_pml, runge_kutta),
     design = config,
-    random_design = random_radii_scatterer_formation,
+    random_design = () -> random_radii_scatterer_formation(;design_kwargs...),
     space = radii_design_space(config, 0.2f0),
     design_steps = 100,
     tmax = 10.0f0;

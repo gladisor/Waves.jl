@@ -1,11 +1,11 @@
 export integrate, solve, WaveCell, WaveRNNCell
 
-function integrate(cell::AbstractWaveCell, wave::AbstractArray{Float32}, dynamics::WaveDynamics, steps::Int)
+function integrate(cell::AbstractWaveCell, wave::AbstractArray{Float32}, dynamics::AbstractDynamics, steps::Int)
     iter = Flux.Recur(cell, wave)
     return [iter(dynamics) for _ ∈ 1:steps]
 end
 
-function solve(cell::AbstractWaveCell, wave::AbstractArray{Float32}, dynamics::WaveDynamics, steps::Int)
+function solve(cell::AbstractWaveCell, wave::AbstractArray{Float32}, dynamics::AbstractDynamics, steps::Int)
     current_time = dynamics.dt * dynamics.t
     next_time = current_time + dynamics.dt * steps
     t = collect(range(current_time, next_time, steps + 1))
@@ -22,7 +22,7 @@ end
 
 Flux.@functor WaveCell
 
-function (cell::WaveCell)(z::AbstractArray{Float32}, dynamics::WaveDynamics)
+function (cell::WaveCell)(z::AbstractArray{Float32}, dynamics::AbstractDynamics)
     z′ = z .+ cell.integration_function(cell.derivative_function, z, dynamics)
     dynamics.t += 1
     return z′, z′

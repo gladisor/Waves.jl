@@ -1,4 +1,4 @@
-export episode_trajectory
+export episode_trajectory, generate_episode_data
 
 function episode_trajectory(env::WaveEnv)
     traj = CircularArraySARTTrajectory(
@@ -7,4 +7,28 @@ function episode_trajectory(env::WaveEnv)
         action = Vector{typeof(initial_design(env.total_dynamics.design))} => ())
 
     return traj
+end
+
+function generate_episode_data(policy::AbstractPolicy, env::WaveEnv)
+    traj = episode_trajectory(env)
+    agent = Agent(policy, traj)
+    run(agent, env, StopWhenDone())
+
+    states = traj.traces.state[2:end]
+    actions = traj.traces.action[1:end-1]
+
+    return (states, actions)
+end
+
+function generate_episode_data(policy::AbstractPolicy, env::WaveEnv, episodes::Int)
+    states = []
+    actions = []
+
+    for _ ∈ 1:episodes
+        s, a = generate_episode_data(policy, env)
+        push!(states, s)
+        push!(actions, a)
+    end
+
+    return (vcat(states...), vcat(actions...))
 end

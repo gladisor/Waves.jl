@@ -12,7 +12,7 @@ Structure for holding information on how the wave should change over time.
     t: integer timestep
     dt: the amount of time that passes at each timestep
 """
-mutable struct WaveDynamics
+mutable struct WaveDynamics <: AbstractDynamics
     dim::AbstractDim
     g::AbstractArray{Float32}
     grad::AbstractMatrix{Float32}

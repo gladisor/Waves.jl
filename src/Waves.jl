@@ -1,6 +1,6 @@
 module Waves
 
-export AbstractDim, AbstractDesign, InitialCondition, AbstractWaveCell, design_space
+export AbstractDim, AbstractDesign, InitialCondition, AbstractDynamics, AbstractWaveCell, design_space
 
 using SparseArrays
 using IntervalSets
@@ -15,6 +15,7 @@ abstract type AbstractDim end
 abstract type AbstractDesign end
 abstract type Scatterer <: AbstractDesign end
 abstract type InitialCondition end
+abstract type AbstractDynamics end
 abstract type AbstractWaveCell end
 
 include("dims.jl")                         ## Core structures for defining dimensional spaces

@@ -37,7 +37,7 @@ end
 
 config = random_radii_scatterer_formation(;design_kwargs...)
 grid_size = 4.0f0
-elements = 256
+elements = 128
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -57,4 +57,5 @@ env = gpu(WaveEnv(
 policy = RandomDesignPolicy(action_space(env))
 
 @time data = generate_episode_data(policy, env, 1)
-@time render!(policy, env, path = "data/vid.mp4")
+;
+# @time render!(policy, env, path = "data/vid.mp4")

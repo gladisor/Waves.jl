@@ -8,7 +8,7 @@ end
 Runge Kutta integration scheme for more accuratly estimating the rate of change of the
 wave over time.
 """
-function runge_kutta(f::Function, wave::AbstractArray{Float32}, dyn::WaveDynamics)
+function runge_kutta(f::Function, wave::AbstractArray{Float32}, dyn::AbstractDynamics)
     h = dyn.dt
     t = dyn.t * h
 

@@ -153,3 +153,10 @@ function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float
 
     return Scatterers(pos, r, c)
 end
+
+function random_radii_scatterer_formation(;kwargs...)
+    config = scatterer_formation(r = MAX_RADII; kwargs...)
+    r = rand(Float32, size(config.r))
+    r = r * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
+    return Scatterers(config.pos, r, config.c)
+end

@@ -6,68 +6,13 @@ using CairoMakie
 using Waves
 using Waves: random_radii_scatterer_formation
 
-include("design_encoder.jl")
-
-struct IncScWaveNet
-    wave_encoder::WaveEncoder
-    design_encoder::DesignEncoder
-
-    z_cell::WaveCell
-    z_dynamics::AbstractDynamics
-
-    inc_decoder::WaveDecoder
-    sc_decoder::WaveDecoder
-end
-
-Flux.@functor IncScWaveNet (wave_encoder, design_encoder, inc_decoder, sc_decoder)
-
-function IncScWaveNet(;fields::Int, h_fields::Int, z_fields::Int, activation::Function, design_size::Int, h_size::Int, grid_size::Float32, z_elements::Int, dynamics_kwargs...)
-
-    wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
-    design_encoder = DesignEncoder(design_size, h_size, z_elements, activation)
-
-    z_cell = WaveCell(nonlinear_latent_wave, runge_kutta)
-    z_dynamics = WaveDynamics(dim = OneDim(grid_size, z_elements); dynamics_kwargs...)
-
-    inc_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation)
-    sc_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation)
-
-    return IncScWaveNet(wave_encoder, design_encoder, z_cell, z_dynamics, inc_decoder, sc_decoder)
-end
-
-function (model::IncScWaveNet)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign, steps::Int)
-    z = model.wave_encoder(wave)
-    b = model.design_encoder(design, action)
-    latents = integrate(model.z_cell, cat(z, b, dims = 2), model.z_dynamics, steps)
-    z_concat = cat(latents..., dims = 3)
-    n = Int(sqrt(size(z_concat, 1)))
-    z_feature_maps = reshape(z_concat, n, n, size(z_concat, 2), :)
-    incident = model.inc_decoder(z_feature_maps)
-    scattered = model.sc_decoder(z_feature_maps)
-    return (incident, scattered)
-end
-
-"""
-Used for training when we have access to a state with an initial condition and the action
-applied over a number of time steps. Takes the first waveform and decodes a prediction of the
-entire trajectory.
-"""
-function (model::IncScWaveNet)(s::WaveEnvState, action::AbstractDesign)
-    return model(s.sol.total.u[1], s.design, action, length(s.sol.total) - 1)
-end
-
-
 function get_target_u(sol::WaveSol)
     return cat(sol.u[2:end]..., dims = ndims(first(sol.u)) + 1)
 end
 
-function loss(model::IncScWaveNet, s::WaveEnvState, action::AbstractDesign)
-    u_inc_true = get_target_u(s.sol.incident)
-    u_sc_true = get_target_u(s.sol.scattered)
-
-    u_inc_pred, u_sc_pred = model(s, action)
-    return sqrt(mse(u_inc_true, u_inc_pred)) + sqrt(mse(u_sc_true, u_sc_pred))
-end
+include("design_encoder.jl")
+include("wave_net.jl")
+include("inc_sc_wave_net.jl")
 
 function Waves.plot_comparison!(
         u_inc_pred::AbstractArray, u_sc_pred::AbstractArray, 
@@ -89,6 +34,29 @@ function Waves.plot_comparison!(
     return nothing
 end
 
+function Waves.plot_comparison!(model::IncScWaveNet, s::WaveEnvState, a::AbstractDesign; path::String)
+    u_inc_pred, u_sc_pred = cpu(model(s, a))
+    u_inc_true = get_target_u(s.sol.incident) |> cpu
+    u_sc_true = get_target_u(s.sol.scattered) |> cpu
+    plot_comparison!(u_inc_pred, u_sc_pred, u_inc_true, u_sc_true, length(s.sol.total), path = path)
+end
+
+function plot_loss!(train_loss::Vector{Float32}; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel = "Gradient Update", ylabel = "Loss", title = "Training Loss", aspect = 1.0)
+    lines!(ax, train_loss, linewidth = 3)
+    save(path, fig)
+end
+
+function plot_loss!(train_loss::Vector{Float32}, test_loss::Vector{Float32}; path::String)
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], xlabel = "Gradient Update", ylabel = "Loss", title = "Training Loss", aspect = 1.0)
+    ax2 = Axis(fig[1, 2], xlabel = "Epoch", ylabel = "Average Loss", title = "Average Testing Loss per Epoch", aspect = 1.0)
+    lines!(ax1, train_loss, linewidth = 3, color = :blue)
+    lines!(ax2, test_loss, linewidth = 3, color = :orange)
+    save(path, fig)
+end
+
 design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 0.20f0, :center => [0.0f0, 0.0f0])
 config = random_radii_scatterer_formation(;design_kwargs...)
 grid_size = 4.0f0
@@ -98,8 +66,8 @@ dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
 env = gpu(WaveEnv(
-    # initial_condition = PlaneWave(dim, -2.0f0, 10.0f0),
-    initial_condition = Pulse(dim, -3.0f0, 0.0f0, 10.0f0),
+    initial_condition = PlaneWave(dim, -2.0f0, 10.0f0),
+    # initial_condition = Pulse(dim, -3.0f0, 0.0f0, 10.0f0),
     wave = build_wave(dim, fields = fields),
     cell = WaveCell(split_wave_pml, runge_kutta),
     design = config,
@@ -111,47 +79,47 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-@time data = generate_episode_data(policy, env, 10)
-z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
-
-model = gpu(IncScWaveNet(
-        fields = fields, h_fields = 1, z_fields = 2, activation = relu,
-        design_size = 2 * length(vec(config)), h_size = 64, grid_size = grid_size,
-        z_elements = z_elements; dynamics_kwargs...))
-
-opt = Adam(0.001)
-ps = Flux.params(model)
-
+@time data = generate_episode_data(policy, env, 1)
 train_loader = Flux.DataLoader(data, shuffle = true)
 
+model = gpu(IncScWaveNet(
+        fields = fields, 
+        h_fields = 128, 
+        z_fields = 2, 
+        activation = relu,
+        design_size = 2 * length(vec(config)), 
+        h_size = 256, 
+        grid_size = grid_size,
+        z_elements = prod(Int.(size(dim) ./ (2 ^ 3))); 
+        dynamics_kwargs...))
+
+opt = Adam(0.0001)
+ps = Flux.params(model)
 train_loss_history = Float32[]
 
-for (s, a) in train_loader
+for epoch in 1:2
 
-    s, a = gpu(s[1]), gpu(a[1])
+    for (s, a) in train_loader
 
-    gs = Flux.gradient(ps) do
-        train_loss = loss(model, s, a)
+        s, a = gpu(s[1]), gpu(a[1]) ## batch size is one
 
-        Flux.ignore() do
-            push!(train_loss_history, train_loss)
-            println(train_loss)
+        gs = Flux.gradient(ps) do
+            train_loss = loss(model, s, a)
+
+            Flux.ignore() do
+                push!(train_loss_history, train_loss)
+                println("Epoch: $epoch, Train Loss: $train_loss")
+            end
+
+            return train_loss
         end
 
-        return train_loss
+        Flux.Optimise.update!(opt, ps, gs)
     end
 
-    Flux.Optimise.update!(opt, ps, gs)
+    s_sample = gpu(data[1][1])
+    a_sample = gpu(data[2][1])
+
+    plot_comparison!(model, s_sample, a_sample, path = "comparison.png")
+    plot_loss!(train_loss_history, path = "train_loss.png")
 end
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, train_loss_history, linewidth = 3)
-save("train_loss.png", fig)
-
-# idx = 5
-# u_inc_pred, u_sc_pred = cpu(model(s[idx], a[idx]))
-# u_inc_true = get_target_u(s[idx].sol.incident) |> cpu
-# u_sc_true = get_target_u(s[idx].sol.scattered) |> cpu
-# plot_comparison!(u_inc_pred, u_sc_pred, u_inc_true, u_sc_true, 100, path = "u.png")
-

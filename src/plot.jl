@@ -1,4 +1,4 @@
-export WavePlot, plot_wave!, render!
+export WavePlot, plot_wave!, render!, plot_comparison!
 
 mutable struct WavePlot
     fig::Figure

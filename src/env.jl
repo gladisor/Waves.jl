@@ -90,10 +90,6 @@ end
 
 function Base.display(s::WaveEnvState)
     println(typeof(s))
-    println("\nSolution:")
-    display(s.sol)
-    println("\nDesign:")
-    display(s.design)
 end
 
 """

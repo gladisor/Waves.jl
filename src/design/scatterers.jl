@@ -132,7 +132,6 @@ end
 
 function Base.display(design::Scatterers)
     println(typeof(design))
-    println("M = $(length(design.r))")
 end
 
 function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})

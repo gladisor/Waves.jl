@@ -85,5 +85,4 @@ end
 
 function Base.display(sol::TotalWaveSol)
     println(typeof(sol))
-    println("Length: $(length(sol.total))")
 end

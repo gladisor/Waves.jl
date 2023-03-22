@@ -11,6 +11,7 @@ using Waves
 include("design_encoder.jl")
 include("wave_net.jl")
 include("inc_sc_wave_net.jl")
+include("latent_wave_separation.jl")
 
 function train_wave_encoder_decoder_model!(
         opt::Flux.Optimise.AbstractOptimiser, 
@@ -99,8 +100,11 @@ model_kwargs = Dict(:fields => 6, :h_fields => 128, :z_fields => 2, :activation 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
 # model = gpu(IncScWaveNet(;model_kwargs..., dynamics_kwargs...))
-model = gpu(WaveNet(;model_kwargs..., dynamics_kwargs...))
+# model = gpu(WaveNet(;model_kwargs..., dynamics_kwargs...))
+model = gpu(LatentWaveSeparation(;model_kwargs..., dynamics_kwargs...))
 
 opt = Adam(0.0001)
 ps = Flux.params(model)
-train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 100, path = "results/wave_net_h_fields=128")
+
+model_name = String(Symbol(typeof(model)))
+train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 100, path = "results/$model_name")

@@ -26,21 +26,23 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-@time train_data = generate_episode_data(policy, env, 50)
+@time train_data = generate_episode_data(policy, env, 2)
 @time test_data = generate_episode_data(policy, env, 2)
 
 train_s, train_a = train_data;
+train_path = mkpath("data/train")
 
 for (i, (s, a)) in enumerate(zip(train_s, train_a))
     println(i)
-    jldsave("data/train/data$i.jld2"; s, a)
+    jldsave(joinpath(train_path, "data$i.jld2"); s, a)
 end
 
 test_s, test_a = test_data;
+test_path = mkpath("data/test")
 
 for (i, (s, a)) in enumerate(zip(test_s, test_a))
     println(i)
-    jldsave("data/test/data$i.jld2"; s, a)
+    jldsave(joinpath(test_path, "data$i.jld2"); s, a)
 end
 
 

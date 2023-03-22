@@ -81,8 +81,8 @@ function load_wave_data(path::String)
     return (s, a)
 end
 
-# train_data = load_wave_data("data/train");
-# test_data = load_wave_data("data/test");
+train_data = load_wave_data("data/train");
+test_data = load_wave_data("data/test");
 
 first_state = first(train_data[1])
 dim = first_state.sol.total.dim

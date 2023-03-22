@@ -1,4 +1,8 @@
+*.jld2
+data/*.jld2
 data/*
+data/train/*.jld2
+data/test/*.jld2
 *.mp4
 animations/*.mp4
 *.png

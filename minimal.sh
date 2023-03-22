@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J nonlinear_latent
+#SBATCH -J data generation
 
 #SBATCH -p gpu
 #SBATCH -N 1
@@ -11,4 +11,4 @@
 #SBATCH --mail-user=tristan.shah@sjsu.edu
 
 module load julia
-srun julia --project scripts/test.jl ## your run command
+srun julia --project scripts/data.jl ## your run command

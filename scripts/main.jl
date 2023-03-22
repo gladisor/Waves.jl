@@ -3,7 +3,8 @@ using Flux.Losses: mse
 using ReinforcementLearning
 using CairoMakie
 using Statistics: mean
-using Serialization
+using BSON
+using JLD2
 
 using Waves
 
@@ -21,6 +22,7 @@ function train_wave_encoder_decoder_model!(
         path::String)
     
     comparison_path = mkpath(joinpath(path, "comparison"))
+    model_path = mkpath(joinpath(path, "model"))
 
     train_loss_history = Float32[]
     test_loss_history = Float32[]
@@ -59,34 +61,47 @@ function train_wave_encoder_decoder_model!(
         println("Epoch: $epoch, Train Loss: $(train_loss_history[end]), Test Loss: $(test_loss_history[end])")
         plot_loss!(train_loss_history, test_loss_history, path = joinpath(path, "train_loss.png"))
     end
+
+    BSON.@save joinpath(model_path, "model$epoch.bson") model
 end
 
-train_data = deserialize("data/train")
-test_data = deserialize("data/test")
+function load_wave_data(path::String)
+
+    s = WaveEnvState[]
+    a = AbstractDesign[]
+
+    for file_path in readdir(path, join = true)
+        jldopen(file_path) do file
+            println(file)
+            push!(s, file["s"])
+            push!(a, file["a"])
+        end
+    end
+
+    return (s, a)
+end
+
+# train_data = load_wave_data("data/train");
+# test_data = load_wave_data("data/test");
+
+first_state = first(train_data[1])
+dim = first_state.sol.total.dim
+elements = size(dim)[1]
+grid_size = maximum(dim.x)
+design = first_state.design
+
 train_loader = Flux.DataLoader(train_data, shuffle = true)
 test_loader = Flux.DataLoader(test_data, shuffle = false)
 
-grid_size = 4.0f0
-elements = 256
-dim = TwoDim(grid_size, elements)
-design = train_data[1][1].design
+design_size = 2 * length(vec(design))
+z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 
-# model_kwargs = Dict(
-#     :fields => 6,
-#     :h_fields => 32,
-#     :z_fields => 2,
-#     :activation => relu,
-#     :design_size => 2 * length(vec(design)),
-#     :h_size => 32,
-#     :grid_size => 4.0f0,
-#     :z_elements => prod(Int.(size(dim) ./ (2 ^ 3))))
-
-# dim = TwoDim(grid_size, elements)
-# dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
+model_kwargs = Dict(:fields => 6, :h_fields => 64, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
+dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
 # model = gpu(IncScWaveNet(;model_kwargs..., dynamics_kwargs...))
-# # model = gpu(WaveNet(;model_kwargs..., dynamics_kwargs...))
+model = gpu(WaveNet(;model_kwargs..., dynamics_kwargs...))
 
-# opt = Adam(0.0001)
-# ps = Flux.params(model)
-# train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 2, path = "results/inc_sc_model")
+opt = Adam(0.0001)
+ps = Flux.params(model)
+train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 100, path = "results/wave_net")

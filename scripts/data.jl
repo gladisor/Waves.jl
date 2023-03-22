@@ -1,6 +1,6 @@
 using ReinforcementLearning
-using Serialization
 using Flux
+using JLD2
 
 using Waves
 
@@ -26,9 +26,23 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-@time train_data = generate_episode_data(policy, env, 1)
-@time test_data = generate_episode_data(policy, env, 1)
+@time train_data = generate_episode_data(policy, env, 50)
+@time test_data = generate_episode_data(policy, env, 2)
 
-# serialize("data/train", train_data)
-# serialize("data/test", test_data)
+train_s, train_a = train_data;
+
+for (i, (s, a)) in enumerate(zip(train_s, train_a))
+    println(i)
+    jldsave("data/train/data$i.jld2"; s, a)
+end
+
+test_s, test_a = test_data;
+
+for (i, (s, a)) in enumerate(zip(test_s, test_a))
+    println(i)
+    jldsave("data/test/data$i.jld2"; s, a)
+end
+
+
+
 

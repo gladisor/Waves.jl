@@ -6,7 +6,7 @@ struct WaveNet
     wave_decoder::WaveDecoder
 end
 
-Flux.@functor WaveNet (wave_encoder, design_encoder, wave_decoder, cell)
+Flux.@functor WaveNet (wave_encoder, design_encoder, wave_decoder)
 
 function WaveNet(;fields::Int, h_fields::Int, z_fields::Int, activation::Function, design_size::Int, h_size::Int, grid_size::Float32, z_elements::Int, dynamics_kwargs...)
     wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
@@ -19,8 +19,7 @@ end
 
 function (model::WaveNet)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign, steps::Int)
     z = hcat(model.wave_encoder(wave), model.design_encoder(design, action))
-    b = model.design_encoder(design, action)
-    latents = integrate(model.z_cell, cat(z, b, dims = 2), model.z_dynamics, steps)
+    latents = integrate(model.z_cell, z, model.z_dynamics, steps)
     z_concat = cat(latents..., dims = 3)
     n = Int(sqrt(size(z_concat, 1)))
     z_feature_maps = reshape(z_concat, n, n, size(z_concat, 2), :)
@@ -30,7 +29,6 @@ end
 function (model::WaveNet)(s::WaveEnvState, action::AbstractDesign)
     return model(s.sol.total.u[1], s.design, action, length(s.sol.total) - 1)
 end
-
 
 function Flux.gpu(model::WaveNet)
     return WaveNet(
@@ -53,7 +51,7 @@ function Flux.cpu(model::WaveNet)
 end
 
 function loss(model::WaveNet, s::WaveEnvState, action::AbstractDesign)
-    u_true = get_target_u(s.sol.incident)
+    u_true = get_target_u(s.sol.total)
     u_pred = model(s, action)
     return sqrt(mse(u_true, u_pred))
 end

@@ -1,4 +1,4 @@
-export WavePlot, plot_wave!, render!, plot_comparison!
+export WavePlot, plot_wave!, render!, plot_comparison!, plot_loss!
 
 mutable struct WavePlot
     fig::Figure
@@ -105,5 +105,21 @@ function plot_comparison!(dim, y_true, y_pred; path::String)
     heatmap!(ax5, dim.x, dim.y, y_true[:, :, 1, 1], colormap = :ice)
     ax6 = Axis(fig[3, 2], aspect = AxisAspect(1.0))
     heatmap!(ax6, dim.x, dim.y, y_pred[:, :, 1, 1], colormap = :ice)
+    save(path, fig)
+end
+
+function plot_loss!(train_loss::Vector{Float32}; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel = "Gradient Update", ylabel = "Loss", title = "Training Loss", aspect = 1.0)
+    lines!(ax, train_loss, linewidth = 3)
+    save(path, fig)
+end
+
+function plot_loss!(train_loss::Vector{Float32}, test_loss::Vector{Float32}; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel = "Epoch", ylabel = "Average Loss", title = "Average Loss per Epoch", aspect = 1.0)
+    lines!(ax, train_loss, linewidth = 3, color = :blue, label = "Training")
+    lines!(ax, test_loss, linewidth = 3, color = :orange, label = "Testing")
+    axislegend(ax)
     save(path, fig)
 end

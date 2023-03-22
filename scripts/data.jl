@@ -1,17 +1,12 @@
 using ReinforcementLearning
-using BSON
+using Serialization
 using Flux
 
 using Waves
 
-function random_radii_scatterer_formation(;kwargs...)
-    config = scatterer_formation(;kwargs...)
-    r = rand(Float32, size(config.r))
-    r = r * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
-    return Scatterers(config.pos, r, config.c)
-end
-
+design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 0.20f0, :center => [0.0f0, 0.0f0])
 config = random_radii_scatterer_formation(;design_kwargs...)
+
 grid_size = 4.0f0
 elements = 256
 fields = 6
@@ -31,4 +26,9 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-@time data = generate_episode_data(policy, env, 1)
+@time train_data = generate_episode_data(policy, env, 1)
+@time test_data = generate_episode_data(policy, env, 1)
+
+# serialize("data/train", train_data)
+# serialize("data/test", test_data)
+

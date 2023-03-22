@@ -1,4 +1,4 @@
-export Scatterers, random_pos, radii_design_space, scatterer_formation
+export Scatterers, random_pos, radii_design_space, scatterer_formation, random_radii_scatterer_formation
 
 const MIN_RADII = 0.2f0
 const MAX_RADII = 0.5f0

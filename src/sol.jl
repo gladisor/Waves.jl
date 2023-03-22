@@ -1,4 +1,4 @@
-export WaveSol, TotalWaveSol
+export WaveSol, TotalWaveSol, get_target_u
 
 """
 Structure for storing the minimal amount of information needed to represent the solution
@@ -49,6 +49,10 @@ function WaveSol(sols::WaveSol...)
     push!(u, last(sols).u[end])
 
     return WaveSol(first(sols).dim, t, u)
+end
+
+function get_target_u(sol::WaveSol)
+    return cat(sol.u[2:end]..., dims = ndims(first(sol.u)) + 1)
 end
 
 struct TotalWaveSol

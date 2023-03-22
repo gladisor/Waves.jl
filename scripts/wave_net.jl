@@ -8,6 +8,15 @@ end
 
 Flux.@functor WaveNet (wave_encoder, design_encoder, wave_decoder, cell)
 
+function WaveNet(;fields::Int, h_fields::Int, z_fields::Int, activation::Function, design_size::Int, h_size::Int, grid_size::Float32, z_elements::Int, dynamics_kwargs...)
+    wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
+    design_encoder = DesignEncoder(design_size, h_size, z_elements, activation)
+    z_cell = WaveCell(nonlinear_latent_wave, runge_kutta)
+    z_dynamics = WaveDynamics(dim = OneDim(grid_size, z_elements); dynamics_kwargs...)
+    wave_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation)
+    return WaveNet(wave_encoder, design_encoder, z_cell, z_dynamics, wave_decoder)
+end
+
 function (model::WaveNet)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign, steps::Int)
     z = hcat(model.wave_encoder(wave), model.design_encoder(design, action))
     b = model.design_encoder(design, action)
@@ -47,4 +56,26 @@ function loss(model::WaveNet, s::WaveEnvState, action::AbstractDesign)
     u_true = get_target_u(s.sol.incident)
     u_pred = model(s, action)
     return sqrt(mse(u_true, u_pred))
+end
+
+function Waves.reset!(model::WaveNet)
+    Waves.reset!(model.z_dynamics)
+end
+
+function Waves.plot_comparison!(u_pred::AbstractArray{Float32, 4}, u_true::AbstractArray{Float32, 4}, idx::Int; path::String)
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Total Wave", xlabel = "X (m)", ylabel = "Y(m)")
+    ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Total Wave", xlabel = "X (m)", yticklabelsvisible = false)
+
+    heatmap!(ax1, dim.x, dim.y, u_true[:, :, 1, idx], colormap = :ice)
+    heatmap!(ax2, dim.x, dim.y, u_pred[:, :, 1, idx], colormap = :ice)
+
+    save(path, fig)
+    return nothing
+end
+
+function Waves.plot_comparison!(model::WaveNet, s::WaveEnvState, a::AbstractDesign; path::String)
+    u_pred = cpu(model(s, a))
+    u_true = get_target_u(s.sol.total) |> cpu
+    plot_comparison!(u_pred, u_true, length(s.sol.total) - 1, path = path)
 end

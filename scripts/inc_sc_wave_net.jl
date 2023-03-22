@@ -1,4 +1,3 @@
-
 struct IncScWaveNet
     wave_encoder::WaveEncoder
     design_encoder::DesignEncoder
@@ -74,4 +73,35 @@ function loss(model::IncScWaveNet, s::WaveEnvState, action::AbstractDesign)
     u_sc_true = get_target_u(s.sol.scattered)
     u_inc_pred, u_sc_pred = model(s, action)
     return sqrt(mse(u_inc_true, u_inc_pred)) + sqrt(mse(u_sc_true, u_sc_pred))
+end
+
+function Waves.reset!(model::IncScWaveNet)
+    Waves.reset!(model.z_dynamics)
+end
+
+function Waves.plot_comparison!(
+        u_inc_pred::AbstractArray, u_sc_pred::AbstractArray, 
+        u_inc_true::AbstractArray, u_sc_true::AbstractArray, 
+        idx::Int; path::String)
+
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Incident Wave", ylabel = "Y (m)", xticklabelsvisible = false, xticksvisible = false)
+    ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Incident Wave", yticklabelsvisible = false, yticksvisible = false, xticklabelsvisible = false, xticksvisible = false)
+    ax3 = Axis(fig[2, 1], aspect = 1.0, title = "True Scattered Wave", xlabel = "X (m)", ylabel = "Y (m)")
+    ax4 = Axis(fig[2, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false, yticksvisible = false)
+
+    heatmap!(ax1, dim.x, dim.y, u_inc_true[:, :, 1, idx], colormap = :ice)
+    heatmap!(ax2, dim.x, dim.y, u_inc_pred[:, :, 1, idx], colormap = :ice)
+    heatmap!(ax3, dim.x, dim.y, u_sc_true[:, :, 1, idx], colormap = :ice)
+    heatmap!(ax4, dim.x, dim.y, u_sc_pred[:, :, 1, idx], colormap = :ice)
+
+    save(path, fig)
+    return nothing
+end
+
+function Waves.plot_comparison!(model::IncScWaveNet, s::WaveEnvState, a::AbstractDesign; path::String)
+    u_inc_pred, u_sc_pred = cpu(model(s, a))
+    u_inc_true = get_target_u(s.sol.incident) |> cpu
+    u_sc_true = get_target_u(s.sol.scattered) |> cpu
+    plot_comparison!(u_inc_pred, u_sc_pred, u_inc_true, u_sc_true, length(s.sol.total)-1, path = path)
 end

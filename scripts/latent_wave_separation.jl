@@ -33,11 +33,11 @@ end
 
 function (model::LatentWaveSeparation)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign, steps::Int)
     b = gpu(ones(Float32, size(model.z_dynamics.dim)[1]))
-    z_inc = hcat(incident_encoder(wave), b)
-    z_tot = hcat(total_encoder(wave), design_encoder(design, action))
+    z_inc = hcat(model.incident_encoder(wave), b)
+    z_tot = hcat(model.total_encoder(wave), model.design_encoder(design, action))
 
-    z_inc_sol = cat(integrate(z_inc_cell, z_inc, z_dynamics, steps)..., dims = 3)
-    z_tot_sol = cat(integrate(z_tot_cell, z_tot, z_dynamics, steps)..., dims = 3)
+    z_inc_sol = cat(integrate(model.z_cell, z_inc, model.z_dynamics, steps)..., dims = 3)
+    z_tot_sol = cat(integrate(model.z_cell, z_tot, model.z_dynamics, steps)..., dims = 3)
     z_sc_sol = z_tot_sol .- z_inc_sol
 
     n = Int(sqrt(size(z_sc_sol, 1)))
@@ -81,8 +81,8 @@ function Waves.reset!(model::LatentWaveSeparation)
     return nothing
 end
 
-function Waves.plot_comparison!(model::LatentWaveSeparation, s::WaveEnvState, a::AbstractDesign; path::String)
-    u_sc_pred = cpu(model(s, a))
+function Waves.plot_comparison!(model::LatentWaveSeparation, s::WaveEnvState, action::AbstractDesign; path::String)
+    u_sc_pred = cpu(model(s, action))
     u_sc_true = cpu(get_target_u(s.sol.scattered))
 
     fig = Figure()

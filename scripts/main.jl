@@ -60,9 +60,8 @@ function train_wave_encoder_decoder_model!(
         push!(test_loss_history, mean(test_epoch_loss))
         println("Epoch: $epoch, Train Loss: $(train_loss_history[end]), Test Loss: $(test_loss_history[end])")
         plot_loss!(train_loss_history, test_loss_history, path = joinpath(path, "train_loss.png"))
+        BSON.@save joinpath(model_path, "model$epoch.bson") model
     end
-
-    BSON.@save joinpath(model_path, "model$epoch.bson") model
 end
 
 function load_wave_data(path::String)
@@ -96,7 +95,7 @@ test_loader = Flux.DataLoader(test_data, shuffle = false)
 design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 
-model_kwargs = Dict(:fields => 6, :h_fields => 64, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
+model_kwargs = Dict(:fields => 6, :h_fields => 128, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
 # model = gpu(IncScWaveNet(;model_kwargs..., dynamics_kwargs...))
@@ -104,4 +103,4 @@ model = gpu(WaveNet(;model_kwargs..., dynamics_kwargs...))
 
 opt = Adam(0.0001)
 ps = Flux.params(model)
-train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 100, path = "results/wave_net")
+train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 100, path = "results/wave_net_h_fields=128")

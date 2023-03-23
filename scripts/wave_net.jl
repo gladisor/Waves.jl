@@ -51,7 +51,8 @@ function Flux.cpu(model::WaveNet)
 end
 
 function loss(model::WaveNet, s::WaveEnvState, action::AbstractDesign)
-    u_true = get_target_u(s.sol.total)
+    # u_true = get_target_u(s.sol.total)
+    u_true = get_target_u(s.sol.scattered)
     u_pred = model(s, action)
     return sqrt(mse(u_true, u_pred))
 end
@@ -74,14 +75,15 @@ end
 
 function Waves.plot_comparison!(model::WaveNet, s::WaveEnvState, a::AbstractDesign; path::String)
     u_pred = cpu(model(s, a))
-    u_true = get_target_u(s.sol.total) |> cpu
+    u_true = get_target_u(s.sol.scattered) |> cpu
+    # u_true = get_target_u(s.sol.total) |> cpu
     # plot_comparison!(u_pred, u_true, length(s.sol.total) - 1, path = path)
 
     fig = Figure()
-    ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Total Wave", xlabel = "X (m)", ylabel = "Y(m)")
-    ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Total Wave", xlabel = "X (m)", yticklabelsvisible = false)
+    ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Scattered Wave", xlabel = "X (m)", ylabel = "Y(m)")
+    ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false)
 
-    dim = s.sol.total.dim
+    dim = cpu(s.sol.total.dim)
     idx = size(u_pred, 4)
     heatmap!(ax1, dim.x, dim.y, u_true[:, :, 1, idx], colormap = :ice)
     heatmap!(ax2, dim.x, dim.y, u_pred[:, :, 1, idx], colormap = :ice)

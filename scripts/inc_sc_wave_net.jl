@@ -111,7 +111,7 @@ function Waves.plot_comparison!(model::IncScWaveNet, s::WaveEnvState, a::Abstrac
     ax3 = Axis(fig[2, 1], aspect = 1.0, title = "True Scattered Wave", xlabel = "X (m)", ylabel = "Y (m)")
     ax4 = Axis(fig[2, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false, yticksvisible = false)
 
-    dim = s.sol.total.dim
+    dim = cpu(s.sol.total.dim)
     idx = size(u_sc_pred, 4)
 
     heatmap!(ax1, dim.x, dim.y, u_inc_true[:, :, 1, idx], colormap = :ice)

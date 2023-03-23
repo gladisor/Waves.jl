@@ -19,12 +19,12 @@ struct LatentWaveSeparation
     scattered_decoder::WaveDecoder
 end
 
-Flux.@functor LatentWaveSeparation
+Flux.@functor LatentWaveSeparation (incident_encoder, total_encoder, design_encoder, scattered_decoder)
 
 function LatentWaveSeparation(;fields::Int, h_fields::Int, z_fields::Int, activation::Function, design_size::Int, h_size::Int, grid_size::Float32, z_elements::Int, dynamics_kwargs...)
     incident_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
     total_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
-    design_encoder = DesignEncoder(design_size, 128, 1024, activation)
+    design_encoder = DesignEncoder(design_size, h_size, z_elements, activation)
     z_cell = NonAutonomusCell(nonlinear_latent_wave, runge_kutta)
     z_dynamics = WaveDynamics(dim = OneDim(grid_size, z_elements); dynamics_kwargs...)
     scattered_decoder = WaveDecoder(fields, h_fields, z_fields + 1, activation)
@@ -89,8 +89,9 @@ function Waves.plot_comparison!(model::LatentWaveSeparation, s::WaveEnvState, ac
     ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Scattered Wave", xlabel = "X (m)", ylabel = "Y(m)")
     ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false)
 
-    dim = s.sol.total.dim
+    dim = cpu(s.sol.total.dim)
     idx = size(u_sc_pred, 4)
+    
     heatmap!(ax1, dim.x, dim.y, u_sc_true[:, :, 1, idx], colormap = :ice)
     heatmap!(ax2, dim.x, dim.y, u_sc_pred[:, :, 1, idx], colormap = :ice)
 

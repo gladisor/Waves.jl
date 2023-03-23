@@ -8,7 +8,7 @@ design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 0.20f0, 
 config = random_radii_scatterer_formation(;design_kwargs...)
 
 grid_size = 4.0f0
-elements = 256
+elements = 128
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -26,11 +26,11 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-@time train_data = generate_episode_data(policy, env, 2)
-@time test_data = generate_episode_data(policy, env, 2)
+@time train_data = generate_episode_data(policy, env, 1)
+@time test_data = generate_episode_data(policy, env, 1)
 
 train_s, train_a = train_data;
-train_path = mkpath("data/train")
+train_path = mkpath("data/small/train")
 
 for (i, (s, a)) in enumerate(zip(train_s, train_a))
     println(i)
@@ -38,7 +38,7 @@ for (i, (s, a)) in enumerate(zip(train_s, train_a))
 end
 
 test_s, test_a = test_data;
-test_path = mkpath("data/test")
+test_path = mkpath("data/small/test")
 
 for (i, (s, a)) in enumerate(zip(test_s, test_a))
     println(i)

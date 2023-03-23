@@ -1,69 +1,92 @@
+using JLD2
 using Flux
 using Flux.Losses: mse
-using ReinforcementLearning
 using CairoMakie
-using Statistics: mean
-using BSON
-using JLD2
 
 using Waves
 
-include("design_encoder.jl")
-include("wave_net.jl")
-include("inc_sc_wave_net.jl")
-include("latent_wave_separation.jl")
-
-function train_wave_encoder_decoder_model!(
-        opt::Flux.Optimise.AbstractOptimiser, 
-        ps::Flux.Params,
-        model,
-        train_loader::Flux.DataLoader,
-        test_loader::Flux.DataLoader,
-        epochs::Int;
-        path::String)
-    
-    comparison_path = mkpath(joinpath(path, "comparison"))
-    model_path = mkpath(joinpath(path, "model"))
-
-    train_loss_history = Float32[]
-    test_loss_history = Float32[]
-
-    for epoch in 1:epochs
-
-        train_epoch_loss = Float32[]
-
-        ## Training logic
-        Flux.train!(ps, train_loader, opt) do s, a
-
-            ## Grab a sample from data loader and compute loss
-            train_loss = loss(model, gpu(s[1]), gpu(a[1]))
-
-            ## Log loss & reset model dynamics
-            Flux.ignore() do
-                push!(train_epoch_loss, train_loss)
-                Waves.reset!(model)
-            end
-
-            return train_loss
-        end
-
-        test_epoch_loss = Float32[]
-
-        for (i, (s, a)) in enumerate(test_loader)
-            s, a = gpu(s[1]), gpu(a[1])
-            push!(test_epoch_loss, loss(model, s, a))
-            plot_comparison!(model, s, a, path = joinpath(comparison_path, "comparison_$i.png"))
-            Waves.reset!(model)
-        end
-
-        ## Storing loss data for history
-        push!(train_loss_history, mean(train_epoch_loss))
-        push!(test_loss_history, mean(test_epoch_loss))
-        println("Epoch: $epoch, Train Loss: $(train_loss_history[end]), Test Loss: $(test_loss_history[end])")
-        plot_loss!(train_loss_history, test_loss_history, path = joinpath(path, "train_loss.png"))
-        BSON.@save joinpath(model_path, "model$epoch.bson") model
-    end
+struct Wave{D <: AbstractDim}
+    u::AbstractArray{Float32}
 end
+
+Flux.@functor Wave
+
+function Wave(dim::D, fields::Int = 1) where D <: AbstractDim
+    u = zeros(Float32, size(dim)..., fields)
+    return Wave{D}(u)
+end
+
+function Base.size(wave::Wave)
+    return size(wave.u)
+end
+
+function Base.getindex(wave::Wave, idx...)
+    return wave.u[idx...]
+end
+
+function Base.axes(wave::Wave, idx)
+    return axes(wave.u, idx)
+end
+
+function energy(wave::Wave{OneDim})
+    return sum(wave[:, 1] .^ 2)
+end
+
+function Waves.Pulse(dim::OneDim; x::Float32 = 0.0f0, intensity::Float32 = 1.0f0)
+    return Pulse(dim, x, intensity)
+end
+
+function Waves.Pulse(dim::TwoDim; x::Float32 = 0.0f0, y::Float32 = 0.0f0, intensity::Float32 = 1.0f0)
+    return Pulse(dim, x, y, intensity)
+end
+
+function (pulse::Pulse{OneDim})(wave::Wave{OneDim})
+    u0 = exp.(-pulse.intensity * pulse.mesh_grid .^ 2)
+    return Wave{OneDim}(hcat(u0, wave[:, 2:end]))
+end
+
+function (pulse::Pulse{TwoDim})(wave::Wave{TwoDim})
+    u0 = dropdims(exp.(-pulse.intensity * sum(pulse.mesh_grid .^ 2, dims = 3)), dims = 3)
+    return Wave{TwoDim}(cat(u0, wave[:, :, 2:end], dims = 3))
+end
+
+function Waves.split_wave_pml(wave::Wave{OneDim}, t::Float32, dynamics::WaveDynamics)
+    u = wave[:, 1]
+    v = wave[:, 2]
+    ∇ = dynamics.grad
+
+    ∇ = dynamics.grad
+    σx = dynamics.pml
+    C = Waves.speed(dynamics, t)
+    b = C .^ 2
+
+    du = b .* (∇ * v) .- σx .* u
+    dvx = ∇ * u .- σx .* v
+
+    return Wave{OneDim}(cat(du, dvx, dims = 2))
+end
+
+# elements = 256
+# dim = OneDim(4.0f0, elements)
+# dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
+# dynamics = WaveDynamics(dim = dim; dynamics_kwargs...)
+
+# fields = 2
+# wave = Wave(dim, fields)
+# pulse = Pulse(dim, intensity = 10.0f0)
+# wave = pulse(wave)
+
+# model = Chain(
+#     w -> w.u,
+#     Dense(elements, 10, relu),
+#     x -> Wave{OneDim}(x))
+
+# opt = Descent(0.01)
+# ps = Flux.params(wave)
+
+# gs = Flux.gradient(ps) do 
+#     return energy(model(wave))
+# end
 
 function load_wave_data(path::String)
 
@@ -81,17 +104,18 @@ function load_wave_data(path::String)
     return (s, a)
 end
 
-train_data = load_wave_data("data/train");
-test_data = load_wave_data("data/test");
+include("design_encoder.jl")
+include("wave_net.jl")
 
-first_state = first(train_data[1])
-dim = first_state.sol.total.dim
+file = jldopen("data/small/train/data5.jld2")
+
+s = file["s"]
+a = file["a"]
+
+dim = s.sol.total.dim
 elements = size(dim)[1]
 grid_size = maximum(dim.x)
-design = first_state.design
-
-train_loader = Flux.DataLoader(train_data, shuffle = true)
-test_loader = Flux.DataLoader(test_data, shuffle = false)
+design = s.design
 
 design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
@@ -99,13 +123,33 @@ z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 model_kwargs = Dict(:fields => 6, :h_fields => 128, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
-# model = gpu(IncScWaveNet(;model_kwargs..., dynamics_kwargs...))
-model = gpu(WaveNet(;model_kwargs..., dynamics_kwargs...))
-# model = gpu(LatentWaveSeparation(;model_kwargs..., dynamics_kwargs...))
+dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
+wave_encoder = WaveEncoder(model_kwargs[:fields], model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
+wave_decoder = WaveDecoder(1, model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
+cell = WaveCell(split_wave_pml, runge_kutta)
 
-lr = 0.001
-opt = Adam(lr)
-ps = Flux.params(model)
+u_true = get_target_u(s.sol.total) |> gpu
+u_true = u_true[:, :, 1, :]
+n = Int(sqrt(z_elements))
 
-model_name = String(Symbol(typeof(model)))
-train_wave_encoder_decoder_model!(opt, ps, model, train_loader, test_loader, 100, path = "results/scattered_$(model_name)_lr=$lr")
+opt = Adam(0.001)
+ps = Flux.params(wave_encoder, wave_decoder)
+
+for i in 1:10
+    gs = Flux.gradient(ps) do
+
+        z = wave_encoder(s.sol.total)
+        z_sol = cat(integrate(cell, z, dynamics, length(s.sol.total) - 1)..., dims = ndims(z) + 1)
+        z_feature_maps = reshape(z_sol, n, n, size(z_sol, 2), :)
+        u_pred = dropdims(wave_decoder(z_feature_maps), dims = 3)
+        loss = sqrt(mse(u_true, u_pred))
+
+        Flux.ignore() do 
+            println(loss)
+        end
+
+        return loss
+    end
+
+    Flux.Optimise.update!(opt, ps, gs)
+end

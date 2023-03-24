@@ -75,8 +75,8 @@ file = jldopen("data/small/test/data5.jld2")
 s = file["s"]
 a = file["a"]
 
-sol = s.sol.total
-dim = sol.dim
+sol_tot = s.sol.total
+dim = sol_tot.dim
 elements = size(dim)[1]
 grid_size = maximum(dim.x)
 design = s.design
@@ -84,18 +84,19 @@ design = s.design
 design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 
-fields = size(sol.u[1], 3)
-h_fields = 128
+fields = size(sol_tot.u[1], 3)
+h_fields = 64
 z_fields = 2
 activation = relu
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
+n = Int(sqrt(z_elements))
 cell = WaveCell(split_wave_pml, runge_kutta)
 
 model = Chain(
     WaveEncoder(fields, h_fields, z_fields, activation),
-    z -> integrate(cell, z, dynamics, length(sol) - 1),
+    z -> integrate(cell, z, dynamics, length(sol_tot) - 1),
     z -> cat(z..., dims = 3),
     z -> reshape(z, n, n, z_fields, :),
     UpBlock(3, z_fields,   h_fields, activation),
@@ -107,10 +108,10 @@ model = Chain(
     z -> dropdims(z, dims = 3)
 ) |> gpu
 
-sol = gpu(sol)
-u_true = get_target_u(sol)
+u_true = get_target_u(gpu(s.sol.scattered))
+# sol_tot = gpu(sol_tot)
+# u_true = get_target_u(sol_tot)
 u_true = u_true[:, :, 1, :]
-n = Int(sqrt(z_elements))
 
 opt = Adam(0.0001)
 ps = Flux.params(model)
@@ -137,12 +138,12 @@ for i in 1:1000
                 ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false)
                 heatmap!(ax1, dim.x, dim.y, cpu(u_true[:, :, 50]), colormap = :ice)
                 heatmap!(ax2, dim.x, dim.y, cpu(u_pred[:, :, 50]), colormap = :ice)
-                save("$(activation)_comparison_h_fields=$(h_fields).png", fig)
+                save("scattered_$(activation)_comparison_h_fields=$(h_fields).png", fig)
 
                 fig = Figure()
                 ax = Axis(fig[1, 1])
                 lines!(ax, train_loss)
-                save("$(activation)_loss_h_fields=$(h_fields).png", fig)
+                save("scattered_$(activation)_loss_h_fields=$(h_fields).png", fig)
             end
 
         end

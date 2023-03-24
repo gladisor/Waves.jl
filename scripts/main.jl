@@ -85,12 +85,12 @@ design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 
 fields = size(sol.u[1], 3)
-h_fields = 32
+h_fields = 128
 z_fields = 2
 activation = relu
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
-dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...)
+dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
 cell = WaveCell(split_wave_pml, runge_kutta)
 
 model = Chain(
@@ -137,12 +137,12 @@ for i in 1:1000
                 ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false)
                 heatmap!(ax1, dim.x, dim.y, cpu(u_true[:, :, 50]), colormap = :ice)
                 heatmap!(ax2, dim.x, dim.y, cpu(u_pred[:, :, 50]), colormap = :ice)
-                save("comparison.png", fig)
+                save("$(activation)_comparison_h_fields=$(h_fields).png", fig)
 
                 fig = Figure()
                 ax = Axis(fig[1, 1])
                 lines!(ax, train_loss)
-                save("loss.png", fig)
+                save("$(activation)_loss_h_fields=$(h_fields).png", fig)
             end
 
         end

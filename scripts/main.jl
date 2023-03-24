@@ -67,54 +67,15 @@ function Waves.split_wave_pml(wave::Wave{OneDim}, t::Float32, dynamics::WaveDyna
     return Wave{OneDim}(cat(du, dvx, dims = 2))
 end
 
-# elements = 256
-# dim = OneDim(4.0f0, elements)
-# dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
-# dynamics = WaveDynamics(dim = dim; dynamics_kwargs...)
-
-# fields = 2
-# wave = Wave(dim, fields)
-# pulse = Pulse(dim, intensity = 10.0f0)
-# wave = pulse(wave)
-
-# model = Chain(
-#     w -> w.u,
-#     Dense(elements, 10, relu),
-#     x -> Wave{OneDim}(x))
-
-# opt = Descent(0.01)
-# ps = Flux.params(wave)
-
-# gs = Flux.gradient(ps) do 
-#     return energy(model(wave))
-# end
-
-function load_wave_data(path::String)
-
-    s = WaveEnvState[]
-    a = AbstractDesign[]
-
-    for file_path in readdir(path, join = true)
-        jldopen(file_path) do file
-            println(file)
-            push!(s, file["s"])
-            push!(a, file["a"])
-        end
-    end
-
-    return (s, a)
-end
-
 include("design_encoder.jl")
 include("wave_net.jl")
 
-file = jldopen("data/train/data5.jld2")
+file = jldopen("data/small/test/data5.jld2")
 
 s = file["s"]
 a = file["a"]
 
-sol = gpu(s.sol.total)
-
+sol = s.sol.total
 dim = sol.dim
 elements = size(dim)[1]
 grid_size = maximum(dim.x)
@@ -123,23 +84,19 @@ design = s.design
 design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 
-model_kwargs = Dict(:fields => 6, :h_fields => 32, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
-fields = model_kwargs[:fields]
-h_fields = model_kwargs[:h_fields]
-z_fields = model_kwargs[:z_fields]
-activation = model_kwargs[:activation]
+fields = size(sol.u[1], 3)
+h_fields = 32
+z_fields = 2
+activation = relu
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
-
-dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
-# wave_encoder = WaveEncoder(model_kwargs[:fields], model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
-# wave_decoder = WaveDecoder(1, model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
+dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...)
 cell = WaveCell(split_wave_pml, runge_kutta)
 
 model = Chain(
     WaveEncoder(fields, h_fields, z_fields, activation),
     z -> integrate(cell, z, dynamics, length(sol) - 1),
-    z -> cat(z..., dims = ndims(z) + 1),
+    z -> cat(z..., dims = 3),
     z -> reshape(z, n, n, z_fields, :),
     UpBlock(3, z_fields,   h_fields, activation),
     UpBlock(3, h_fields,   h_fields, activation),
@@ -150,15 +107,13 @@ model = Chain(
     z -> dropdims(z, dims = 3)
 ) |> gpu
 
-u_true = get_target_u(sol) |> gpu
+sol = gpu(sol)
+u_true = get_target_u(sol)
 u_true = u_true[:, :, 1, :]
 n = Int(sqrt(z_elements))
 
 opt = Adam(0.0001)
-# ps = Flux.params(wave_encoder, wave_decoder)
 ps = Flux.params(model)
-
-dim = cpu(dim)
 
 train_loss = Float32[]
 
@@ -168,10 +123,6 @@ for i in 1:1000
 
     gs = Flux.gradient(ps) do
 
-        # z = wave_encoder(sol)
-        # z_sol = cat(integrate(cell, z, dynamics, length(sol) - 1)..., dims = ndims(z) + 1)
-        # z_feature_maps = reshape(z_sol, n, n, size(z_sol, 2), :)
-        # u_pred = dropdims(wave_decoder(z_feature_maps), dims = 3)
         u_pred = model(sol)
         loss = sqrt(mse(u_true, u_pred))
 
@@ -201,5 +152,3 @@ for i in 1:1000
 
     Flux.Optimise.update!(opt, ps, gs)
 end
-
-

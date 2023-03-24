@@ -28,6 +28,7 @@ env = gpu(WaveEnv(
 policy = RandomDesignPolicy(action_space(env))
 @time train_data = generate_episode_data(policy, env, 1)
 @time test_data = generate_episode_data(policy, env, 1)
+render!(policy, env, path = "vid.mp4")
 
 train_s, train_a = train_data;
 train_path = mkpath("data/small/train")

@@ -61,18 +61,6 @@ function Waves.reset!(model::WaveNet)
     Waves.reset!(model.z_dynamics)
 end
 
-# function Waves.plot_comparison!(u_pred::AbstractArray{Float32, 4}, u_true::AbstractArray{Float32, 4}, idx::Int; path::String)
-#     fig = Figure()
-#     ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Total Wave", xlabel = "X (m)", ylabel = "Y(m)")
-#     ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Total Wave", xlabel = "X (m)", yticklabelsvisible = false)
-
-#     heatmap!(ax1, dim.x, dim.y, u_true[:, :, 1, idx], colormap = :ice)
-#     heatmap!(ax2, dim.x, dim.y, u_pred[:, :, 1, idx], colormap = :ice)
-
-#     save(path, fig)
-#     return nothing
-# end
-
 function Waves.plot_comparison!(model::WaveNet, s::WaveEnvState, a::AbstractDesign; path::String)
     u_pred = cpu(model(s, a))
     u_true = get_target_u(s.sol.scattered) |> cpu

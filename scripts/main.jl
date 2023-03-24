@@ -1,6 +1,7 @@
 using JLD2
 using Flux
-using Flux.Losses: mse
+Flux.CUDA.allowscalar(false)
+using Flux.Losses: mse, mae, msle
 using CairoMakie
 
 using Waves
@@ -107,12 +108,14 @@ end
 include("design_encoder.jl")
 include("wave_net.jl")
 
-file = jldopen("data/small/train/data5.jld2")
+file = jldopen("data/train/data5.jld2")
 
 s = file["s"]
 a = file["a"]
 
-dim = s.sol.total.dim
+sol = gpu(s.sol.total)
+
+dim = sol.dim
 elements = size(dim)[1]
 grid_size = maximum(dim.x)
 design = s.design
@@ -120,32 +123,77 @@ design = s.design
 design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
 
-model_kwargs = Dict(:fields => 6, :h_fields => 128, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
+model_kwargs = Dict(:fields => 6, :h_fields => 32, :z_fields => 2, :activation => relu, :design_size => design_size, :h_size => 256, :grid_size => 4.0f0, :z_elements => z_elements)
+fields = model_kwargs[:fields]
+h_fields = model_kwargs[:h_fields]
+z_fields = model_kwargs[:z_fields]
+activation = model_kwargs[:activation]
+
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
 dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
-wave_encoder = WaveEncoder(model_kwargs[:fields], model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
-wave_decoder = WaveDecoder(1, model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
+# wave_encoder = WaveEncoder(model_kwargs[:fields], model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
+# wave_decoder = WaveDecoder(1, model_kwargs[:h_fields], model_kwargs[:z_fields], model_kwargs[:activation]) |> gpu
 cell = WaveCell(split_wave_pml, runge_kutta)
 
-u_true = get_target_u(s.sol.total) |> gpu
+model = Chain(
+    WaveEncoder(fields, h_fields, z_fields, activation),
+    z -> integrate(cell, z, dynamics, length(sol) - 1),
+    z -> cat(z..., dims = ndims(z) + 1),
+    z -> reshape(z, n, n, z_fields, :),
+    UpBlock(3, z_fields,   h_fields, activation),
+    UpBlock(3, h_fields,   h_fields, activation),
+    UpBlock(3, h_fields,   h_fields,   activation),
+    Conv((3, 3), h_fields => h_fields, activation, pad = SamePad()),
+    Conv((3, 3), h_fields => h_fields, activation, pad = SamePad()),
+    Conv((3, 3), h_fields => 1, tanh, pad = SamePad()),
+    z -> dropdims(z, dims = 3)
+) |> gpu
+
+u_true = get_target_u(sol) |> gpu
 u_true = u_true[:, :, 1, :]
 n = Int(sqrt(z_elements))
 
-opt = Adam(0.001)
-ps = Flux.params(wave_encoder, wave_decoder)
+opt = Adam(0.0001)
+# ps = Flux.params(wave_encoder, wave_decoder)
+ps = Flux.params(model)
 
-for i in 1:10
+dim = cpu(dim)
+
+train_loss = Float32[]
+
+for i in 1:1000
+
+    Waves.reset!(dynamics)
+
     gs = Flux.gradient(ps) do
 
-        z = wave_encoder(s.sol.total)
-        z_sol = cat(integrate(cell, z, dynamics, length(s.sol.total) - 1)..., dims = ndims(z) + 1)
-        z_feature_maps = reshape(z_sol, n, n, size(z_sol, 2), :)
-        u_pred = dropdims(wave_decoder(z_feature_maps), dims = 3)
+        # z = wave_encoder(sol)
+        # z_sol = cat(integrate(cell, z, dynamics, length(sol) - 1)..., dims = ndims(z) + 1)
+        # z_feature_maps = reshape(z_sol, n, n, size(z_sol, 2), :)
+        # u_pred = dropdims(wave_decoder(z_feature_maps), dims = 3)
+        u_pred = model(sol)
         loss = sqrt(mse(u_true, u_pred))
 
-        Flux.ignore() do 
+        Flux.ignore() do
+
             println(loss)
+            push!(train_loss, loss)
+
+            if i % 5 == 0
+                fig = Figure()
+                ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Scattered Wave", xlabel = "X (m)", ylabel = "Y(m)")
+                ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false)
+                heatmap!(ax1, dim.x, dim.y, cpu(u_true[:, :, 50]), colormap = :ice)
+                heatmap!(ax2, dim.x, dim.y, cpu(u_pred[:, :, 50]), colormap = :ice)
+                save("comparison.png", fig)
+
+                fig = Figure()
+                ax = Axis(fig[1, 1])
+                lines!(ax, train_loss)
+                save("loss.png", fig)
+            end
+
         end
 
         return loss
@@ -153,3 +201,5 @@ for i in 1:10
 
     Flux.Optimise.update!(opt, ps, gs)
 end
+
+

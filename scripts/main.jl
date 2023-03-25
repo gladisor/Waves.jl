@@ -1,155 +1,127 @@
 using JLD2
 using Flux
 Flux.CUDA.allowscalar(false)
-using Flux.Losses: mse, mae, msle
+using Flux: DataLoader
+using Flux.Losses: mse, huber_loss
 using CairoMakie
+using Statistics: mean
 
 using Waves
-
-struct Wave{D <: AbstractDim}
-    u::AbstractArray{Float32}
-end
-
-Flux.@functor Wave
-
-function Wave(dim::D, fields::Int = 1) where D <: AbstractDim
-    u = zeros(Float32, size(dim)..., fields)
-    return Wave{D}(u)
-end
-
-function Base.size(wave::Wave)
-    return size(wave.u)
-end
-
-function Base.getindex(wave::Wave, idx...)
-    return wave.u[idx...]
-end
-
-function Base.axes(wave::Wave, idx)
-    return axes(wave.u, idx)
-end
-
-function energy(wave::Wave{OneDim})
-    return sum(wave[:, 1] .^ 2)
-end
-
-function Waves.Pulse(dim::OneDim; x::Float32 = 0.0f0, intensity::Float32 = 1.0f0)
-    return Pulse(dim, x, intensity)
-end
-
-function Waves.Pulse(dim::TwoDim; x::Float32 = 0.0f0, y::Float32 = 0.0f0, intensity::Float32 = 1.0f0)
-    return Pulse(dim, x, y, intensity)
-end
-
-function (pulse::Pulse{OneDim})(wave::Wave{OneDim})
-    u0 = exp.(-pulse.intensity * pulse.mesh_grid .^ 2)
-    return Wave{OneDim}(hcat(u0, wave[:, 2:end]))
-end
-
-function (pulse::Pulse{TwoDim})(wave::Wave{TwoDim})
-    u0 = dropdims(exp.(-pulse.intensity * sum(pulse.mesh_grid .^ 2, dims = 3)), dims = 3)
-    return Wave{TwoDim}(cat(u0, wave[:, :, 2:end], dims = 3))
-end
-
-function Waves.split_wave_pml(wave::Wave{OneDim}, t::Float32, dynamics::WaveDynamics)
-    u = wave[:, 1]
-    v = wave[:, 2]
-    ∇ = dynamics.grad
-
-    ∇ = dynamics.grad
-    σx = dynamics.pml
-    C = Waves.speed(dynamics, t)
-    b = C .^ 2
-
-    du = b .* (∇ * v) .- σx .* u
-    dvx = ∇ * u .- σx .* v
-
-    return Wave{OneDim}(cat(du, dvx, dims = 2))
-end
 
 include("design_encoder.jl")
 include("wave_net.jl")
 
-file = jldopen("data/small/test/data5.jld2")
+function load_wave_data(path::String)
+    file = jldopen(path)
+    s = file["s"]
+    a = file["a"]
+    return (s, a)
+end
 
-s = file["s"]
-a = file["a"]
+function Waves.energy(sol::WaveSol)
+    return sum.(energy.(displacement.(sol.u)))
+end
 
-sol_tot = s.sol.total
-dim = sol_tot.dim
+struct WaveDesignEncoder
+    wave_encoder::WaveEncoder
+    design_encoder::DesignEncoder
+end
+
+Flux.@functor WaveDesignEncoder
+
+function (encoder::WaveDesignEncoder)(sol::WaveSol, design::AbstractDesign, action::AbstractDesign)
+    z = encoder.wave_encoder(sol)
+    b = encoder.design_encoder(design, action)
+    return hcat(z, b)
+end
+
+struct SigmaControlModel
+    wave_encoder::WaveEncoder
+    design_encoder::DesignEncoder
+    z_cell::WaveCell
+    z_dynamics::WaveDynamics
+    mlp::Chain
+end
+
+Flux.@functor SigmaControlModel (wave_encoder, design_encoder, mlp)
+
+function (model::SigmaControlModel)(sol::WaveSol, design::AbstractDesign, action::AbstractDesign)
+    z = model.wave_encoder(sol)
+    b = model.design_encoder(design, action)
+    latents = cat(integrate(model.z_cell, hcat(z, b), model.z_dynamics, length(sol) - 1)..., dims = 3)
+    return vec(model.mlp(Flux.flatten(latents)))
+end
+
+data = load_wave_data.(readdir("data/small/train", join = true))
+s, a = first(data)
+
+dim = s.sol.total.dim
 elements = size(dim)[1]
 grid_size = maximum(dim.x)
-design = s.design
 
-design_size = 2 * length(vec(design))
 z_elements = prod(Int.(size(dim) ./ (2 ^ 3)))
-
-fields = size(sol_tot.u[1], 3)
+fields = size(s.sol.total.u[1], 3)
 h_fields = 64
 z_fields = 2
 activation = relu
+h_size = 128
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
 n = Int(sqrt(z_elements))
 cell = WaveCell(split_wave_pml, runge_kutta)
 
-model = Chain(
+sol_total = gpu(s.sol.total)
+design = gpu(s.design)
+a = gpu(a)
+
+model = SigmaControlModel(
     WaveEncoder(fields, h_fields, z_fields, activation),
-    z -> integrate(cell, z, dynamics, length(sol_tot) - 1),
-    z -> cat(z..., dims = 3),
-    z -> reshape(z, n, n, z_fields, :),
-    UpBlock(3, z_fields,   h_fields, activation),
-    UpBlock(3, h_fields,   h_fields, activation),
-    UpBlock(3, h_fields,   h_fields,   activation),
-    Conv((3, 3), h_fields => h_fields, activation, pad = SamePad()),
-    Conv((3, 3), h_fields => h_fields, activation, pad = SamePad()),
-    Conv((3, 3), h_fields => 1, tanh, pad = SamePad()),
-    z -> dropdims(z, dims = 3)
+    DesignEncoder(2 * length(vec(design)), h_size, z_elements, activation),
+    WaveCell(nonlinear_latent_wave, runge_kutta),
+    dynamics,
+    Chain(
+        Dense(3 * z_elements, h_size, activation),
+        Dense(h_size, 1),
+    )
 ) |> gpu
 
-u_true = get_target_u(gpu(s.sol.scattered))
-# sol_tot = gpu(sol_tot)
-# u_true = get_target_u(sol_tot)
-u_true = u_true[:, :, 1, :]
-
-opt = Adam(0.0001)
+opt = Adam(0.0009)
 ps = Flux.params(model)
-
 train_loss = Float32[]
+train_loader = DataLoader(data[1:2], shuffle = true)
 
-for i in 1:1000
+for epoch in 1:100
 
-    Waves.reset!(dynamics)
+    epoch_loss = Float32[]
+    # for (i, (s, a)) in enumerate(train_loader)
 
-    gs = Flux.gradient(ps) do
+    #     s, a = s[1], a[1]
 
-        u_pred = model(sol)
-        loss = sqrt(mse(u_true, u_pred))
+        sol_total = gpu(s.sol.total)
+        sol_scattered = gpu(s.sol.scattered)
+        sigma_true = gpu(energy(sol_scattered)[2:end])
+        Waves.reset!(dynamics)
 
-        Flux.ignore() do
+        gs = Flux.gradient(ps) do
+            sigma_pred = model(sol_total, design, )
+            loss = huber_loss(sigma_true, sigma_pred)
 
-            println(loss)
-            push!(train_loss, loss)
-
-            if i % 5 == 0
-                fig = Figure()
-                ax1 = Axis(fig[1, 1], aspect = 1.0, title = "True Scattered Wave", xlabel = "X (m)", ylabel = "Y(m)")
-                ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Predicted Scattered Wave", xlabel = "X (m)", yticklabelsvisible = false)
-                heatmap!(ax1, dim.x, dim.y, cpu(u_true[:, :, 50]), colormap = :ice)
-                heatmap!(ax2, dim.x, dim.y, cpu(u_pred[:, :, 50]), colormap = :ice)
-                save("scattered_$(activation)_comparison_h_fields=$(h_fields).png", fig)
-
-                fig = Figure()
-                ax = Axis(fig[1, 1])
-                lines!(ax, train_loss)
-                save("scattered_$(activation)_loss_h_fields=$(h_fields).png", fig)
+            Flux.ignore() do
+                println("Loss: $loss")
+                push!(epoch_loss, loss)
             end
 
+            return loss
         end
 
-        return loss
-    end
+        Flux.Optimise.update!(opt, ps, gs)
+    # end
 
-    Flux.Optimise.update!(opt, ps, gs)
+    push!(train_loss, mean(epoch_loss))
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, train_loss)
+    save("loss.png", fig)
 end

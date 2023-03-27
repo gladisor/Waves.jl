@@ -1,4 +1,4 @@
-export episode_trajectory, generate_episode_data
+export episode_trajectory, generate_episode_data, load_episode_data, save_episode_data!
 
 function episode_trajectory(env::WaveEnv)
     traj = CircularArraySARTTrajectory(
@@ -31,4 +31,17 @@ function generate_episode_data(policy::AbstractPolicy, env::WaveEnv, episodes::I
     end
 
     return (vcat(states...), vcat(actions...))
+end
+
+function load_episode_data(path::String)
+    file = jldopen(path)
+    s = file["s"]
+    a = file["a"]
+    return (s, a)
+end
+
+function save_episode_data!(states::Vector{WaveEnvState}, actions::Vector{<:AbstractDesign}; path)
+    @showprogress for (i, (s, a)) in enumerate(zip(states, actions))
+        jldsave(joinpath(path, "data$i.jld2"); s, a)
+    end
 end

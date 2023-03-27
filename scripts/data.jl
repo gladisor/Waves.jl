@@ -5,12 +5,6 @@ using ProgressMeter: @showprogress
 
 using Waves
 
-function save_episode_data!(states::Vector{WaveEnvState}, actions::Vector{<:AbstractDesign}; path)
-    @showprogress for (i, (s, a)) in enumerate(zip(states, actions))
-        jldsave(joinpath(path, "data$i.jld2"); s, a)
-    end
-end
-
 design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 0.20f0, :center => [0.0f0, 0.0f0])
 config = random_radii_scatterer_formation(;design_kwargs...)
 
@@ -36,8 +30,8 @@ policy = RandomDesignPolicy(action_space(env))
 @time train_data = generate_episode_data(policy, env, 1)
 @time test_data = generate_episode_data(policy, env, 1)
 
-train_path = mkpath("data/episode1")
+train_path = mkpath("data/episode5")
 save_episode_data!(train_data..., path = train_path)
 
-test_path = mkpath("data/episode2")
+test_path = mkpath("data/episode6")
 save_episode_data!(test_data..., path = test_path)

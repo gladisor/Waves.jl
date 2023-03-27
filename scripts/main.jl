@@ -2,37 +2,24 @@ using JLD2
 using Flux
 Flux.CUDA.allowscalar(false)
 using Flux: DataLoader
-using Flux.Losses: mse, huber_loss
+using Flux.Losses: mse, huber_loss, mae
 using CairoMakie
 using Statistics: mean
+using ProgressMeter: @showprogress
 
 using Waves
 
 include("design_encoder.jl")
-include("wave_net.jl")
 
-function load_wave_data(path::String)
+function load_episode_data(path::String)
     file = jldopen(path)
     s = file["s"]
     a = file["a"]
     return (s, a)
 end
 
-function Waves.energy(sol::WaveSol)
+function total_energy(sol::WaveSol)
     return sum.(energy.(displacement.(sol.u)))
-end
-
-struct WaveDesignEncoder
-    wave_encoder::WaveEncoder
-    design_encoder::DesignEncoder
-end
-
-Flux.@functor WaveDesignEncoder
-
-function (encoder::WaveDesignEncoder)(sol::WaveSol, design::AbstractDesign, action::AbstractDesign)
-    z = encoder.wave_encoder(sol)
-    b = encoder.design_encoder(design, action)
-    return hcat(z, b)
 end
 
 struct SigmaControlModel
@@ -46,13 +33,48 @@ end
 Flux.@functor SigmaControlModel (wave_encoder, design_encoder, mlp)
 
 function (model::SigmaControlModel)(sol::WaveSol, design::AbstractDesign, action::AbstractDesign)
-    z = model.wave_encoder(sol)
-    b = model.design_encoder(design, action)
-    latents = cat(integrate(model.z_cell, hcat(z, b), model.z_dynamics, length(sol) - 1)..., dims = 3)
+
+    z = hcat(model.wave_encoder(sol), model.design_encoder(design, action))
+
+    latents = cat(
+        integrate(model.z_cell, z, model.z_dynamics, length(sol) - 1)..., 
+        dims = 3)
+
     return vec(model.mlp(Flux.flatten(latents)))
 end
 
-data = load_wave_data.(readdir("data/small/train", join = true))
+function plot_predicted_sigma!(data::Vector{Tuple{WaveEnvState{Scatterers}, Scatterers}}, model::SigmaControlModel; path::String)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Energy: σ", title = "Scattered Energy of Solution over Time")
+
+    s, a = data[1]
+
+    sigma_true = total_energy(s.sol.scattered)[2:end]
+    sigma_pred = model(s.sol.total, s.design, a)
+    lines!(ax, cpu(s.sol.total.t[2:end]), cpu(sigma_true), color = :blue, label = "True Energy")
+    lines!(ax, cpu(s.sol.total.t[2:end]), cpu(sigma_pred), color = :orange, label = "Model Predicted Energy")
+
+    for d in data[2:end]
+        s, a = d
+        sigma_true = total_energy(s.sol.scattered)[2:end]
+        sigma_pred = model(s.sol.total, s.design, a)
+        lines!(ax, cpu(s.sol.total.t[2:end]), cpu(sigma_true), color = :blue)
+        lines!(ax, cpu(s.sol.total.t[2:end]), cpu(sigma_pred), color = :orange)
+    end
+
+    axislegend(ax)
+    save(path, fig)
+end
+
+function plot_loss!(loss::Vector{Float32}; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, loss)
+    save(path, fig)
+end
+
+data = load_episode_data.(readdir("data/episode1", join = true))
 s, a = first(data)
 
 dim = s.sol.total.dim
@@ -64,64 +86,59 @@ fields = size(s.sol.total.u[1], 3)
 h_fields = 64
 z_fields = 2
 activation = relu
+design_size = 2 * length(vec(s.design))
 h_size = 128
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
-dynamics = WaveDynamics(dim = OneDim(4.0f0, z_elements); dynamics_kwargs...) |> gpu
-n = Int(sqrt(z_elements))
-cell = WaveCell(split_wave_pml, runge_kutta)
 
-sol_total = gpu(s.sol.total)
-design = gpu(s.design)
-a = gpu(a)
+wave_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
+design_encoder = DesignEncoder(design_size, h_size, z_elements, activation)
+cell = WaveCell(nonlinear_latent_wave, runge_kutta)
+dynamics = WaveDynamics(dim = OneDim(grid_size, z_elements); dynamics_kwargs...) |> gpu
 
-model = SigmaControlModel(
-    WaveEncoder(fields, h_fields, z_fields, activation),
-    DesignEncoder(2 * length(vec(design)), h_size, z_elements, activation),
-    WaveCell(nonlinear_latent_wave, runge_kutta),
-    dynamics,
-    Chain(
-        Dense(3 * z_elements, h_size, activation),
-        Dense(h_size, 1),
-    )
-) |> gpu
+mlp = Chain(
+    Dense(3 * z_elements, h_size, activation), 
+    Dense(h_size, h_size, activation),
+    Dense(h_size, 1))
 
-opt = Adam(0.0009)
+model = SigmaControlModel(wave_encoder, design_encoder, cell, dynamics, mlp) |> gpu
+
+opt = Adam(0.0001)
 ps = Flux.params(model)
+
+train_loader = DataLoader(data, shuffle = true)
+
 train_loss = Float32[]
-train_loader = DataLoader(data[1:2], shuffle = true)
 
-for epoch in 1:100
-
+for i in 1:50
+        
     epoch_loss = Float32[]
-    # for (i, (s, a)) in enumerate(train_loader)
 
-    #     s, a = s[1], a[1]
+    @showprogress for x in train_loader
 
+        s, a = x[1]
         sol_total = gpu(s.sol.total)
         sol_scattered = gpu(s.sol.scattered)
-        sigma_true = gpu(energy(sol_scattered)[2:end])
-        Waves.reset!(dynamics)
+        sigma_true = total_energy(sol_scattered)[2:end]
+
+        design = gpu(s.design)
+        a = gpu(a)
+
+        Waves.reset!(model.z_dynamics)
 
         gs = Flux.gradient(ps) do
-            sigma_pred = model(sol_total, design, )
-            loss = huber_loss(sigma_true, sigma_pred)
-
-            Flux.ignore() do
-                println("Loss: $loss")
-                push!(epoch_loss, loss)
-            end
-
+            loss = mae(sigma_true, model(sol_total, design, a))
+            Flux.ignore(() -> push!(epoch_loss, loss))
             return loss
         end
 
         Flux.Optimise.update!(opt, ps, gs)
-    # end
+    end
 
     push!(train_loss, mean(epoch_loss))
+    println("Loss: $(train_loss[end])")
 
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, train_loss)
-    save("loss.png", fig)
+    plot_loss!(train_loss, path = "train_loss.png")
+    plot_predicted_sigma!(data, model, path = "train_sigma.png")
 end
+

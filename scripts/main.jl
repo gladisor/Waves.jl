@@ -189,7 +189,7 @@ gs = Flux.gradient(ps) do
     mse(sigma_true, sigma_pred)
 end
 
-Flux.Optimise.update!(opt, gs, ps)
+Flux.Optimise.update!(opt, ps, gs)
 
 # data2 = load_episode_data.(readdir("data/episode2", join = true))
 # data3 = load_episode_data.(readdir("data/episode3", join = true))

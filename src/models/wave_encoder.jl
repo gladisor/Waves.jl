@@ -8,11 +8,11 @@ end
 
 Flux.@functor WaveEncoder
 
-function WaveEncoder(fields::Int, h_fields::Int, z_fields::Int, activation::Function)
+function WaveEncoder(fields::Int, h_fields::Int, z_fields::Int, activation::Function; out_activation::Function = tanh)
 
     down1 = DownBlock(3, fields,   h_fields, activation)
     down2 = DownBlock(3, h_fields, h_fields, activation)
-    down3 = DownBlock(3, h_fields, z_fields, tanh)
+    down3 = DownBlock(3, h_fields, z_fields, out_activation)
 
     return WaveEncoder(down1, down2, down3)
 end

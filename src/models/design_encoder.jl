@@ -1,3 +1,5 @@
+export DesignEncoder
+
 struct DesignEncoder
     dense1::Dense
     dense2::Dense

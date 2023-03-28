@@ -9,10 +9,12 @@ using BSON
 
 using Waves
 
-include("design_encoder.jl")
-
 function total_energy(sol::WaveSol)
     return sum.(energy.(displacement.(sol.u)))
+end
+
+function total_scattered_energy(s::WaveEnvState)
+    return total_energy(s.sol.scattered)
 end
 
 struct SigmaControlModel
@@ -46,6 +48,10 @@ function (model::SigmaControlModel)(s::WaveEnvState, action::AbstractDesign)
         )
 
     return vec(model.mlp(Flux.flatten(latents)))
+end
+
+function Waves.reset!(model::SigmaControlModel)
+    Waves.reset!(model.z_dynamics)
 end
 
 function plot_predicted_sigma!(data::Vector{Tuple{WaveEnvState{Scatterers}, Scatterers}}, model::SigmaControlModel; path::String)
@@ -83,14 +89,38 @@ function plot_loss!(loss::Vector{Float32}; path::String)
     save(path, fig)
 end
 
-data1 = load_episode_data.(readdir("data/episode1", join = true))
-data2 = load_episode_data.(readdir("data/episode2", join = true))
-data3 = load_episode_data.(readdir("data/episode3", join = true))
-data4 = load_episode_data.(readdir("data/episode4", join = true))
-data = vcat(data1, data2, data3, data4)
+struct LatentSeparation
+    base::SigmaControlModel
+    incident_encoder::WaveEncoder
+end
 
-val_data = load_episode_data.(readdir("data/episode5", join = true))
-test_data = load_episode_data.(readdir("data/episode6", join = true))
+Flux.@functor LatentSeparation
+
+function (model::LatentSeparation)(s::WaveEnvState, a::AbstractDesign)
+
+    z_total = hcat(model.base.wave_encoder(s.sol.total), model.base.design_encoder(s.design, a))
+    z_incident = model.incident_encoder(s.sol.incident)
+
+    total_latents = cat(integrate(model.base.z_cell, z_total, model.base.z_dynamics, length(s.sol.total) - 1)..., dims = 3)
+    incident_latents = cat(integrate(model.base.z_cell, z_incident, model.base.z_dynamics, length(s.sol.incident) - 1)..., dims = 3)
+
+    scattered_latents = total_latents .- incident_latents
+    return vec(model.base.mlp(Flux.flatten(scattered_latents)))
+end
+
+function Waves.reset!(model::LatentSeparation)
+    Waves.reset!(model.base)
+end
+
+data1 = load_episode_data.(readdir("data/episode1", join = true))
+# data2 = load_episode_data.(readdir("data/episode2", join = true))
+# data3 = load_episode_data.(readdir("data/episode3", join = true))
+# data4 = load_episode_data.(readdir("data/episode4", join = true))
+# data = vcat(data1, data2, data3, data4)
+data = data1
+
+# val_data = load_episode_data.(readdir("data/episode5", join = true))
+# test_data = load_episode_data.(readdir("data/episode6", join = true))
 
 s, a = first(data)
 
@@ -120,7 +150,12 @@ mlp = Chain(
     Dense(h_size, 1)
     )
 
-model = SigmaControlModel(wave_encoder, design_encoder, cell, dynamics, mlp) |> gpu
+model = LatentSeparation(
+    SigmaControlModel(wave_encoder, design_encoder, cell, dynamics, mlp),
+    WaveEncoder(fields, h_fields, z_fields + 1, activation, out_activation = sigmoid)
+    ) |> gpu
+
+# model(s, a)
 
 opt = Adam(0.0001)
 ps = Flux.params(model)
@@ -137,14 +172,14 @@ for i in 1:50
 
     for x in train_loader
 
-        s, a = x[1]
-        sol_scattered = gpu(s.sol.scattered)
-        sigma_true = gpu(total_energy(sol_scattered)[2:end])
+        s, a = gpu(x[1])
+        sigma_true = gpu(total_scattered_energy(s)[2:end])
 
-        Waves.reset!(model.z_dynamics)
+        Waves.reset!(model)
 
         gs = Flux.gradient(ps) do
-            loss = mse(sigma_true, model(gpu(s.sol.total), gpu(s.design), gpu(a)))
+            # loss = mse(sigma_true, model(gpu(s.sol.total), gpu(s.design), gpu(a)))
+            loss = mse(sigma_true, model(s, a))
             Flux.ignore(() -> push!(epoch_loss, loss))
             return loss
         end
@@ -155,11 +190,11 @@ for i in 1:50
     push!(train_loss, mean(epoch_loss))
     println("Loss: $(train_loss[end])")
 
-    plot_loss!(train_loss, path = joinpath(path, "train_loss.png"))
+    # plot_loss!(train_loss, path = joinpath(path, "train_loss.png"))
     # plot_predicted_sigma!(data, model, path = joinpath(path, "train_sigma.png"))
     
-    plot_predicted_sigma!(val_data, model, path = joinpath(path, "val_sigma.png"))
-    plot_predicted_sigma!(test_data, model, path = joinpath(path, "test_sigma.png"))
+    # plot_predicted_sigma!(val_data, model, path = joinpath(path, "val_sigma.png"))
+    # plot_predicted_sigma!(test_data, model, path = joinpath(path, "test_sigma.png"))
     BSON.@save joinpath(path, "model.bson")
 end
 

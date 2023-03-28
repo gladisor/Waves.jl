@@ -43,6 +43,7 @@ include("data.jl")
 include("models/blocks.jl")
 include("models/wave_encoder.jl")
 include("models/wave_decoder.jl")
+include("models/design_encoder.jl")
 
 include("reinforcement_learning/hooks.jl")
 include("reinforcement_learning/random_policy.jl")

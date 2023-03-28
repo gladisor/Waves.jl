@@ -23,6 +23,9 @@ mutable struct WaveDynamics <: AbstractDynamics
     dt::Float32
 end
 
+Flux.@functor WaveDynamics
+Flux.trainable(dynamics::WaveDynamics) = ()
+
 function WaveDynamics(;
         dim::AbstractDim, 
         pml_width::Float32, 
@@ -39,6 +42,7 @@ function WaveDynamics(;
 
     return WaveDynamics(dim, g, grad, design, pml, ambient_speed, 0, dt)
 end
+
 
 """
 For resetting the time of the dynamics

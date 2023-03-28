@@ -130,6 +130,7 @@ struct FEMIntegrator
 end
 
 Flux.@functor FEMIntegrator
+Flux.trainable(iter::FEMIntegrator) = ()
 
 function FEMIntegrator(elements::Int, steps::Int; grid_size::Float32, dynamics_kwargs...)
     cell = WaveCell(nonlinear_latent_wave, runge_kutta)

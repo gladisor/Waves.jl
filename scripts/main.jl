@@ -80,6 +80,7 @@ s, a = first(data)
 fields = 6
 elements = 256
 h_fields = 64
+z_fields = 2
 h_size = 1024
 design_size = 2 * length(vec(s.design))
 activation = tanh
@@ -111,7 +112,7 @@ train_loader = DataLoader(data, shuffle = true)
 train_loss = Float32[]
 test_loss = Float32[]
 
-for i in 1:50
+for i in 1:100
     epoch_loss = Float32[]
 
     for x in train_loader

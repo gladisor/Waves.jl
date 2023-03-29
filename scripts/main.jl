@@ -84,17 +84,28 @@ h_size = 1024
 design_size = 2 * length(vec(s.design))
 activation = tanh
 
+# model = SigmaControlModel(
+#     WaveEncoder(fields, h_fields, 2, activation),
+#     DesignEncoder(design_size, h_size, elements, activation),
+#     FEMIntegrator(elements, 100; grid_size = 4.0f0, dynamics_kwargs...),
+#     MLP(3 * elements, h_size, 2, 1, activation)) |> gpu
 
-model = SigmaControlModel(
-    WaveEncoder(fields, h_fields, 2, activation),
-    DesignEncoder(design_size, h_size, elements, activation),
-    FEMIntegrator(elements, 100; grid_size = 4.0f0, dynamics_kwargs...),
-    MLP(3 * elements, h_size, 2, 1, activation)) |> gpu
+
+total_encoder = WaveEncoder(fields, h_fields, z_fields, activation)
+design_encoder = DesignEncoder(design_size, h_size, elements, activation)
+total_iter = FEMIntegrator(elements, 100; grid_size = 4.0f0, dynamics_kwargs...)
+incident_encoder = WaveEncoder(fields, h_fields, z_fields + 1, activation)
+incident_iter = FEMIntegrator(elements, 100; grid_size = 4.0f0, dynamics_kwargs...)
+incident_mlp = Chain(Dense(256, 256), z -> hcat(tanh.(z[:, [1, 2]]), sigmoid(z[:, 3])))
+
+mlp = MLP(3 * elements, h_size, 2, 1, activation)
+
+model = LatentSigmaSeparationModel(total_encoder, incident_encoder, design_encoder, total_iter, incident_iter, incident_mlp, mlp) |> gpu
 
 ps = Flux.params(model)
 opt = Adam(0.0001)
 
-path = mkpath("results/tanh/")
+path = mkpath("results/latent_separation/")
 train_loader = DataLoader(data, shuffle = true)
 
 train_loss = Float32[]

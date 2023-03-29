@@ -52,7 +52,25 @@ function (model::SigmaControlModel)(s::WaveEnvState, action::AbstractDesign)
 end
 
 struct LatentSigmaSeparationModel
-    total_model::SigmaControlModel
+    total_encoder::WaveEncoder
     incident_encoder::WaveEncoder
+    design_encoder::DesignEncoder
+
+    total_iter::FEMIntegrator
     incident_iter::FEMIntegrator
+    incident_mlp::Chain
+
+    mlp::MLP
+end
+
+Flux.@functor LatentSigmaSeparationModel
+
+function (model::LatentSigmaSeparationModel)(s::WaveEnvState, a::AbstractDesign)
+    z_total = hcat(model.total_encoder(s.sol.total), model.design_encoder(s.design, a))
+    z_incident = model.incident_mlp(model.incident_encoder(s.sol.incident))
+
+    total_latents, incident_latents = model.total_iter(z_total), model.incident_iter(z_incident)
+    scattered_latents = total_latents .- incident_latents
+
+    return scattered_latents |> Flux.flatten |> model.mlp
 end

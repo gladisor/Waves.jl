@@ -27,8 +27,6 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-# @time train_data = generate_episode_data(policy, env, 1)
-# @time test_data = generate_episode_data(policy, env, 1)
 
 for i in 1:10
     @time data = generate_episode_data(policy, env, 1)

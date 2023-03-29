@@ -75,24 +75,26 @@ val_episode3 = load_episode_data.(readdir("data/episode10", join = true))
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
+s, a = first(data)
+
 fields = 6
 elements = 256
 h_fields = 64
 h_size = 1024
-design_size = 2 * length(vec(data[1][1].design))
+design_size = 2 * length(vec(s.design))
+activation = tanh
 
-s, a = first(data)
 
 model = SigmaControlModel(
-    WaveEncoder(fields, h_fields, 2, relu),
-    DesignEncoder(design_size, h_size, elements, relu),
+    WaveEncoder(fields, h_fields, 2, activation),
+    DesignEncoder(design_size, h_size, elements, activation),
     FEMIntegrator(elements, 100; grid_size = 4.0f0, dynamics_kwargs...),
-    MLP(3 * elements, h_size, 2, 1, relu)) |> gpu
+    MLP(3 * elements, h_size, 2, 1, activation)) |> gpu
 
 ps = Flux.params(model)
 opt = Adam(0.0001)
 
-path = mkpath("results/test/")
+path = mkpath("results/tanh/")
 train_loader = DataLoader(data, shuffle = true)
 
 train_loss = Float32[]

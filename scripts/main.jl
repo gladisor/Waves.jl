@@ -61,13 +61,17 @@ end
 data1 = load_episode_data.(readdir("data/episode1", join = true))
 data2 = load_episode_data.(readdir("data/episode2", join = true))
 data3 = load_episode_data.(readdir("data/episode3", join = true))
-data = vcat(data1, data2, data3)
-
 data4 = load_episode_data.(readdir("data/episode4", join = true))
 data5 = load_episode_data.(readdir("data/episode5", join = true))
-test_data = vcat(data4, data5)
+data = vcat(data1, data2, data3, data4, data5)
 
-val_episode1 = load_episode_data.(readdir("data/episode6", join = true))
+data6 = load_episode_data.(readdir("data/episode6", join = true))
+data7 = load_episode_data.(readdir("data/episode7", join = true))
+test_data = vcat(data6, data7)
+
+val_episode1 = load_episode_data.(readdir("data/episode8", join = true))
+val_episode2 = load_episode_data.(readdir("data/episode9", join = true))
+val_episode3 = load_episode_data.(readdir("data/episode10", join = true))
 
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
 
@@ -82,13 +86,13 @@ s, a = first(data)
 model = SigmaControlModel(
     WaveEncoder(fields, h_fields, 2, relu),
     DesignEncoder(design_size, h_size, elements, relu),
-    FEMIntegrator(elements, 100; grid_size = 1.0f0, dynamics_kwargs...),
+    FEMIntegrator(elements, 100; grid_size = 4.0f0, dynamics_kwargs...),
     MLP(3 * elements, h_size, 2, 1, relu)) |> gpu
 
 ps = Flux.params(model)
 opt = Adam(0.0001)
 
-path = mkpath("results/test_femintegrator/")
+path = mkpath("results/test/")
 train_loader = DataLoader(data, shuffle = true)
 
 train_loss = Float32[]
@@ -103,7 +107,7 @@ for i in 1:100
         sigma_true = gpu(total_scattered_energy(s)[2:end])
 
         loss, gs = Flux.withgradient(ps) do
-            return mse(sigma_true, model(s, a))
+            return huber_loss(sigma_true, model(s, a))
         end
 
         Flux.Optimise.update!(opt, ps, gs)
@@ -118,12 +122,19 @@ for i in 1:100
         s, a = gpu.(x)
         sigma_true = gpu(total_scattered_energy(s)[2:end])
         sigma_pred = model(s, a)
-        loss = mse(sigma_true, sigma_pred)
+        loss = huber_loss(sigma_true, sigma_pred)
         push!(epoch_loss, loss)
     end
 
     push!(test_loss, mean(epoch_loss))
 
     println("Train Loss: $(train_loss[end]), Test Loss: $(test_loss[end])")
-    plot_predicted_sigma!(val_episode1, model, path = joinpath(path, "train_sigma.png"))
+
+    if i % 5 == 0
+        plot_loss!(train_loss, test_loss, path = joinpath(path, "loss.png"))
+        plot_predicted_sigma!(val_episode1, model, path = joinpath(path, "val_episode1.png"))
+        plot_predicted_sigma!(val_episode2, model, path = joinpath(path, "val_episode2.png"))
+        plot_predicted_sigma!(val_episode3, model, path = joinpath(path, "val_episode3.png"))
+        BSON.@save joinpath(path, "model.bson") model
+    end
 end

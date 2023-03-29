@@ -27,11 +27,11 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-@time train_data = generate_episode_data(policy, env, 1)
-@time test_data = generate_episode_data(policy, env, 1)
+# @time train_data = generate_episode_data(policy, env, 1)
+# @time test_data = generate_episode_data(policy, env, 1)
 
-train_path = mkpath("data/episode5")
-save_episode_data!(train_data..., path = train_path)
-
-test_path = mkpath("data/episode6")
-save_episode_data!(test_data..., path = test_path)
+for i in 1:10
+    @time data = generate_episode_data(policy, env, 1)
+    data_path = mkpath("data/episode$i")
+    save_episode_data!(data..., path = data_path)
+end

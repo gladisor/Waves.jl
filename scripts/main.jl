@@ -100,7 +100,7 @@ train_loader = DataLoader(data, shuffle = true)
 train_loss = Float32[]
 test_loss = Float32[]
 
-for i in 1:100
+for i in 1:50
     epoch_loss = Float32[]
 
     for x in train_loader

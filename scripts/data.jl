@@ -1,6 +1,7 @@
 using ReinforcementLearning
 using JLD2
 using CairoMakie
+using Flux
 
 using Waves
 
@@ -26,24 +27,38 @@ env = gpu(WaveEnv(
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-# traj = episode_trajectory(env)
-# agent = Agent(policy, traj)
-# @time run(agent, env, StopWhenDone())
 
-# sol_tot = WaveSol([s.sol.total for s in traj.traces.state]...)
-# sol_inc = WaveSol([s.sol.incident for s in traj.traces.state]...)
-# sol_sc = sol_tot - sol_inc
+function Waves.DesignTrajectory(states::Vector{WaveEnvState}, actions::Vector{ <: AbstractDesign})
+    designs = DesignTrajectory[]
 
-# sc_energy = sol_sc.u .|> displacement .|> energy .|> sum
+    for (s, a) ∈ zip(states, actions)
+        interp = DesignInterpolator(s.design, a, s.sol.total.t[1], s.sol.total.t[end])
+        dt = DesignTrajectory(interp, length(s.sol.total)-1)
+        push!(designs, dt)
+    end
 
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, sc_energy, label = "Scattered")
-# save("energy_elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps).png", fig)
-# @time render!(traj, path = "vid_elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps).mp4")
+    return DesignTrajectory(designs...)
+end
+
+name = "elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps)"
 
 for i in 1:10
     @time data = generate_episode_data(policy, env, 1)
-    data_path = mkpath("data/elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps)/episode$i")
-    save_episode_data!(data..., path = data_path)
+    data_path = mkpath(joinpath("data", name, "episode$i"))
+
+    states, actions = data
+    save_episode_data!(states, actions, path = data_path)
+
+    sol_tot = WaveSol([s.sol.total for s in states]...)
+    sol_inc = WaveSol([s.sol.incident for s in states]...)
+    sol_sc = sol_tot - sol_inc
+    sc_energy = sol_sc.u .|> displacement .|> energy .|> sum
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, sc_energy, label = "Scattered")
+    save(joinpath(data_path, "energy.png"), fig)
+
+    designs = DesignTrajectory(states, actions)
+    render!(sol_tot, designs, path =  joinpath(data_path, "vid.mp4"))
 end

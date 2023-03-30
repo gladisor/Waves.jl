@@ -9,7 +9,7 @@ design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 0.20f0, 
 config = random_radii_scatterer_formation(;design_kwargs...)
 
 grid_size = 4.0f0
-elements = 128
+elements = 256
 fields = 6
 dim = TwoDim(grid_size, elements)
 dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
@@ -21,15 +21,17 @@ env = gpu(WaveEnv(
     design = config,
     random_design = () -> random_radii_scatterer_formation(;design_kwargs...),
     space = radii_design_space(config, 0.2f0),
-    design_steps = 100,
+    design_steps = 20,
     tmax = 10.0f0;
     dim = dim,
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
 
-for i in 1:10
-    @time data = generate_episode_data(policy, env, 1)
-    data_path = mkpath("data/episode$i")
-    save_episode_data!(data..., path = data_path)
-end
+render!(policy, env, path = "vid_$elements.mp4")
+
+# for i in 1:10
+#     @time data = generate_episode_data(policy, env, 1)
+#     data_path = mkpath("data/episode$i")
+#     save_episode_data!(data..., path = data_path)
+# end

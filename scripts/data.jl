@@ -21,7 +21,7 @@ design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 3100.0f0
 config = random_radii_scatterer_formation(;design_kwargs...)
 
 grid_size = 5.0f0
-elements = 256
+elements = 512
 fields = 6
 dim = TwoDim(grid_size, elements)
 

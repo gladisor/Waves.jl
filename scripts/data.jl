@@ -5,18 +5,6 @@ using Flux
 
 using Waves
 
-function Waves.DesignTrajectory(states::Vector{WaveEnvState}, actions::Vector{ <: AbstractDesign})
-    designs = DesignTrajectory[]
-
-    for (s, a) ∈ zip(states, actions)
-        interp = DesignInterpolator(s.design, a, s.sol.total.t[1], s.sol.total.t[end])
-        dt = DesignTrajectory(interp, length(s.sol.total)-1)
-        push!(designs, dt)
-    end
-
-    return DesignTrajectory(designs...)
-end
-
 design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 3100.0f0, :center => [0.0f0, 0.0f0])
 config = random_radii_scatterer_formation(;design_kwargs...)
 
@@ -27,12 +15,10 @@ dim = TwoDim(grid_size, elements)
 
 dt = 0.00001f0
 dynamics_kwargs = Dict(
-    :pml_width => 2.0f0, 
-    :pml_scale => 70000.0f0, 
+    :pml_width => 1.0f0, 
+    :pml_scale => 200000.0f0, 
     :ambient_speed => 1500.0f0,
     :dt => dt)
-
-n = 1000
 
 env = gpu(WaveEnv(
     initial_condition = Pulse(dim, -2.0f0, 0.0f0, 10.0f0),
@@ -42,16 +28,12 @@ env = gpu(WaveEnv(
     random_design = () -> random_radii_scatterer_formation(;design_kwargs...),
     space = radii_design_space(config, 0.05f0),
     design_steps = 20,
-    tmax = dt * n;
+    tmax = 0.01f0;
     dim = dim,
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-
-@time states, actions = generate_episode_data(policy, env, 1)
-sol_tot = WaveSol([s.sol.total for s in states]...)
-sol_tot = WaveSol(sol_tot.dim, collect(range(0.0f0, 10.0f0, n+1)), sol_tot.u)
-@time render!(sol_tot, path = "vid_$elements.mp4")
+@time render!(policy, env, path = "vid_$elements.mp4", tmax = 5.0f0)
 
 # name = "elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps)"
 

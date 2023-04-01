@@ -1,7 +1,7 @@
 export Scatterers, random_pos, radii_design_space, scatterer_formation, random_radii_scatterer_formation
 
-const MIN_RADII = 0.2f0
-const MAX_RADII = 0.5f0
+const MIN_RADII = 0.1f0
+const MAX_RADII = 1.0f0
 const MIN_SPEED = 0.0f0
 
 struct Scatterers <: AbstractDesign
@@ -78,13 +78,13 @@ function CairoMakie.mesh!(ax::Axis, config::Scatterers)
     end
 end
 
-function Flux.gpu(config::Scatterers)
-    return Scatterers(gpu(config.pos), gpu(config.r), gpu(config.c))
-end
+# function Flux.gpu(config::Scatterers)
+#     return Scatterers(gpu(config.pos), gpu(config.r), gpu(config.c))
+# end
 
-function Flux.cpu(config::Scatterers)
-    return Scatterers(cpu(config.pos), cpu(config.r), cpu(config.c))
-end
+# function Flux.cpu(config::Scatterers)
+#     return Scatterers(cpu(config.pos), cpu(config.r), cpu(config.c))
+# end
 
 function design_space(config::Scatterers, scale::Float32)
     pos_low = ones(Float32, size(config.pos)) * -scale

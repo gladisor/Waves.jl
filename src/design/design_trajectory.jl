@@ -30,6 +30,18 @@ function DesignTrajectory(design::DesignInterpolator, n::Int)
     return DesignTrajectory(traj)
 end
 
+function DesignTrajectory(states::Vector{WaveEnvState}, actions::Vector{ <: AbstractDesign})
+    designs = DesignTrajectory[]
+
+    for (s, a) ∈ zip(states, actions)
+        interp = DesignInterpolator(s.design, a, s.sol.total.t[1], s.sol.total.t[end])
+        dt = DesignTrajectory(interp, length(s.sol.total)-1)
+        push!(designs, dt)
+    end
+
+    return DesignTrajectory(designs...)
+end
+
 function Base.length(dt::DesignTrajectory)
     return length(dt.traj)
 end

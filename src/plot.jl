@@ -42,7 +42,8 @@ Renders an animation of a wave solution.
 """
 function render!(
         sol::WaveSol, 
-        design::Union{DesignTrajectory, Nothing} = nothing; path::String, fps::Int = 24)
+        design::Union{DesignTrajectory, Nothing} = nothing; 
+        path::String, tmax::Float32 = 5.0f0)
 
     p = WavePlot(sol.dim)
 
@@ -52,10 +53,12 @@ function render!(
         design_interp = linear_interpolation(sol.t, design.traj)
     end
 
-    n_frames = Int(round(fps * sol.t[end]))
+    # n_frames = Int(round(fps * sol.t[end]))
+
+    n_frames = Int(round(24 * tmax))
     t = collect(range(sol.t[1], sol.t[end], n_frames))
 
-    record(p.fig, path, 1:n_frames, framerate = fps) do i
+    record(p.fig, path, 1:n_frames) do i
 
         empty!(p.ax)
         plot_wave!(p, sol.dim, wave_interp(t[i]))
@@ -66,7 +69,7 @@ function render!(
     end
 end
 
-function Waves.render!(traj::Trajectory; path::String)
+function Waves.render!(traj::Trajectory; kwargs...)
     states = traj.traces.state[2:end]
     actions = traj.traces.action[1:end-1]
 
@@ -81,14 +84,14 @@ function Waves.render!(traj::Trajectory; path::String)
     sol = WaveSol([s.sol.total for s ∈ states]...)
     design = DesignTrajectory(design...)
 
-    render!(sol, design, path =  path)
+    render!(sol, design; kwargs...)
 end
 
-function render!(policy::AbstractPolicy, env::WaveEnv; path::String)
+function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     traj = episode_trajectory(env)
     agent = Agent(policy, traj)
     run(agent, env, StopWhenDone())
-    render!(traj, path = path)
+    render!(traj; kwargs...)
 end
 
 function plot_comparison!(dim, y_true, y_pred; path::String)

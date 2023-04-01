@@ -8,7 +8,7 @@ using Waves
 design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 3100.0f0, :center => [0.0f0, 0.0f0])
 config = random_radii_scatterer_formation(;design_kwargs...)
 
-grid_size = 5.0f0
+grid_size = 10.0f0
 elements = 512
 fields = 6
 dim = TwoDim(grid_size, elements)
@@ -28,32 +28,34 @@ env = gpu(WaveEnv(
     random_design = () -> random_radii_scatterer_formation(;design_kwargs...),
     space = radii_design_space(config, 0.05f0),
     design_steps = 20,
-    tmax = 0.007f0;
+    tmax = 0.014f0
+    # tmax = 0.007f0
+    ;
     dim = dim,
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
-# @time render!(policy, env, path = "vid_$elements.mp4", tmax = 5.0f0)
+@time render!(policy, env, path = "vid_$elements.mp4", seconds = 2.0f0)
 
-name = "elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps)"
+# name = "elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps)"
 
-for i in 1:1
-    @time data = generate_episode_data(policy, env, 1)
-    data_path = mkpath(joinpath("data", name, "episode$i"))
+# for i in 1:1
+#     @time data = generate_episode_data(policy, env, 1)
+#     data_path = mkpath(joinpath("data", name, "episode$i"))
 
-    states, actions = data
-    save_episode_data!(states, actions, path = data_path)
+#     states, actions = data
+#     save_episode_data!(states, actions, path = data_path)
 
-    sol_tot = WaveSol([s.sol.total for s in states]...)
-    sol_inc = WaveSol([s.sol.incident for s in states]...)
-    sol_sc = sol_tot - sol_inc
-    sc_energy = sol_sc.u .|> displacement .|> energy .|> sum
+#     sol_tot = WaveSol([s.sol.total for s in states]...)
+#     sol_inc = WaveSol([s.sol.incident for s in states]...)
+#     sol_sc = sol_tot - sol_inc
+#     sc_energy = sol_sc.u .|> displacement .|> energy .|> sum
 
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, sc_energy, label = "Scattered")
-    save(joinpath(data_path, "energy.png"), fig)
+#     fig = Figure()
+#     ax = Axis(fig[1, 1])
+#     lines!(ax, sc_energy, label = "Scattered")
+#     save(joinpath(data_path, "energy.png"), fig)
 
-    designs = DesignTrajectory(states, actions)
-    render!(sol_tot, designs, path =  joinpath(data_path, "vid.mp4"), tmax = 5.0f0)
-end
+#     designs = DesignTrajectory(states, actions)
+#     render!(sol_tot, designs, path =  joinpath(data_path, "vid.mp4"), tmax = 5.0f0)
+# end

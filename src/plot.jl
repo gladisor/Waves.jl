@@ -43,7 +43,7 @@ Renders an animation of a wave solution.
 function render!(
         sol::WaveSol, 
         design::Union{DesignTrajectory, Nothing} = nothing; 
-        path::String, tmax::Float32 = 5.0f0)
+        path::String, seconds::Float32 = 5.0f0)
 
     p = WavePlot(sol.dim)
 
@@ -55,7 +55,7 @@ function render!(
 
     # n_frames = Int(round(fps * sol.t[end]))
 
-    n_frames = Int(round(24 * tmax))
+    n_frames = Int(round(24 * seconds))
     t = collect(range(sol.t[1], sol.t[end], n_frames))
 
     record(p.fig, path, 1:n_frames) do i

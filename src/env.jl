@@ -92,6 +92,18 @@ function Base.display(s::WaveEnvState)
     println(typeof(s))
 end
 
+function DesignTrajectory(states::Vector{WaveEnvState}, actions::Vector{ <: AbstractDesign})
+    designs = DesignTrajectory[]
+
+    for (s, a) ∈ zip(states, actions)
+        interp = DesignInterpolator(s.design, a, s.sol.total.t[1], s.sol.total.t[end])
+        dt = DesignTrajectory(interp, length(s.sol.total)-1)
+        push!(designs, dt)
+    end
+
+    return DesignTrajectory(designs...)
+end
+
 """
 Retreives the state of the system
 """

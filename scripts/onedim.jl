@@ -99,15 +99,15 @@ end
 
 elements = 512
 t0 = 0.0f0
-dt = 0.00001f0
-steps = 1000
-ambient_speed = 1500.0f0
+dt = 0.00002f0
+steps = 500
+ambient_speed = 1531.0f0
 pml_scale = ambient_speed * 100f0
 
 dim = TwoDim(10.0f0, elements)
 pulse = Pulse(dim, -4.0f0, 0.0f0, 10.0f0)
 u0 = pulse(build_wave(dim, fields = 6)) |> gpu
-design = DesignInterpolator(Scatterers([-2.0f0 0.0f0], [1.0f0], [3100.0f0])) |> gpu
+design = DesignInterpolator(Scatterers([-2.0f0 0.0f0], [1.0f0], [2120.0f0])) |> gpu
 g = grid(dim)
 C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
@@ -118,6 +118,8 @@ ps = [design, g, ambient_speed, grad, pml] |> gpu
 iter = Integrator(runge_kutta, split_wave_pml, dt, ps)
 
 @time u = integrate(iter, u0, t0, dt, steps)
+@time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+@time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
 @time render!(sol, path = "vid.mp4", seconds = 1.0f0)
 

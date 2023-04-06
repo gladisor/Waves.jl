@@ -79,6 +79,8 @@ struct Integrator
     parameters::Vector
 end
 
+Flux.@functor Integrator
+
 function (iter::Integrator)(u::AbstractArray{Float32}, t::Float32, dt::Float32)
     return iter.integration_function(iter.ode_function, u, t, dt, iter.parameters...)
 end
@@ -98,32 +100,26 @@ end
 elements = 512
 t0 = 0.0f0
 dt = 0.00001f0
-steps = 500
+steps = 1000
 ambient_speed = 1500.0f0
-# pml_scale = 210000.0f0
-pml_scale = 150000.0f0
-# pml_scale = 100000.0f0
-# pml_scale = 70000.0f0
+pml_scale = ambient_speed * 100f0
 
 dim = TwoDim(10.0f0, elements)
 pulse = Pulse(dim, -4.0f0, 0.0f0, 10.0f0)
 u0 = pulse(build_wave(dim, fields = 6)) |> gpu
-design = DesignInterpolator(Scatterers([-2.0f0 0.0f0], [0.5f0], [3100.0f0]))
-
+design = DesignInterpolator(Scatterers([-2.0f0 0.0f0], [1.0f0], [3100.0f0])) |> gpu
+g = grid(dim)
 C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
 pml = build_pml(dim, 1.0f0, pml_scale)
-# ps = [C, grad, pml]
-ps = [design, grid(dim), ambient_speed, grad, pml] |> gpu
+
+ps = [design, g, ambient_speed, grad, pml] |> gpu
 
 iter = Integrator(runge_kutta, split_wave_pml, dt, ps)
+
 @time u = integrate(iter, u0, t0, dt, steps)
-@time u = integrate(iter,  u[:, :, :, end], t0, dt, steps)
-@time u = integrate(iter,  u[:, :, :, end], t0, dt, steps)
-@time u = integrate(iter,  u[:, :, :, end], t0, dt, steps)
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
 @time render!(sol, path = "vid.mp4", seconds = 1.0f0)
-
 
 # model = Chain(Flux.flatten, Dense(2 * elements, 1), vec)
 # y = sin.(2pi * range(0.0, 1.0, steps + 1))

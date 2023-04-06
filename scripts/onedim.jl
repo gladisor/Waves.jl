@@ -99,8 +99,8 @@ end
 
 elements = 512
 t0 = 0.0f0
-dt = 0.00002f0
-steps = 500
+dt = 0.00001f0
+steps = 1000
 ambient_speed = 1531.0f0
 pml_scale = ambient_speed * 100f0
 
@@ -118,8 +118,8 @@ ps = [design, g, ambient_speed, grad, pml] |> gpu
 iter = Integrator(runge_kutta, split_wave_pml, dt, ps)
 
 @time u = integrate(iter, u0, t0, dt, steps)
-@time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
-@time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+# @time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+# @time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
 @time render!(sol, path = "vid.mp4", seconds = 1.0f0)
 

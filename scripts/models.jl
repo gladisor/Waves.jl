@@ -9,7 +9,7 @@ Flux.@functor FEMIntegrator
 Flux.trainable(iter::FEMIntegrator) = ()
 
 function FEMIntegrator(elements::Int, steps::Int; grid_size::Float32, dynamics_kwargs...)
-    cell = WaveCell(nonlinear_latent_wave, runge_kutta)
+    cell = WaveCell(latent_wave, runge_kutta)
     dynamics = WaveDynamics(dim = OneDim(grid_size, elements); dynamics_kwargs...)
     return FEMIntegrator(cell, dynamics, steps)
 end

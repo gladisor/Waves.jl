@@ -1,4 +1,4 @@
-export build_wave, runge_kutta, split_wave_pml, nonlinear_latent_wave
+export build_wave, runge_kutta, split_wave_pml, latent_wave
 
 function build_wave(dim::AbstractDim; fields::Int)
     return zeros(Float32, size(dim)..., fields)
@@ -69,7 +69,7 @@ function split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, dyn::WaveDy
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-function nonlinear_latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
+function latent_wave(wave::AbstractMatrix{Float32}, t::Float32, dynamics::WaveDynamics)
     U = wave[:, 1]
     V = wave[:, 2]
     b = wave[:, 3]

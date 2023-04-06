@@ -8,11 +8,12 @@ using Waves
 design_kwargs = Dict(:width => 1, :hight => 1, :spacing => 1.0f0, :c => 3100.0f0, :center => [0.0f0, 0.0f0])
 config = random_radii_scatterer_formation(;design_kwargs...)
 
-grid_size = 10.0f0
-elements = 512
+grid_size = 5.0f0
+elements = 256
 fields = 6
 dim = TwoDim(grid_size, elements)
 
+steps = 1000
 dt = 0.00001f0
 dynamics_kwargs = Dict(
     :pml_width => 1.0f0, 
@@ -28,17 +29,15 @@ env = gpu(WaveEnv(
     random_design = () -> random_radii_scatterer_formation(;design_kwargs...),
     space = radii_design_space(config, 0.05f0),
     design_steps = 20,
-    tmax = 0.014f0
-    # tmax = 0.007f0
-    ;
+    tmax = dt * steps;
     dim = dim,
     dynamics_kwargs...))
 
 policy = RandomDesignPolicy(action_space(env))
 @time render!(policy, env, path = "vid_$elements.mp4", seconds = 2.0f0)
-
 # name = "elements=$(elements)_speed=$(env.total_dynamics.ambient_speed)_design_steps=$(env.design_steps)"
-
+# @time states, actions = generate_episode_data(policy, env, 1)
+;
 # for i in 1:1
 #     @time data = generate_episode_data(policy, env, 1)
 #     data_path = mkpath(joinpath("data", name, "episode$i"))

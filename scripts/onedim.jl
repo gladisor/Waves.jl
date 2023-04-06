@@ -46,8 +46,16 @@ function Waves.split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, C::Ab
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-function Waves.split_wave_pml(wave::AbstractArray{Float32, 3}, t::Float32, design::DesignInterpolator,  ∇::AbstractMatrix{Float32}, pml::AbstractMatrix{Float32})
-    C = design(t)
+function Waves.split_wave_pml(
+        wave::AbstractArray{Float32, 3}, 
+        t::Float32, 
+        design::DesignInterpolator, 
+        g::AbstractArray{Float32, 3}, 
+        ambient_speed::Float32, 
+        ∇::AbstractMatrix{Float32}, 
+        pml::AbstractMatrix{Float32})
+
+    C = Waves.speed(design(t), g, ambient_speed)
     return split_wave_pml(wave, t, C, ∇, pml)
 end
 
@@ -87,25 +95,35 @@ function Waves.integrate(iter::Integrator, u0::AbstractArray{Float32}, t0::Float
     return u
 end
 
-elements = 256
-dim = TwoDim(5.0f0, elements)
-pulse = Pulse(dim, 0.0f0, 0.0f0, 10.0f0)
-u0 = pulse(build_wave(dim, fields = 6))
-design = DesignInterpolator(Scatterers([-3.0f0 0.0f0], [0.5f0], [3100.0f0]))
-
-C = ones(Float32, size(dim)...) * 1500.0f0
-grad = build_gradient(dim)
-pml = build_pml(dim, 1.0f0, 210000.0f0)
-ps = [C, grad, pml]
-
+elements = 512
 t0 = 0.0f0
 dt = 0.00001f0
-steps = 100
+steps = 500
+ambient_speed = 1500.0f0
+# pml_scale = 210000.0f0
+pml_scale = 150000.0f0
+# pml_scale = 100000.0f0
+# pml_scale = 70000.0f0
+
+dim = TwoDim(10.0f0, elements)
+pulse = Pulse(dim, -4.0f0, 0.0f0, 10.0f0)
+u0 = pulse(build_wave(dim, fields = 6)) |> gpu
+design = DesignInterpolator(Scatterers([-2.0f0 0.0f0], [0.5f0], [3100.0f0]))
+
+C = ones(Float32, size(dim)...) * ambient_speed
+grad = build_gradient(dim)
+pml = build_pml(dim, 1.0f0, pml_scale)
+# ps = [C, grad, pml]
+ps = [design, grid(dim), ambient_speed, grad, pml] |> gpu
 
 iter = Integrator(runge_kutta, split_wave_pml, dt, ps)
-u = integrate(iter, u0, t0, dt, steps)
-sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u))
-render!(sol, path = "vid.mp4", seconds = 1.0f0)
+@time u = integrate(iter, u0, t0, dt, steps)
+@time u = integrate(iter,  u[:, :, :, end], t0, dt, steps)
+@time u = integrate(iter,  u[:, :, :, end], t0, dt, steps)
+@time u = integrate(iter,  u[:, :, :, end], t0, dt, steps)
+sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
+@time render!(sol, path = "vid.mp4", seconds = 1.0f0)
+
 
 # model = Chain(Flux.flatten, Dense(2 * elements, 1), vec)
 # y = sin.(2pi * range(0.0, 1.0, steps + 1))

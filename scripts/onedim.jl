@@ -97,54 +97,56 @@ function Waves.integrate(iter::Integrator, u0::AbstractArray{Float32}, t0::Float
     return u
 end
 
-elements = 256
+elements = 512
 t0 = 0.0f0
 dt = 0.00001f0
-steps = 1000
+steps = 500
 ambient_speed = 1531.0f0
-pml_scale = ambient_speed * 10f0
+pml_scale = ambient_speed * 100f0
 
-dim = TwoDim(10.0f0, elements)
+dim = TwoDim(20.0f0, elements)
 pulse = Pulse(dim, -4.0f0, 0.0f0, 10.0f0)
 u0 = pulse(build_wave(dim, fields = 6)) |> gpu
 design = DesignInterpolator(Scatterers([0.0f0 0.0f0], [1.0f0], [2120.0f0])) |> gpu
 g = grid(dim)
 C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
-pml = build_pml(dim, 4.0f0, 1.0f0) .^ 2 * pml_scale
+pml = build_pml(dim, 5.0f0, pml_scale)
 
-ps = [C, grad, pml]
+# ps = [C, grad, pml]
 ps = [design, g, ambient_speed, grad, pml] |> gpu
-
 iter = Integrator(runge_kutta, split_wave_pml, dt, ps)
 
-@time u = integrate(iter, u0, t0, dt, steps)
-@time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+# @time u = integrate(iter, u0, t0, dt, steps)
+# @time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+# @time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+# @time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
+# @time u = integrate(iter, u[:, :, :, end], t0, dt, steps)
 
-sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
-@time render!(sol, path = "vid.mp4", seconds = 1.0f0)
+# sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
+# @time render!(sol, path = "vid.mp4", seconds = 1.0f0)
 
-# # model = Chain(Flux.flatten, Dense(2 * elements, 1), vec)
-# # y = sin.(2pi * range(0.0, 1.0, steps + 1))
+# # # model = Chain(Flux.flatten, Dense(2 * elements, 1), vec)
+# # # y = sin.(2pi * range(0.0, 1.0, steps + 1))
 
-# # e(x) = sum(x.^2)
-# # e(u[:, 1, end])
+# # # e(x) = sum(x.^2)
+# # # e(u[:, 1, end])
 
-# # gs = gradient(u0) do _u0
-# #     u = integrate(iter, _u0, t0, dt, steps)
-# #     e(u[:, 1, end])
-# # end
+# # # gs = gradient(u0) do _u0
+# # #     u = integrate(iter, _u0, t0, dt, steps)
+# # #     e(u[:, 1, end])
+# # # end
 
-# ## z = gs[:, end]
-# # for i in reverse(axes(gs, 2))
-# #     @time jac = jacobian(f, u[:, :, i])[1]
-# #     z = z .- (z' * jac)' * dt
-# # end
+# # ## z = gs[:, end]
+# # # for i in reverse(axes(gs, 2))
+# # #     @time jac = jacobian(f, u[:, :, i])[1]
+# # #     z = z .- (z' * jac)' * dt
+# # # end
 
-# # # # a = Flux.flatten(gradient(x -> mse(y, model(x)), sol)[1])
-# # # # tspan = collect(range(t0, dt * steps, steps + 1))
+# # # # # a = Flux.flatten(gradient(x -> mse(y, model(x)), sol)[1])
+# # # # # tspan = collect(range(t0, dt * steps, steps + 1))
 
-# # # # for i in axes(sol, 3)
-# # # #     @time jac = Flux.jacobian(iter, u, tspan[i], dt)[1]
-# # # # end
+# # # # # for i in axes(sol, 3)
+# # # # #     @time jac = Flux.jacobian(iter, u, tspan[i], dt)[1]
+# # # # # end
 

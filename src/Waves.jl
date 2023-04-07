@@ -1,6 +1,6 @@
 module Waves
 
-export AbstractDim, AbstractDesign, InitialCondition, AbstractDynamics, AbstractWaveCell, design_space
+export AbstractDim, AbstractDesign, InitialCondition, AbstractDynamics, AbstractWaveCell, design_space, speed
 
 using SparseArrays
 using IntervalSets

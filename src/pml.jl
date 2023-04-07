@@ -11,7 +11,7 @@ function build_pml(dim::OneDim, width::Float32, scale::Float32)
         pml[i] = max(x[i] - start, 0.0f0) / width
     end
     clamp!(pml, 0.0f0, 1.0f0)
-    return pml .^ 2 * scale
+    return pml .^ 3 * scale
 end
 
 """
@@ -25,5 +25,5 @@ function build_pml(dim::TwoDim, width::Float32, scale::Float32)
     x[.~ pml_region] .= 0.0f0
     x[pml_region] .= (x[pml_region] .- minimum(x[pml_region])) / width
     x = repeat(x, 1, length(dim.y))
-    return x .^ 2 * scale
+    return x .^ 3 * scale
 end

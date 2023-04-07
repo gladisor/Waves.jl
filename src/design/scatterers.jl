@@ -78,14 +78,6 @@ function CairoMakie.mesh!(ax::Axis, config::Scatterers)
     end
 end
 
-# function Flux.gpu(config::Scatterers)
-#     return Scatterers(gpu(config.pos), gpu(config.r), gpu(config.c))
-# end
-
-# function Flux.cpu(config::Scatterers)
-#     return Scatterers(cpu(config.pos), cpu(config.r), cpu(config.c))
-# end
-
 function design_space(config::Scatterers, scale::Float32)
     pos_low = ones(Float32, size(config.pos)) * -scale
     pos_high = ones(Float32, size(config.pos)) * scale

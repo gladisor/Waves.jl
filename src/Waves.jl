@@ -35,9 +35,9 @@ include("design/design_trajectory.jl")     ## Structure for holding the sequence
 include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
 include("update_equations.jl")
 include("wave_cell.jl")
-include("env.jl")
+# include("env.jl")
 
-include("data.jl")
+# include("data.jl")
 
 ## modeling
 include("models/blocks.jl")
@@ -45,8 +45,8 @@ include("models/wave_encoder.jl")
 include("models/wave_decoder.jl")
 include("models/design_encoder.jl")
 
-include("reinforcement_learning/hooks.jl")
-include("reinforcement_learning/random_policy.jl")
+# include("reinforcement_learning/hooks.jl")
+# include("reinforcement_learning/random_policy.jl")
 
-include("plot.jl")                         ## Plotting
+# include("plot.jl")                         ## Plotting
 end

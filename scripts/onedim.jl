@@ -130,15 +130,15 @@ grid_size = 10.f0
 elements = 512
 t0 = 0.0f0
 dt = 0.00002f0
-steps = 500
+steps = 100
 tf = steps * dt
 ambient_speed = 1531.0f0
 pml_width = 2.0f0
 pml_scale = ambient_speed * 50f0
 
-dim = OneDim(grid_size, elements)
-pulse = Pulse(dim, -4.0f0, 1.0f0)
-u0 = pulse(build_wave(dim, fields = 2)) |> gpu
+dim = TwoDim(grid_size, elements)
+pulse = Pulse(dim, -4.0f0, 0.0f0, 1.0f0)
+u0 = pulse(build_wave(dim, fields = 6)) |> gpu
 
 design = Scatterers([2.0f0 0.0f0], [2.0f0], [2120.0f0])
 action = Scatterers([0.0f0 0.0f0], [1.0f0], [0.0f0])
@@ -149,16 +149,25 @@ C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
 pml = build_pml(dim, pml_width, pml_scale)
 
-# dynamics = gpu(SplitWavePMLDynamics(design, g, ambient_speed, grad, pml))
-bc = ones(Float32, size(C))
-bc[[1, end]] .= 0.0f0
-dynamics = gpu(LinearWave(C, grad, bc))
+dynamics = gpu(SplitWavePMLDynamics(design, g, ambient_speed, grad, pml))
+# bc = ones(Float32, size(C))
+# bc[[1, end]] .= 0.0f0
+# dynamics = gpu(LinearWave(C, grad, bc))
 
 iter = Integrator(runge_kutta, dynamics, dt)
 @time u = integrate(iter, u0, t0, steps)
-@time u = integrate(iter, u[:, :, end], tf, steps)
-@time u = integrate(iter, u[:, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+# @time u = integrate(iter, u[:, :, :, end], tf, steps)
+
 
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
 # DesignTrajectory(design, steps)
-@time render!(sol, path = "vid.mp4", seconds = 5.0f0)
+@time render!(sol, path = "vid.mp4", seconds = 1.0f0)

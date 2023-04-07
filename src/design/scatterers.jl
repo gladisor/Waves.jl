@@ -27,9 +27,9 @@ function Scatterers(;M::Int, r::Float32, disk_r::Float32, c::Float32)
 end
 
 function Base.:+(config1::Scatterers, config2::Scatterers)
-    r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
-    c = max.(config1.c .+ config2.c, MIN_SPEED)
-    return Scatterers(config1.pos .+ config2.pos, r, c)
+    # r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
+    # c = max.(config1.c .+ config2.c, MIN_SPEED)
+    return Scatterers(config1.pos .+ config2.pos, config1.r .+ config2.r, config1.c .+ config2.c)
 end
 
 function Base.:-(config1::Scatterers, config2::Scatterers)

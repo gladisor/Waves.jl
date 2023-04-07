@@ -8,16 +8,6 @@ function build_gradient(dim::AbstractDim)
     return Waves.gradient(dim.x)
 end
 
-# function Waves.split_wave_pml(wave::AbstractMatrix{Float32}, t::Float32, C::AbstractVector{Float32}, grad::AbstractMatrix{Float32}, pml::AbstractVector{Float32})
-#     u = wave[:, 1] ## displacement
-#     v = wave[:, 2] ## velocity
-
-#     du = (C .^ 2) .* (grad * v) .- pml .* u
-#     dvx = grad * u .- pml .* v
-
-#     return cat(du, dvx, dims = 2)
-# end
-
 function Waves.runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32, dt::Float32)
     k1 = f(u, t)
     k2 = f(u .+ 0.5f0 * dt * k1, t + 0.5f0 * dt)
@@ -69,6 +59,31 @@ end
 
 Flux.@functor SplitWavePMLDynamics
 
+
+# function Waves.split_wave_pml(wave::AbstractMatrix{Float32}, t::Float32, C::AbstractVector{Float32}, grad::AbstractMatrix{Float32}, pml::AbstractVector{Float32})
+#     u = wave[:, 1] ## displacement
+#     v = wave[:, 2] ## velocity
+
+#     du = (C .^ 2) .* (grad * v) .- pml .* u
+#     dvx = grad * u .- pml .* v
+
+#     return cat(du, dvx, dims = 2)
+# end
+
+function (dyn::SplitWavePMLDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
+    u = wave[:, 1]
+    v = wave[:, 2]
+
+    C = dyn.ambient_speed
+    ∇ = dyn.grad
+    σ = dyn.pml
+
+    du = C ^ 2 * (∇ * v) .- σ .* u
+    dv = ∇ * u .- σ .* v
+
+    return hcat(du, dv)
+end
+
 function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
 
     U = wave[:, :, 1]
@@ -99,26 +114,54 @@ function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32
     return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-elements = 256
+struct LinearWave <: AbstractDynamics
+    C::AbstractArray{Float32}
+    grad::AbstractMatrix{Float32}
+    bc::AbstractArray{Float32}
+end
+
+Flux.@functor LinearWave
+
+function (dyn::LinearWave)(wave::AbstractMatrix{Float32}, t::Float32)
+    u = wave[:, 1]
+    v = wave[:, 2]
+
+    du =  (dyn.C .^ 2) .* (dyn.grad * v) .* dyn.bc
+    dv = dyn.grad * u
+    return hcat(du, dv)
+end
+
+grid_size = 10.f0
+elements = 512
 t0 = 0.0f0
 dt = 0.00002f0
 steps = 1000
+tf = steps * dt
 ambient_speed = 1531.0f0
+pml_width = 2.0f0
 pml_scale = ambient_speed * 50f0
 
-dim = TwoDim(10.0f0, elements)
+dim = TwoDim(grid_size, elements)
 pulse = Pulse(dim, -4.0f0, 0.0f0, 1.0f0)
 u0 = pulse(build_wave(dim, fields = 6)) |> gpu
 
-design = DesignInterpolator(Scatterers([0.0f0 0.0f0], [1.0f0], [2120.0f0])) |> gpu
+design = Scatterers([2.0f0 0.0f0], [2.0f0], [2120.0f0])
+action = Scatterers([0.0f0 0.0f0], [1.0f0], [0.0f0])
+design = DesignInterpolator(design, action, t0, tf) |> gpu
+
 g = grid(dim)
 C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
-pml = build_pml(dim, 2.0f0, pml_scale)
+pml = build_pml(dim, pml_width, pml_scale)
 
 dynamics = gpu(SplitWavePMLDynamics(design, g, ambient_speed, grad, pml))
+# bc = ones(Float32, size(C))
+# bc[[1, end]] .= 0.0f0
+# dynamics = LinearWave(C, grad, bc)
+
 iter = Integrator(runge_kutta, dynamics, dt)
 @time u = integrate(iter, u0, t0, steps)
 
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
-@time render!(sol, path = "vid.mp4", seconds = 3.0f0)
+
+@time render!(sol, DesignTrajectory(design, steps), path = "vid.mp4", seconds = 5.0f0)

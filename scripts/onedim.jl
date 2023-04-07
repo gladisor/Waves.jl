@@ -59,17 +59,6 @@ end
 
 Flux.@functor SplitWavePMLDynamics
 
-
-# function Waves.split_wave_pml(wave::AbstractMatrix{Float32}, t::Float32, C::AbstractVector{Float32}, grad::AbstractMatrix{Float32}, pml::AbstractVector{Float32})
-#     u = wave[:, 1] ## displacement
-#     v = wave[:, 2] ## velocity
-
-#     du = (C .^ 2) .* (grad * v) .- pml .* u
-#     dvx = grad * u .- pml .* v
-
-#     return cat(du, dvx, dims = 2)
-# end
-
 function (dyn::SplitWavePMLDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]
     v = wave[:, 2]
@@ -131,19 +120,25 @@ function (dyn::LinearWave)(wave::AbstractMatrix{Float32}, t::Float32)
     return hcat(du, dv)
 end
 
+struct NonLinearWave <: AbstractDynamics
+    grad::AbstractMatrix{Float32}
+    bc::AbstractArray{Float32}
+    mlp::Chain
+end
+
 grid_size = 10.f0
 elements = 512
 t0 = 0.0f0
 dt = 0.00002f0
-steps = 1000
+steps = 500
 tf = steps * dt
 ambient_speed = 1531.0f0
 pml_width = 2.0f0
 pml_scale = ambient_speed * 50f0
 
-dim = TwoDim(grid_size, elements)
-pulse = Pulse(dim, -4.0f0, 0.0f0, 1.0f0)
-u0 = pulse(build_wave(dim, fields = 6)) |> gpu
+dim = OneDim(grid_size, elements)
+pulse = Pulse(dim, -4.0f0, 1.0f0)
+u0 = pulse(build_wave(dim, fields = 2)) |> gpu
 
 design = Scatterers([2.0f0 0.0f0], [2.0f0], [2120.0f0])
 action = Scatterers([0.0f0 0.0f0], [1.0f0], [0.0f0])
@@ -154,14 +149,16 @@ C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
 pml = build_pml(dim, pml_width, pml_scale)
 
-dynamics = gpu(SplitWavePMLDynamics(design, g, ambient_speed, grad, pml))
-# bc = ones(Float32, size(C))
-# bc[[1, end]] .= 0.0f0
-# dynamics = LinearWave(C, grad, bc)
+# dynamics = gpu(SplitWavePMLDynamics(design, g, ambient_speed, grad, pml))
+bc = ones(Float32, size(C))
+bc[[1, end]] .= 0.0f0
+dynamics = gpu(LinearWave(C, grad, bc))
 
 iter = Integrator(runge_kutta, dynamics, dt)
 @time u = integrate(iter, u0, t0, steps)
+@time u = integrate(iter, u[:, :, end], tf, steps)
+@time u = integrate(iter, u[:, :, end], tf, steps)
 
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
-
-@time render!(sol, DesignTrajectory(design, steps), path = "vid.mp4", seconds = 5.0f0)
+# DesignTrajectory(design, steps)
+@time render!(sol, path = "vid.mp4", seconds = 5.0f0)

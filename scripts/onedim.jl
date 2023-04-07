@@ -101,8 +101,8 @@ end
 
 elements = 256
 t0 = 0.0f0
-dt = 0.00001f0
-steps = 500
+dt = 0.00002f0
+steps = 1000
 ambient_speed = 1531.0f0
 pml_scale = ambient_speed * 50f0
 
@@ -119,11 +119,6 @@ pml = build_pml(dim, 2.0f0, pml_scale)
 dynamics = gpu(SplitWavePMLDynamics(design, g, ambient_speed, grad, pml))
 iter = Integrator(runge_kutta, dynamics, dt)
 @time u = integrate(iter, u0, t0, steps)
-# @time u = integrate(iter, u[:, :, :, end], t0, steps)
-# @time u = integrate(iter, u[:, :, :, end], t0, steps)
-# @time u = integrate(iter, u[:, :, :, end], t0, steps)
-# @time u = integrate(iter, u[:, :, :, end], t0, steps)
-# @time u = integrate(iter, u[:, :, :, end], t0, steps)
 
 sol = WaveSol(dim, build_tspan(t0, dt, steps), unbatch(u)) |> cpu
-@time render!(sol, path = "vid.mp4", seconds = 1.0f0)
+@time render!(sol, path = "vid.mp4", seconds = 3.0f0)

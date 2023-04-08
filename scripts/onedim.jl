@@ -141,10 +141,13 @@ mutable struct WaveEnv
     total::SplitWavePMLDynamics
     incident::SplitWavePMLDynamics
 
+    σ::Vector{Float32}
     time_step::Int
     dt::Float32
     integration_steps::Int
 end
+
+Flux.@functor WaveEnv
 
 function Base.time(env::WaveEnv)
     return env.time_step * env.dt
@@ -155,22 +158,31 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.total = update_design(env.total, tspan, action)
 
     total_iter = Integrator(runge_kutta, env.total, env.dt)
-    u = integrate(total_iter, env.wave_total, time(env), env.integration_steps)
-    env.wave_total = unbatch(u)[end]
+    u_total = unbatch(integrate(total_iter, env.wave_total, time(env), env.integration_steps))
+    env.wave_total = u_total[end]
 
     incident_iter = Integrator(runge_kutta, env.incident, env.dt)
-    u = integrate(incident_iter, env.wave_incident, time(env), env.integration_steps)
-    env.wave_incident = unbatch(u)[end]
+    u_incident = unbatch(integrate(incident_iter, env.wave_incident, time(env), env.integration_steps))
+    env.wave_incident = u_incident[end]
+
+    u_scattered = u_total .- u_incident
+    env.σ = sum.(energy.(displacement.(u_scattered)))
 
     env.time_step += env.integration_steps
 end
 
+function CairoMakie.plot(env::WaveEnv)
+    fig = Figure()
+    ax = Axis(fig[1, 1], aspect = 1.0f0)
+    heatmap!(ax, dim.x, dim.y, env.wave_total[:, :, 1], colormap = :ice)
+    mesh!(ax, env.total.design(time(env)))
+    return fig
+end
+
 grid_size = 10.f0
 elements = 512
-ti = 0.0f0
 dt = 0.00002f0
 steps = 10
-tf = steps * dt
 ambient_speed = 1531.0f0
 pml_width = 2.0f0
 pml_scale = ambient_speed * 50f0
@@ -185,24 +197,23 @@ pulse = Pulse(dim, -4.0f0, 0.0f0, 1.0f0)
 wave = pulse(build_wave(dim, fields = 6)) |> gpu
 
 initial = Scatterers([2.0f0 0.0f0], [2.0f0], [2120.0f0])
-action = Scatterers([0.0f0 0.0f0], [0.05f0], [0.0f0])
+policy = radii_design_space(initial, 0.5f0)
 design = DesignInterpolator(initial)
 
 env = WaveEnv(
     wave, wave,
     SplitWavePMLDynamics(design, g, ambient_speed, grad, pml), 
     SplitWavePMLDynamics(nothing, g, ambient_speed, grad, pml),
+    zeros(Float32, steps),
     0, dt, steps)
 
-for i in 1:20
-    @time env(action)
+for i in 1:100
+    @time env(rand(policy))
+    display(sum(env.σ))
 end
 
-fig = Figure()
-ax = Axis(fig[1, 1], aspect = 1.0f0)
-heatmap!(ax, dim.x, dim.y, env.wave_total[:, :, 1], colormap = :ice)
-mesh!(ax, env.total.design(time(env)))
-save("u_$(time(env)).png", fig)
+fig = plot(env)
+save("u.png", fig)
 
 # tspan = build_tspan(time(env), dt, steps)
 # env.total = update_design(env.total, tspan, action)

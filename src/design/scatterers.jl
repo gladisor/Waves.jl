@@ -29,7 +29,8 @@ end
 function Base.:+(config1::Scatterers, config2::Scatterers)
     # r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
     # c = max.(config1.c .+ config2.c, MIN_SPEED)
-    return Scatterers(config1.pos .+ config2.pos, config1.r .+ config2.r, config1.c .+ config2.c)
+    r = max.(0.5f0, config1.r .+ config2.r)
+    return Scatterers(config1.pos .+ config2.pos, r, config1.c .+ config2.c)
 end
 
 function Base.:-(config1::Scatterers, config2::Scatterers)

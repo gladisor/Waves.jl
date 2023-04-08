@@ -200,8 +200,8 @@ wave = pulse(build_wave(dim, fields = 6))
 
 # initial = Scatterers([2.0f0 0.0f0], [1.0f0], [2120.0f0])
 initial = Scatterers([0.0f0 0.0f0], [1.0f0], [3100.0f0])
-action = Scatterers([0.0f0 0.0f0], [0.1f0], [0.0f0])
-# policy = design_space(initial, 1.0f0)
+# action = Scatterers([0.0f0 0.0f0], [0.1f0], [0.0f0])
+policy = radii_design_space(initial, 1.0f0)
 design = DesignInterpolator(initial)
 
 env = WaveEnv(
@@ -216,8 +216,8 @@ e = []
 iterations = 20
 for i in 1:iterations
 
-    # @time env(gpu(rand(policy)))
-    @time env(gpu(action))
+    @time env(gpu(rand(policy)))
+    # @time env(gpu(action))
 
     fig = plot(env)
     save("u_$i.png", fig)

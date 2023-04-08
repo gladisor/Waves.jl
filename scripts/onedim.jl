@@ -51,6 +51,7 @@ end
 
 struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: AbstractDynamics
     design::D
+    dim::AbstractDim
     g::AbstractArray{Float32}
     ambient_speed::Float32
     grad::AbstractArray{Float32}
@@ -70,7 +71,7 @@ end
 function update_design(dynamics::SplitWavePMLDynamics{DesignInterpolator}, tspan::Vector{Float32}, action::AbstractDesign)::SplitWavePMLDynamics{DesignInterpolator}
     initial = dynamics.design(tspan[1])
     design = DesignInterpolator(initial, action, tspan[1], tspan[end])
-    return SplitWavePMLDynamics(design, dynamics.g, dynamics.ambient_speed, dynamics.grad, dynamics.pml)
+    return SplitWavePMLDynamics(design, dynamics.dim, dynamics.g, dynamics.ambient_speed, dynamics.grad, dynamics.pml)
 end
 
 function (dyn::SplitWavePMLDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
@@ -174,18 +175,19 @@ end
 function CairoMakie.plot(env::WaveEnv)
     fig = Figure()
     ax = Axis(fig[1, 1], aspect = 1.0f0)
-    heatmap!(ax, dim.x, dim.y, env.wave_total[:, :, 1], colormap = :ice)
-    mesh!(ax, env.total.design(time(env)))
+    heatmap!(ax, cpu(env.total.dim.x), cpu(env.total.dim.y), cpu(displacement(env.wave_total)), colormap = :ice)
+    mesh!(ax, cpu(env.total.design(time(env))))
     return fig
 end
 
 grid_size = 10.f0
 elements = 512
 dt = 0.00002f0
-steps = 10
+steps = 50
 ambient_speed = 1531.0f0
+pulse_intensity = 1.0f0
 pml_width = 2.0f0
-pml_scale = ambient_speed * 50f0
+pml_scale = ambient_speed * 50.0f0
 
 dim = TwoDim(grid_size, elements)
 g = grid(dim)
@@ -193,27 +195,39 @@ C = ones(Float32, size(dim)...) * ambient_speed
 grad = build_gradient(dim)
 pml = build_pml(dim, pml_width, pml_scale)
 
-pulse = Pulse(dim, -4.0f0, 0.0f0, 1.0f0)
+pulse = Pulse(dim, -5.0f0, 0.0f0, pulse_intensity)
 wave = pulse(build_wave(dim, fields = 6)) |> gpu
 
-initial = Scatterers([2.0f0 0.0f0], [2.0f0], [2120.0f0])
-policy = radii_design_space(initial, 0.5f0)
-design = DesignInterpolator(initial)
+# initial = Scatterers([2.0f0 0.0f0], [1.0f0], [2120.0f0])
+initial = Scatterers([2.0f0 0.0f0], [1.0f0], [3100.0f0])
+# action = Scatterers([-0.1f0 0.1f0], [0.00f0], [0.0f0])
+policy = design_space(initial, 1.0f0)
+design = DesignInterpolator(initial) |> gpu
 
 env = WaveEnv(
     wave, wave,
-    SplitWavePMLDynamics(design, g, ambient_speed, grad, pml), 
-    SplitWavePMLDynamics(nothing, g, ambient_speed, grad, pml),
+    SplitWavePMLDynamics(design, dim, g, ambient_speed, grad, pml), 
+    SplitWavePMLDynamics(nothing, dim, g, ambient_speed, grad, pml),
     zeros(Float32, steps),
     0, dt, steps) |> gpu
 
-for i in 1:100
-    @time env(rand(policy) |> gpu)
-    display(sum(env.σ))
+e = []
+
+iterations = 20
+for i in 1:iterations
+
+    @time env(gpu(rand(policy)))
+
+    fig = plot(env)
+    save("u_$i.png", fig)
+
+    push!(e, env.σ)
 end
 
-fig = plot(env)
-save("u.png", fig)
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, cpu(vcat(e...)))
+save("energy.png", fig)
 
 # tspan = build_tspan(time(env), dt, steps)
 # env.total = update_design(env.total, tspan, action)

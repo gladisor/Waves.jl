@@ -196,13 +196,13 @@ grad = build_gradient(dim)
 pml = build_pml(dim, pml_width, pml_scale)
 
 pulse = Pulse(dim, -5.0f0, 0.0f0, pulse_intensity)
-wave = pulse(build_wave(dim, fields = 6)) |> gpu
+wave = pulse(build_wave(dim, fields = 6))
 
 # initial = Scatterers([2.0f0 0.0f0], [1.0f0], [2120.0f0])
 initial = Scatterers([2.0f0 0.0f0], [1.0f0], [3100.0f0])
 # action = Scatterers([-0.1f0 0.1f0], [0.00f0], [0.0f0])
 policy = design_space(initial, 1.0f0)
-design = DesignInterpolator(initial) |> gpu
+design = DesignInterpolator(initial)
 
 env = WaveEnv(
     wave, wave,

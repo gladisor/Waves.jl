@@ -151,7 +151,6 @@ function Base.time(env::WaveEnv)
 end
 
 function (env::WaveEnv)(action::AbstractDesign)
-    println("hello")
     tspan = build_tspan(time(env), env.dt, env.integration_steps)
     env.total = update_design(env.total, tspan, action)
 
@@ -186,7 +185,7 @@ pulse = Pulse(dim, -4.0f0, 0.0f0, 1.0f0)
 wave = pulse(build_wave(dim, fields = 6)) |> gpu
 
 initial = Scatterers([2.0f0 0.0f0], [2.0f0], [2120.0f0])
-action = Scatterers([0.0f0 0.0f0], [1.0f0], [0.0f0])
+action = Scatterers([0.0f0 0.0f0], [0.05f0], [0.0f0])
 design = DesignInterpolator(initial)
 
 env = WaveEnv(
@@ -195,17 +194,15 @@ env = WaveEnv(
     SplitWavePMLDynamics(nothing, g, ambient_speed, grad, pml),
     0, dt, steps)
 
-@time env(action)
-display(env.total.design.initial.r)
-display(env.total.design.Δ.r)
-display(env.total.design(time(env)).r)
-@time env(action)
-@time env(action)
+for i in 1:20
+    @time env(action)
+end
 
-# fig = Figure()
-# ax = Axis(fig[1, 1], aspect = 1.0f0)
-# heatmap!(ax, dim.x, dim.y, env.wave_total[:, :, 1], colormap = :ice)
-# save("u.png", fig)
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+heatmap!(ax, dim.x, dim.y, env.wave_total[:, :, 1], colormap = :ice)
+mesh!(ax, env.total.design(time(env)))
+save("u_$(time(env)).png", fig)
 
 # tspan = build_tspan(time(env), dt, steps)
 # env.total = update_design(env.total, tspan, action)

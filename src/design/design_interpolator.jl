@@ -7,6 +7,8 @@ struct DesignInterpolator
     tf::Float32
 end
 
+Flux.@functor DesignInterpolator
+
 function DesignInterpolator(initial::AbstractDesign)
     return DesignInterpolator(initial, zero(initial), 0.0f0, 0.0f0)
 end

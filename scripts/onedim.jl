@@ -205,10 +205,10 @@ env = WaveEnv(
     SplitWavePMLDynamics(design, g, ambient_speed, grad, pml), 
     SplitWavePMLDynamics(nothing, g, ambient_speed, grad, pml),
     zeros(Float32, steps),
-    0, dt, steps)
+    0, dt, steps) |> gpu
 
 for i in 1:100
-    @time env(rand(policy))
+    @time env(rand(policy) |> gpu)
     display(sum(env.σ))
 end
 

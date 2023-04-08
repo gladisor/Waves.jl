@@ -196,7 +196,6 @@ grad = build_gradient(dim)
 pml = build_pml(dim, pml_width, pml_scale)
 
 pulse = Pulse(dim, -5.0f0, 0.0f0, pulse_intensity)
-# pulse = PlaneWave(dim, -5.0f0, pulse_intensity)
 wave = pulse(build_wave(dim, fields = 6))
 
 # initial = Scatterers([2.0f0 0.0f0], [1.0f0], [2120.0f0])

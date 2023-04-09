@@ -2,7 +2,7 @@ export DesignInterpolator
 
 struct DesignInterpolator
     initial::AbstractDesign
-    Δ::AbstractDesign
+    action::AbstractDesign
     ti::Float32
     tf::Float32
 end
@@ -20,26 +20,26 @@ end
 function (interp::DesignInterpolator)(t::Float32)
     d = (interp.tf - interp.ti)
     t = ifelse(d > 0.0f0, (t - interp.ti) / d, 0.0f0)
-    return interp.initial + t * interp.Δ
+    return interp.initial + t * interp.action
 end
 
-function Flux.gpu(design::DesignInterpolator)
-    return DesignInterpolator(
-        gpu(design.initial),
-        gpu(design.Δ),
-        design.ti,
-        design.tf
-    )
-end
+# function Flux.gpu(design::DesignInterpolator)
+#     return DesignInterpolator(
+#         gpu(design.initial),
+#         gpu(design.action),
+#         design.ti,
+#         design.tf
+#     )
+# end
 
-function Flux.cpu(design::DesignInterpolator)
-    return DesignInterpolator(
-        cpu(design.initial),
-        cpu(design.Δ),
-        design.ti,
-        design.tf
-    )
-end
+# function Flux.cpu(design::DesignInterpolator)
+#     return DesignInterpolator(
+#         cpu(design.initial),
+#         cpu(design.action),
+#         design.ti,
+#         design.tf
+#     )
+# end
 
 function initial_design(design::DesignInterpolator)
     return design(design.ti)

@@ -1,3 +1,5 @@
+export build_gradient
+
 const FORWARD_DIFF_COEF = [-3.0f0, 4.0f0, -1.0f0]
 const BACKWARD_DIFF_COEF = [1.0f0, -4.0f0, 3.0f0]
 const CENTRAL_DIFF_COEF = [-1.0f0, 1.0f0]
@@ -17,6 +19,10 @@ function gradient(x::Vector{Float32})
     end
 
     return sparse((grad / (2 * Δ))')
+end
+
+function build_gradient(dim::AbstractDim)
+    return gradient(dim.x)
 end
 
 """

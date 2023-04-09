@@ -1,19 +1,25 @@
-export OneDim, TwoDim, ThreeDim, grid
+export OneDim, TwoDim, ThreeDim, grid, build_wave
 
 struct OneDim <: AbstractDim
     x::AbstractVector{Float32}
 end
+
+Flux.@functor OneDim
 
 struct TwoDim <: AbstractDim
     x::AbstractVector{Float32}
     y::AbstractVector{Float32}
 end
 
+Flux.@functor TwoDim
+
 struct ThreeDim <: AbstractDim
     x::AbstractVector{Float32}
     y::AbstractVector{Float32}
     z::AbstractVector{Float32}
 end
+
+Flux.@functor ThreeDim
 
 function OneDim(x_min::Float32, x_max::Float32, Δ::Float32)
     return OneDim(collect(x_min:Δ:x_max))
@@ -95,18 +101,6 @@ function Base.one(dim::TwoDim)
     return (dim.x * dim.y') .^ 0.0f0
 end
 
-function Flux.gpu(dim::OneDim)
-    return OneDim(gpu(dim.x))
-end
-
-function Flux.cpu(dim::OneDim)
-    return OneDim(cpu(dim.x))
-end
-
-function Flux.gpu(dim::TwoDim)
-    return TwoDim(gpu(dim.x), gpu(dim.y))
-end
-
-function Flux.cpu(dim::TwoDim)
-    return TwoDim(cpu(dim.x), cpu(dim.y))
+function build_wave(dim::AbstractDim; fields::Int)
+    return zeros(Float32, size(dim)..., fields)
 end

@@ -66,7 +66,7 @@ function location_mask(config::Scatterers, g::AbstractArray{Float32, 3})
 end
 
 function speed(config::Scatterers, g::AbstractArray{Float32, 3}, ambient_speed::Float32)
-    mask = Waves.location_mask(config, g)
+    mask = location_mask(config, g)
     ambient_mask = dropdims(sum(mask, dims = 3), dims = 3) .== 0
     C0 = ambient_mask * ambient_speed
     C_design = dropdims(sum(mask .* reshape(config.c, 1, 1, length(config.c)), dims = 3), dims = 3)

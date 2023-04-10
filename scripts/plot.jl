@@ -1,14 +1,20 @@
-function plot_solution!(dim::OneDim, tspan::Vector{Float32}, u::AbstractArray{Float32, 3}; path::String)
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], title = "Displacement of Solution Over Time", ylabel = "Time (s)", xlabel = "Distance (m)")
-    heatmap!(ax1, dim.x, tspan, u[:, 1, :], colormap = :ice)
-    save(path, fig)
-end
+export plot_solution!
 
-function plot_wave!(dim::OneDim, wave::AbstractMatrix{Float32}; path::String)
+function plot_solution!(nrows::Int, ncols::Int, dim::TwoDim, u::AbstractArray{Float32, 4}; path::String, field::Int = 1)
     fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, dim.x, wave[:, 1])
-    lines!(ax, dim.x, wave[:, 2])
+    layout = fig[1, 1] = GridLayout(nrows, ncols)
+
+    steps = size(u, ndims(u))
+    n = nrows * ncols
+    idx = Int.(round.(LinRange(1, steps, n)))
+
+    for i in 1:nrows
+        for j in 1:ncols
+            k = (i-1) * ncols + j
+            ax = Axis(layout[i, j], aspect = 1.0f0)
+            heatmap!(ax, dim.x, dim.y, u[:, :, field, idx[k]], colormap = :ice)
+        end
+    end
+
     save(path, fig)
 end

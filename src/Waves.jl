@@ -8,8 +8,14 @@ using Distributions: Uniform
 using CairoMakie
 using Interpolations
 using Flux
+
+using Flux: 
+    flatten, Recur,
+    batch, unbatch, 
+    pullback, withgradient, 
+    mean, @adjoint
+
 using ReinforcementLearning
-using Statistics: mean
 using JLD2
 using ProgressMeter: @showprogress
 
@@ -27,12 +33,11 @@ include("sol.jl")                          ## Structure for holing results of wa
 include("pml.jl")                          ## Perfectly Matched Layer
 include("initial_conditions.jl")           ## Pulses, waves, etc...
 
-# include("design/cylinder.jl")              ## Simple circular scatterer
 include("design/scatterers.jl")
 include("design/design_interpolator.jl")   ## Interpolator for design
 include("design/design_trajectory.jl")     ## Structure for holding the sequence of designs
 
-# include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
+include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
 # include("update_equations.jl")
 # include("wave_cell.jl")
 # include("env.jl")

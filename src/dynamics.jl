@@ -1,4 +1,7 @@
-export build_tspan
+export
+    build_tspan, runge_kutta, euler,
+    Integrator, SplitWavePMLDynamics, dirichlet, 
+    LinearWaveDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)::Vector{Float32}
     return range(ti, ti + steps*dt, steps + 1)
@@ -156,15 +159,15 @@ function dirichlet(dim::OneDim)
     return bc
 end
 
-struct LinearWave <: AbstractDynamics
+struct LinearWaveDynamics <: AbstractDynamics
     C::Float32
     grad::AbstractMatrix{Float32}
     bc::AbstractArray{Float32}
 end
 
-Flux.@functor LinearWave
+Flux.@functor LinearWaveDynamics
 
-function (dyn::LinearWave)(wave::AbstractMatrix{Float32}, t::Float32)
+function (dyn::LinearWaveDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]
     v = wave[:, 2]
 

@@ -19,14 +19,14 @@ function standard_gradient(iter::Integrator, ui::AbstractMatrix{Float32})
 end
 
 function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractMatrix{Float32})
-
-    iter_reverse = reverse(iter)
+    
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
+    iter_reverse = reverse(iter)
 
     wave = deepcopy(wave)
     adj = deepcopy(adj)
 
-    for i in axes(tspan, 1)
+    for i in reverse(axes(tspan, 1))
         _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
         du = iter_reverse(wave, tspan[i])
 
@@ -37,38 +37,42 @@ function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, ad
     return wave, adj
 end
 
-function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractMatrix{Float32})
+# function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractMatrix{Float32})
 
+#     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
+#     adj = deepcopy(adj)
+
+#     for i in reverse(2:size(u, 3))
+#         _, back = pullback(_wave -> iter(_wave, tspan[i]), u[:, :, i])
+#         adj = adj .+ back(adj)[1]
+#     end
+
+#     return adj
+# end
+
+function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3})
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-    adj = deepcopy(adj)
+    iter_reverse = reverse(iter)
 
-    for i in reverse(2:size(u, 3))
-        _, back = pullback(_wave -> iter(_wave, tspan[i]), u[:, :, i])
-        adj = adj .+ back(adj)[1]
+    wave = deepcopy(wave)
+
+    gs = [adj[:, :, end]]
+
+    for i in reverse(axes(tspan, 1))
+        _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
+        a = adj[:, :, i] .+ back(adj[:, :, i])[1]
+        push!(gs, a)
+        wave = wave .+ iter_reverse(wave, tspan[i])
     end
 
-    return adj
-end
-
-function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3})
-
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-
-    gs = deepcopy(adj[:, :, end])
-
-    for i in reverse(1:size(u, 3))
-        _, back = pullback(_wave -> iter(_wave, tspan[i]), u[:, :, i])
-        gs .+= adj[:, :, i] .+ back(adj[:, :, i])[1]
-    end
-
-    return gs
+    return dropdims(sum(batch(gs), dims = 3), dims = 3)
 end
 
 grid_size = 10.f0
 elements = 1024
 ti = 0.0f0
 dt = 0.00002f0
-steps = 100
+steps = 200
 
 ambient_speed = 1531.0f0
 pulse_intensity = 1.0f0
@@ -83,15 +87,15 @@ ui = pulse(ui)
 dynamics = LinearWave(ambient_speed, grad, dirichlet(dim))
 iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
 
-# opt = Descent(1e-7)
 opt = Momentum(1e-8)
 
 for i in 1:100
     u = iter(ui)
     uf = u[:, :, end]
-    e, back = pullback(_uf -> sum(_uf[:, 1] .^ 2), uf)
+    e, back = pullback(_u -> Flux.mean(sum(_u[:, 1, :] .^ 2, dims = 1), dims = 2), u)
     adj = back(one(e))[1]
-    wave_0, adj_0 = continuous_backprop(iter, uf, adj)
+
+    adj_0 = continuous_backprop(iter, uf, adj)
     Flux.Optimise.update!(opt, ui, adj_0) ## low wave speed
     println(e)
 end

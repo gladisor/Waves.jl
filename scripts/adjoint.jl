@@ -7,52 +7,7 @@ using Waves
 include("dynamics.jl")
 include("plot.jl")
 
-function standard_gradient(iter::Integrator, ui::AbstractMatrix{Float32})
-
-    e, back = pullback(ui) do _ui
-        u = iter(_ui) ## solve from initial condition
-        return sum(u[:, 1, end] .^ 2) ## compute energy of final state
-    end
-
-    gs = back(one(e))[1] ## obtain gradient
-    return e, gs
-end
-
-# function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractMatrix{Float32})
-    
-#     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-#     iter_reverse = reverse(iter)
-
-#     wave = deepcopy(wave)
-#     adj = deepcopy(adj)
-
-#     for i in reverse(axes(tspan, 1))
-#         _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
-#         du = iter_reverse(wave, tspan[i])
-
-#         adj = adj .+ back(adj)[1]
-#         wave = wave .+ du
-#     end
-
-#     return wave, adj
-# end
-
-# function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractMatrix{Float32})
-
-#     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-#     adj = deepcopy(adj)
-
-#     for i in reverse(2:size(u, 3))
-#         _, back = pullback(_wave -> iter(_wave, tspan[i]), u[:, :, i])
-#         adj = adj .+ back(adj)[1]
-#     end
-
-#     return adj
-# end
-
 function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3})
-    println("Hello")
-
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
     iter_reverse = reverse(iter)
 
@@ -70,23 +25,25 @@ function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, ad
     return dropdims(sum(batch(gs), dims = 3), dims = 3)
 end
 
+Flux.trainable(iter::Integrator) = ()
+
 @adjoint function (iter::Integrator)(ui::AbstractMatrix{Float32})
 
     u = iter(ui)
     uf = u[:, :, end]
 
-    f = function(adj::AbstractArray{Float32, 3}) 
+    back = function(adj::AbstractArray{Float32, 3}) 
         return (nothing, continuous_backprop(iter, uf, adj))
     end
 
-    return u, f
+    return u, back
 end
 
 grid_size = 10.f0
 elements = 1024
 ti = 0.0f0
 dt = 0.00002f0
-steps = 50
+steps = 100
 
 ambient_speed = 1531.0f0
 pulse_intensity = 1.0f0
@@ -101,29 +58,52 @@ ui = pulse(ui)
 dynamics = LinearWave(ambient_speed, grad, dirichlet(dim))
 iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
 
-u, back = pullback(iter, ui)
-back(u)[1]
+model = Chain(
+    Integrator(runge_kutta, dynamics, ti, dt, steps),
+    flatten,
+    Dense(2 * elements, 2 * elements, tanh),
+    Dense(2 * elements, 1),
+    vec
+    )
 
-opt = Momentum(1e-8)
+y = sin.(2pi*range(0.0f0, 1.0f0, steps + 1))
 
-for i in 1:100
+opt = Adam(1e-5)
 
-    u, back2 = pullback(iter, ui)
-    e, back1 = pullback(_u -> Flux.mean(sum(_u[:, 1, :] .^ 2, dims = 1), dims = 2), u)
-    adj_0 = back2(back1(one(e))[1])[1]
+ps = Flux.params(model)
 
-    # u = iter(ui)
-    # uf = u[:, :, end]
-    # e, back = pullback(_u -> Flux.mean(sum(_u[:, 1, :] .^ 2, dims = 1), dims = 2), u)
-    # adj = back(one(e))[1]
+for i in 1:50
+    loss, gs = withgradient(() -> mse(model(ui), y), ps)
+    Flux.Optimise.update!(opt, ps, gs)
+    println(loss)
+end
+
+sigma, back = pullback(model, ui)
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, y, label = "True")
+lines!(ax, sigma, label = "Prediction")
+save("y.png", fig)
+
+
+# for i in 1:100
+
+#     u, back2 = pullback(iter, ui)
+#     e, back1 = pullback(_u -> Flux.mean(sum(_u[:, 1, :] .^ 2, dims = 1), dims = 2), u)
+#     adj_0 = back2(back1(one(e))[1])[1]
+
+#     # u = iter(ui)
+#     # uf = u[:, :, end]
+#     # e, back = pullback(_u -> Flux.mean(sum(_u[:, 1, :] .^ 2, dims = 1), dims = 2), u)
+#     # adj = back(one(e))[1]
     
 
 
 
-    # adj_0 = continuous_backprop(iter, uf, adj)
-    Flux.Optimise.update!(opt, ui, adj_0) ## low wave speed
-    println(e)
-end
+#     # adj_0 = continuous_backprop(iter, uf, adj)
+#     Flux.Optimise.update!(opt, ui, adj_0) ## low wave speed
+#     println(e)
+# end
 
 # u = iter(ui)
 

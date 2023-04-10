@@ -13,7 +13,12 @@ function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32,
     k3 = f(u .+ 0.5f0 * dt * k2, t + 0.5f0 * dt)
     k4 = f(u .+ dt * k3,         t + dt)
     du = 1/6f0 * (k1 .+ 2 * k2 .+ 2 * k3 .+ k4)
-    return u .+ du * dt
+    # return u .+ du * dt
+    return du * dt
+end
+
+function euler(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32, dt::Float32)
+    return f(u, t) * dt
 end
 
 struct Integrator
@@ -31,7 +36,8 @@ function (iter::Integrator)(u::AbstractArray{Float32}, t::Float32)
 end
 
 function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
-    u′ = iter(u, t)
+    # u′ = iter(u, t)
+    u′ = u .+ iter(u, t)
     return (u′, u′)
 end
 
@@ -42,6 +48,11 @@ function (iter::Integrator)(ui::AbstractArray{Float32})
     recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
 
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
+end
+
+function Base.reverse(iter::Integrator)
+    tf = iter.ti + iter.steps * iter.dt
+    return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
 end
 
 struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: AbstractDynamics

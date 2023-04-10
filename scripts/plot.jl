@@ -1,6 +1,7 @@
 export plot_solution!
 
 function plot_solution!(nrows::Int, ncols::Int, dim::TwoDim, u::AbstractArray{Float32, 4}; path::String, field::Int = 1)
+    
     fig = Figure()
     layout = fig[1, 1] = GridLayout(nrows, ncols)
 

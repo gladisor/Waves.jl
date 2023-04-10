@@ -1,7 +1,7 @@
 export
     build_tspan, runge_kutta, euler,
-    Integrator, SplitWavePMLDynamics, dirichlet, 
-    LinearWaveDynamics
+    Integrator, SplitWavePMLDynamics, update_design,
+    dirichlet, LinearWaveDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)::Vector{Float32}
     return range(ti, ti + steps*dt, steps + 1)

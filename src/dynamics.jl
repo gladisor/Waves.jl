@@ -13,7 +13,6 @@ function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32,
     k3 = f(u .+ 0.5f0 * dt * k2, t + 0.5f0 * dt)
     k4 = f(u .+ dt * k3,         t + dt)
     du = 1/6f0 * (k1 .+ 2 * k2 .+ 2 * k3 .+ k4)
-    # return u .+ du * dt
     return du * dt
 end
 
@@ -30,29 +29,56 @@ struct Integrator
 end
 
 Flux.@functor Integrator
+Flux.trainable(iter::Integrator) = ()
 
 function (iter::Integrator)(u::AbstractArray{Float32}, t::Float32)
     return iter.integration_function(iter.dynamics, u, t, iter.dt)
 end
 
 function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
-    # u′ = iter(u, t)
     u′ = u .+ iter(u, t)
     return (u′, u′)
 end
 
 function (iter::Integrator)(ui::AbstractArray{Float32})
-
     tspan = build_tspan(iter.ti, iter.dt, iter.steps - 1)
-
     recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
-
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
 end
 
 function Base.reverse(iter::Integrator)
     tf = iter.ti + iter.steps * iter.dt
     return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
+end
+
+function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3})
+    tspan = build_tspan(iter.ti, iter.dt, iter.steps)
+    iter_reverse = reverse(iter)
+
+    wave = deepcopy(wave)
+
+    gs = [adj[:, :, end]]
+
+    for i in reverse(axes(tspan, 1))
+        _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
+        a = adj[:, :, i] .+ back(adj[:, :, i])[1]
+        push!(gs, a)
+        wave = wave .+ iter_reverse(wave, tspan[i])
+    end
+
+    return dropdims(sum(batch(gs), dims = 3), dims = 3)
+end
+
+@adjoint function (iter::Integrator)(ui::AbstractMatrix{Float32})
+
+    u = iter(ui)
+    uf = u[:, :, end]
+
+    back = function(adj::AbstractArray{Float32, 3}) 
+        return (nothing, continuous_backprop(iter, uf, adj))
+    end
+
+    return u, back
 end
 
 struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: AbstractDynamics

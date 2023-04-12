@@ -32,7 +32,7 @@ struct Integrator
 end
 
 Flux.@functor Integrator
-Flux.trainable(iter::Integrator) = ()
+Flux.trainable(iter::Integrator) = (;iter.dynamics,)
 
 function (iter::Integrator)(u::AbstractArray{Float32}, t::Float32)
     return iter.integration_function(iter.dynamics, u, t, iter.dt)
@@ -54,34 +54,37 @@ function Base.reverse(iter::Integrator)
     return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
 end
 
-function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3})
+# function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3}, θ::Params)
+function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3}, θ::Params)
+    println("HLELO")
+    ## create timespan and a reversed iterator
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-    iter_reverse = reverse(iter)
-
-    wave = deepcopy(wave)
-
+    ## setting the wave to not mutate the original data
+    wave = u[:, :, end]
+    ## initializing an array with the final adjoint state
     gs = [adj[:, :, end]]
+    _, back = pullback(() -> iter(wave, tspan[end]), θ)
+    θ_gs = back(adj[:, :, end])
 
     for i in reverse(axes(tspan, 1))
+        wave = u[:, :, i]
+        
+        ## computing sensitivity of dynamics to the current state
         _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
         a = adj[:, :, i] .+ back(adj[:, :, i])[1]
         push!(gs, a)
-        wave = wave .+ iter_reverse(wave, tspan[i])
+
+        ## computing the sensitivity of dynamics to the implicit parameters
+        _, back = pullback(() -> iter(wave, tspan[i]), θ)
+
+        ## accumulating parameter gradients
+        θ_gs .+= back(adj[:, :, i])
     end
 
-    return dropdims(sum(batch(gs), dims = 3), dims = 3)
-end
-
-@adjoint function (iter::Integrator)(ui::AbstractMatrix{Float32})
-
-    u = iter(ui)
-    uf = u[:, :, end]
-
-    back = function(adj::AbstractArray{Float32, 3}) 
-        return (nothing, continuous_backprop(iter, uf, adj))
-    end
-
-    return u, back
+    # θ_gs = Grads(IdDict(((p => θ_gs[p] for p in θ))), θ)
+    # θ_gs = Dict((p => θ_gs[p] for p in θ)...)
+    adj_0 = dropdims(sum(batch(gs), dims = 3), dims = 3)
+    return (θ_gs, adj_0)
 end
 
 struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: AbstractDynamics
@@ -94,6 +97,7 @@ struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: Abstract
 end
 
 Flux.@functor SplitWavePMLDynamics
+Flux.trainable(dynamics::SplitWavePMLDynamics) = ()
 
 function Waves.speed(dynamics::SplitWavePMLDynamics{Nothing}, t::Float32)
     return dynamics.ambient_speed
@@ -166,6 +170,7 @@ struct LinearWaveDynamics <: AbstractDynamics
 end
 
 Flux.@functor LinearWaveDynamics
+Flux.trainable(dynamics::LinearWaveDynamics) = ()
 
 function (dyn::LinearWaveDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]

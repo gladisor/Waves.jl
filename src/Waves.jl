@@ -37,7 +37,7 @@ include("design/scatterers.jl")
 include("design/design_interpolator.jl")   ## Interpolator for design
 include("design/design_trajectory.jl")     ## Structure for holding the sequence of designs
 
-include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
+# include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
 # include("update_equations.jl")
 # include("wave_cell.jl")
 # include("env.jl")

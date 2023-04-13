@@ -55,8 +55,10 @@ function Base.reverse(iter::Integrator)
 end
 
 # function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3}, θ::Params)
+# end
+
 function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3}, θ::Params)
-    println("HLELO")
+    println("calling continuous_backprop")
     ## create timespan and a reversed iterator
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
     ## setting the wave to not mutate the original data
@@ -81,8 +83,7 @@ function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj
         θ_gs .+= back(adj[:, :, i])
     end
 
-    # θ_gs = Grads(IdDict(((p => θ_gs[p] for p in θ))), θ)
-    # θ_gs = Dict((p => θ_gs[p] for p in θ)...)
+    ## summing the intermediate adjoint states over the time dimension
     adj_0 = dropdims(sum(batch(gs), dims = 3), dims = 3)
     return (θ_gs, adj_0)
 end

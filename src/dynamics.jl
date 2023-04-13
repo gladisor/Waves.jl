@@ -54,9 +54,6 @@ function Base.reverse(iter::Integrator)
     return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
 end
 
-# function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3}, θ::Params)
-# end
-
 function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3}, θ::Params)
     println("calling continuous_backprop")
     ## create timespan and a reversed iterator
@@ -86,6 +83,23 @@ function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj
     ## summing the intermediate adjoint states over the time dimension
     adj_0 = dropdims(sum(batch(gs), dims = 3), dims = 3)
     return (θ_gs, adj_0)
+end
+
+function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32})
+    u = iter(ui)
+
+    function Integrator_back(adj::AbstractArray{Float32, 3})
+
+        ps = Flux.params(iter.dynamics)
+        ps_gs, ui_gs = continuous_backprop(iter, u, adj, ps)
+        ps_gs = Dict(keys(trainable(iter.dynamics)) .=> [ps_gs[p] for p in trainable(iter.dynamics)])
+        
+        dynamics_tangent = canonicalize(Tangent{typeof(iter.dynamics)}(;ps_gs...))
+        iter_tangent = canonicalize(Tangent{Integrator}(;dynamics = dynamics_tangent))
+        return iter_tangent, ui_gs
+    end
+
+    return u, Integrator_back
 end
 
 struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: AbstractDynamics

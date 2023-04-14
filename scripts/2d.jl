@@ -1,10 +1,54 @@
 using CairoMakie
 using Flux
-using Flux: batch, unbatch
+using Flux: batch, unbatch, mse
+using Optimisers
+using Optimisers: Restructure
 using Waves
 
 include("plot.jl")
 include("env.jl")
+
+struct LatentDynamics <: AbstractDynamics
+    ambient_speed::Float32
+    grad::AbstractMatrix{Float32}
+    bc::AbstractArray{Float32}
+    grid::AbstractArray{Float32}
+    pml_scale::Float32
+
+    pml_model_ps::Vector{Float32}
+    pml_model_re::Restructure
+end
+
+Flux.@functor LatentDynamics (pml_model_ps,)
+
+function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
+    u = wave[:, 1]
+    v = wave[:, 2]
+    c = wave[:, 3]
+
+    pml_model = dyn.pml_model_re(dyn.pml_model_ps)
+    σ = pml_model(dyn.grid') * dyn.pml_scale
+
+    b = (dyn.ambient_speed * c) .^ 2
+    du = b .* (dyn.grad * v) .* dyn.bc .- σ .* u
+    dv = dyn.grad * u .- σ .* v
+    return hcat(du, dv, c * 0.0f0)
+end
+
+struct WaveControlModel
+    wave_encoder::Chain
+    design_encoder::DesignEncoder
+    latent_iter::Integrator
+    mlp::Chain
+end
+
+Flux.@functor WaveControlModel
+
+function (model::WaveControlModel)(wave, design, action)
+    zi = hcat(model.wave_encoder(wave), model.design_encoder(design, action))
+    z = model.latent_iter(zi)
+    mlp(z)
+end
 
 grid_size = 10.f0
 elements = 512
@@ -16,7 +60,7 @@ ambient_speed = 1531.0f0
 pulse_intensity = 1.0f0
 
 dim = TwoDim(grid_size, elements)
-g = grid(dim)
+g = build_grid(dim)
 grad = build_gradient(dim)
 pml = build_pml(dim, 2.0f0, 50.0f0 * ambient_speed)
 
@@ -32,23 +76,6 @@ env = ScatteredWaveEnv(
     SplitWavePMLDynamics(nothing, dim, g, ambient_speed, grad, pml),
     zeros(Float32, steps + 1), 0, dt, steps)
 
-# iter = Integrator(runge_kutta, env.total, time(env), dt, steps)
-
-# sigma = []
-# for i in 1:10
-#     # action = Scatterers([0.0f0 0.0f0], [-1.0f0^i * 0.2f0], [0.0f0])
-#     action = Scatterers([0.0f0 0.0f0; 0.0f0 0.0f0], [-1.0f0^i * 0.2f0, -1.0f0^i * 0.2f0], [0.0f0, 0.0f0])
-#     u = @time batch(env(action))
-#     display(size(u))
-#     plot_solution!(2, 2, dim, u, path = "results/u$i.png")
-#     push!(sigma, env.σ)
-# end
-
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, vcat(sigma...))
-# save("results/sigma.png", fig)
-
 action = Scatterers([0.0f0 0.0f0; 0.0f0 0.0f0], [0.2f0, -0.2f0], [0.0f0, 0.0f0])
 @time u = env(action)
 
@@ -60,46 +87,45 @@ ax = Axis(fig[1, 1])
 lines!(ax, sigma)
 save("sigma.png", fig)
 
-struct LatentDynamics <: AbstractDynamics
-    ambient_speed::Float32
-    grad::AbstractMatrix{Float32}
-    bc::AbstractArray{Float32}
-    pml_scale::Float32
-    pml::Vector{Float32}
-end
+latent_elements = 1024
+latent_dim = OneDim(10.0f0, latent_elements)
+pml_model = Chain(Dense(1, 64, relu), Dense(64, 64, relu), Dense(64, 1), vec, x -> x .^ 2)
+pml_model_ps, pml_model_re = Flux.destructure(pml_model)
 
-Flux.@functor LatentDynamics (pml,)
-
-function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u = wave[:, 1]
-    v = wave[:, 2]
-    c = wave[:, 3]
-
-    σ = dyn.pml * dyn.pml_scale
-
-    b = (dyn.ambient_speed * c) .^ 2
-    du = b .* (dyn.grad * v) .* dyn.bc .- σ .* u
-    dv = dyn.grad * u .- σ .* v
-    return hcat(du, dv, c * 0.0f0)
-end
-
-latent_dim = OneDim(10.0f0, 1024)
 latent_dynamics = LatentDynamics(
     ambient_speed,
     build_gradient(latent_dim), 
     dirichlet(latent_dim), 
+    build_grid(latent_dim),
     70000.0f0,
-    build_pml(latent_dim, 1.0f0, 1.0f0))
+    pml_model_ps,
+    pml_model_re
+    )
 
 latent_iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
 
 d = design.initial
 a = design.action
 
-wave_enc = Chain(WaveEncoder(6, 1, 2, relu), Dense(4096, 1024, tanh))
+wave_enc = Chain(WaveEncoder(6, 8, 2, relu), Dense(4096, 1024, tanh))
 design_enc = DesignEncoder(2 * length(vec(d)), 128, 1024, relu)
-zi = hcat(wave_enc(ui), design_enc(d, a))
-z = latent_iter(zi)
+mlp = Chain(Flux.flatten, Dense(3 * 1024, 512, relu), Dense(512, 1), vec)
+model = WaveControlModel(wave_enc, design_enc, latent_iter, mlp)
+
+opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
+
+for i in 1:20
+
+    loss, gs = Flux.withgradient(model) do _model
+        mse(_model(ui, d, a), sigma)
+    end
+
+    println(loss)
+    opt_state, model = Optimisers.update(opt_state, model, gs[1])
+end
+
+zi = hcat(model.wave_encoder(ui), model.design_encoder(d, a))
+z = model.latent_iter(zi)
 
 fig = Figure()
 ax = Axis(fig[1, 1])

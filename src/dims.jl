@@ -1,4 +1,4 @@
-export OneDim, TwoDim, ThreeDim, grid, build_wave
+export OneDim, TwoDim, ThreeDim, build_grid, build_wave
 
 struct OneDim <: AbstractDim
     x::AbstractVector{Float32}
@@ -76,7 +76,7 @@ function Base.ndims(dim::AbstractDim)
     return length(size(dim))
 end
 
-function grid(dim::OneDim)
+function build_grid(dim::OneDim)
     return dim.x
 end
 
@@ -86,7 +86,7 @@ of discretization points on each axis. The last dimension specifies the
 x or y coordinate in the space. This array is useful in operations
 which would normally involve a double for loop.
 """
-function grid(dim::TwoDim)
+function build_grid(dim::TwoDim)
     x = repeat(dim.x, 1, length(dim.y))
     y = repeat(dim.y', length(dim.x))
     g = cat(x, y, dims = 3)

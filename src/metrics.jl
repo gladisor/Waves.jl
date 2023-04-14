@@ -5,7 +5,7 @@ Creates a BitMatrix where all elements within the specified radius are 1 and all
 else are zero.
 """
 function circle_mask(dim::TwoDim, radius::Float32)
-    g = grid(dim)
+    g = build_grid(dim)
     return dropdims(sum(g .^ 2, dims = 3), dims = 3) .< radius ^2
 end
 

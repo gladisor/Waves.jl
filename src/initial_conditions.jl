@@ -11,11 +11,11 @@ struct Pulse{D <: AbstractDim} <: InitialCondition
 end
 
 function Pulse(dim::OneDim, x::Float32, intensity::Float32)
-    return Pulse{OneDim}(grid(dim), [x], intensity)
+    return Pulse{OneDim}(build_grid(dim), [x], intensity)
 end
 
 function Pulse(dim::TwoDim, x::Float32, y::Float32, intensity::Float32)
-    return Pulse{TwoDim}(grid(dim), [x, y], intensity)
+    return Pulse{TwoDim}(build_grid(dim), [x, y], intensity)
 end
 
 function (pulse::Pulse{OneDim})()
@@ -101,7 +101,7 @@ struct PlaneWave <: InitialCondition
 end
 
 function PlaneWave(dim::TwoDim, x::Float32, intensity::Float32)
-    return PlaneWave(grid(dim), x, intensity)
+    return PlaneWave(build_grid(dim), x, intensity)
 end
 
 function (ic::PlaneWave)()

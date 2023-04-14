@@ -1,79 +1,97 @@
-using Flux
-using Flux.Losses: huber_loss
 using CairoMakie
+using SparseArrays
+using Flux
 using Waves
 
-include("models.jl")
-
-function plot_energy!(t::Vector{Float32}, sigma::Vector{Float32}; path::String)
+function plot_wave(dim::TwoDim, wave::AbstractMatrix{Float32})
     fig = Figure()
-    ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Energy")
-    lines!(ax, t, sigma, linewidth = 3)
-    save(path, fig)
+    ax = Axis(fig[1, 1], aspect = 1.0)
+    heatmap!(ax, dim.x, dim.y, wave, colormap = :ice)
+    return fig, ax
 end
 
-function plot_energy!(sol::WaveSol; kwargs...)
-    sigma = sum.(energy.(displacement.(sol.u)))
-    t = sol.t
-    plot_energy!(t, sigma; kwargs...)
+function plot_wave(dim::TwoDim, wave::AbstractArray{Float32, 3})
+    return plot_wave(dim, wave[:, :, 1])
 end
 
-s, a = load_episode_data("data/episode1/data10.jld2");
-sol_sc = s.sol.total - s.sol.incident
+function render!(dim::TwoDim, u::AbstractArray{Float32, 4}; path::String)
+    
+    fig, ax = plot_wave(dim, u[:, :, :, 1])
 
-elements = size(sol_sc.u[1], 1)
-z_elements = 4096
-h_size = 512
-
-dynamics_kwargs = Dict(:pml_width => 1.0f0, :pml_scale => 70.0f0, :ambient_speed => 1.0f0, :dt => 0.01f0)
-
-model = Chain(
-    WaveEncoder(6, 32, 2, tanh),
-    Parallel(
-        hcat,
-        Dense(4096, h_size, tanh),
-        Chain(Dense(4096, h_size, sigmoid), z -> prod(z, dims = 2))),
-    FEMIntegrator(h_size, 20; grid_size = 5.0f0, dynamics_kwargs...),
-    Flux.flatten,
-    Dense(h_size * 3, 1),
-    vec
-    )
-
-opt = Adam(0.0001)
-ps = Flux.params(model)
-
-sigma = sol_sc.u .|> displacement .|> energy .|> sum
-sigma_true = sigma[2:end]
-
-for i in 1:30
-
-    gs = Flux.gradient(ps) do 
-        sigma_pred = model(s.sol.total)
-        loss = huber_loss(sigma_true, sigma_pred)
-
-        Flux.ignore() do
-            println(loss)
-        end
-
-        return loss
+    record(fig, path, axes(u, 4), framerate = 60) do i
+        empty!(ax)
+        heatmap!(ax, dim.x, dim.y, u[:, :, 1, i], colormap = :ice)
     end
-
-    Flux.update!(opt, ps, gs)
 end
 
-sigma_pred = model(s.sol.total)
+function Waves.dirichlet(dim::TwoDim)
+    bc = one(dim)
+    bc[:, 1] .= 0.0f0
+    bc[1, :] .= 0.0f0
+    bc[:, end] .= 0.0f0
+    bc[end, :] .= 0.0f0
+    return bc
+end
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, s.sol.total.t[2:end], sigma_pred, label = "Predicted")
-lines!(ax, s.sol.total.t[2:end], sigma_true, label = "Actual")
-axislegend(ax)
-save("energy.png", fig)
+struct AcousticWaveDynamics <: AbstractDynamics
+    grad::SparseMatrixCSC
+    C::AbstractArray
+    bc::AbstractArray
+    pml::AbstractArray
+end
 
-iter = model[3]
-dim = iter.dynamics.dim
+Flux.@functor AcousticWaveDynamics ()
 
-z = s.sol.total |> model[1] |> model[2]
-z_sol = solve(iter.cell, z, iter.dynamics, iter.steps)
+function (dyn::AcousticWaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
+    U = wave[:, :, 1]
+    Vx = wave[:, :, 2]
+    Vy = wave[:, :, 3]
+    Ψx = wave[:, :, 4]
+    Ψy = wave[:, :, 5]
+    Ω = wave[:, :, 6]
 
-render!(z_sol, path = "vid.mp4")
+    C = dyn.C
+    b = C .^ 2
+    ∇ = dyn.grad
+    σx = dyn.pml
+    σy = σx'
+
+    Vxx = ∇ * Vx
+    Vyy = (∇ * Vy')'
+    Ux = ∇ * U
+    Uy = (∇ * U')'
+
+    dU = b .* (Vxx .+ Vyy) .+ (Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω)
+    dVx = Ux .- σx .* Vx
+    dVy = Uy .- σy .* Vy
+    dΨx = b .* σx .* Vyy
+    dΨy = b .* σy .* Vxx
+    dΩ = σx .* σy .* U
+
+    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+end
+
+grid_size = 5.f0
+elements = 512
+ti = 0.0f0
+dt = 0.00001f0
+steps = 800
+
+ambient_speed = 1543.0f0
+pulse_intensity = 1.0f0
+
+dim = TwoDim(grid_size, elements)
+
+grad = build_gradient(dim)
+C = ones(Float32, size(dim)...) * ambient_speed
+bc = dirichlet(dim)
+pml = build_pml(dim, 1.0f0, 210000.0f0)
+
+dynamics = AcousticWaveDynamics(grad, C, bc, pml)
+iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
+
+pulse = Pulse(dim, -3.0f0, 0.0f0, pulse_intensity)
+wave = pulse(build_wave(dim, fields = 6))
+
+@time u = iter(wave)
+@time render!(dim, u, path = "vid.mp4")

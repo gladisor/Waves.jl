@@ -18,7 +18,7 @@ function render!(dim::TwoDim, u::AbstractArray{Float32, 4}; path::String)
     
     fig, ax = plot_wave(dim, u[:, :, :, 1])
 
-    record(fig, path, axes(u, 4), framerate = 60) do i
+    record(fig, path, axes(u, 4), framerate = 100) do i
         empty!(ax)
         heatmap!(ax, dim.x, dim.y, u[:, :, 1, i], colormap = :ice)
     end
@@ -34,13 +34,13 @@ function Waves.dirichlet(dim::TwoDim)
 end
 
 struct AcousticWaveDynamics <: AbstractDynamics
-    grad::SparseMatrixCSC
+    grad::AbstractMatrix
     C::AbstractArray
     bc::AbstractArray
     pml::AbstractArray
 end
 
-Flux.@functor AcousticWaveDynamics ()
+Flux.@functor AcousticWaveDynamics
 
 function (dyn::AcousticWaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     U = wave[:, :, 1]
@@ -75,23 +75,58 @@ grid_size = 5.f0
 elements = 512
 ti = 0.0f0
 dt = 0.00001f0
-steps = 800
+steps = 200
 
 ambient_speed = 1543.0f0
-pulse_intensity = 1.0f0
+pulse_intensity = 5.0f0
 
 dim = TwoDim(grid_size, elements)
-
+grid = build_grid(dim)
 grad = build_gradient(dim)
 C = ones(Float32, size(dim)...) * ambient_speed
 bc = dirichlet(dim)
 pml = build_pml(dim, 1.0f0, 210000.0f0)
 
-dynamics = AcousticWaveDynamics(grad, C, bc, pml)
-iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
+# dynamics = AcousticWaveDynamics(grad, C, bc, pml) |> gpu
+
+points = [
+    -3.0f0 3.0f0;
+    0.0f0 3.0f0;
+    0.0f0 0.0f0;
+    0.0f0 -3.0f0;
+    -3.0f0 -3.0f0]
+
+initial = Scatterers(
+    points, 
+    [1.0f0 for i in axes(points, 1)], 
+    [2100.0f0 for i in axes(points, 1)])
+# action = Scatterers([0.0f0 0.0f0], [1.0f0], [0.0f0])
+# design = DesignInterpolator(initial, action, ti, ti + steps * dt)
+design = DesignInterpolator(initial)
+
+dynamics = SplitWavePMLDynamics(design, dim, grid, ambient_speed, grad, pml)
+iter = Integrator(runge_kutta, dynamics, ti, dt, steps) |> gpu
 
 pulse = Pulse(dim, -3.0f0, 0.0f0, pulse_intensity)
-wave = pulse(build_wave(dim, fields = 6))
+wave = pulse(build_wave(dim, fields = 6)) |> gpu
 
 @time u = iter(wave)
-@time render!(dim, u, path = "vid.mp4")
+@time render!(dim, cpu(u), path = "vid.mp4")
+
+@time u = iter(u[:, :, :, end])
+@time render!(dim, cpu(u), path = "vid2.mp4")
+
+@time u = iter(u[:, :, :, end])
+@time render!(dim, cpu(u), path = "vid3.mp4")
+
+@time u = iter(u[:, :, :, end])
+@time render!(dim, cpu(u), path = "vid4.mp4")
+
+mask = Waves.location_mask(initial, grid)
+mask = Matrix{Float32}(dropdims(sum(mask, dims = 3), dims = 3))
+fig, ax = plot_wave(dim, mask)
+save("mask.png", fig)
+
+C = Waves.speed(initial, grid, ambient_speed)
+fig, ax = plot_wave(dim, C)
+save("C.png", fig)

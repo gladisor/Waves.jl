@@ -58,10 +58,10 @@ function Base.zero(config::Scatterers)
         zeros(Float32, size(config.c)))
 end
 
-function location_mask(config::Scatterers, g::AbstractArray{Float32, 3})
+function location_mask(config::Scatterers, grid::AbstractArray{Float32, 3})
     pos = config.pos'
     pos = reshape(pos, 1, 1, size(pos)...)
-    mask = dropdims(sum((g .- pos) .^ 2, dims = 3), dims = 3) .< reshape(config.r, 1, 1, length(config.r)) .^ 2
+    mask = dropdims(sum((grid .- pos) .^ 2, dims = 3), dims = 3) .< reshape(config.r, 1, 1, length(config.r)) .^ 2
     return mask
 end
 

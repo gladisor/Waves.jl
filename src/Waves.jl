@@ -29,7 +29,7 @@ abstract type AbstractWaveCell end
 
 include("dims.jl")                         ## Core structures for defining dimensional spaces
 include("metrics.jl")
-include("ops.jl")
+include("operators.jl")
 include("sol.jl")                          ## Structure for holing results of wave simulations
 include("pml.jl")                          ## Perfectly Matched Layer
 include("initial_conditions.jl")           ## Pulses, waves, etc...

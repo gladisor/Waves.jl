@@ -15,6 +15,7 @@ include("plot.jl")
 using Flux: Params, Recur
 using Waves: speed
 include("../src/dynamics.jl")
+
 include("env.jl")
 
 struct LatentPMLWaveDynamics <: AbstractDynamics
@@ -105,33 +106,47 @@ env = ScatteredWaveEnv(
     dt,
     steps) |> gpu
 
+states = ScatteredWaveEnvState[]
+actions = Scatterers[]
 sigma = []
 
 for i in 1:10
     action = Scatterers([0.75f0 * randn(Float32) 0.75f0 * randn(Float32)], [0.0f0], [0.0f0])
+
+    push!(states, cpu(state(env)))
+    push!(actions, action)
+
     @time env(gpu(action))
+
     push!(sigma, cpu(env.σ))
 end
 
-all_sigma = [sigma[1][1], vcat([s[2:end] for s in sigma]...)...]
+data = Flux.DataLoader((states, actions, sigma), shuffle = true)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, all_sigma, color = :blue)
-save("sigma.png", fig)
+latent_dim = OneDim(grid_size, 1024)
+latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
 
-# ui = sol.u[1]
+model = WaveControlModel(
+    WaveEncoder(6, 32, 2, relu),
+    DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
+    Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
+    Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec))
 
-# latent_dim = OneDim(grid_size, 1024)
-# latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
+opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
 
-# model = WaveControlModel(
-#     WaveEncoder(6, 32, 2, relu),
-#     DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
-#     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-#     Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec))
+for sample in data
+    s, a, σ = sample
 
-# opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
+    for i in axes(s, 1)
+        loss, back = Flux.pullback(_model -> mse(σ[i], _model(s[i].wave_total, s[i].design, a[i])), model)
+        gs = back(one(loss))[1]
+
+        display(gs)
+        break
+    end
+
+    break
+end
 
 # for i in 1:10
 #     loss, back = Flux.pullback(_model -> mse(sigma, _model(ui, initial, action)), model)

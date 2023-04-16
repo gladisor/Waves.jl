@@ -6,6 +6,8 @@ struct ScatteredWaveEnvState
     design::AbstractDesign
 end
 
+Flux.@functor ScatteredWaveEnvState
+
 mutable struct ScatteredWaveEnv
     wave_total::AbstractArray{Float32}
     wave_incident::AbstractArray{Float32}
@@ -52,3 +54,4 @@ function state(env::ScatteredWaveEnv)
         env.wave_incident,
         env.total.design(time(env)))
 end
+

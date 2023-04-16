@@ -86,11 +86,10 @@ function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj
 end
 
 function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32, 3}
-    println("adjoint_sensitivity")
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
 
-    a = selectdim(adj, 3, size(adj, 3))
-    wave = selectdim(u, 3, size(u, 3))
+    a = adj[:, :, end]
+    wave = u[:, :, end]
     _, back = pullback(_iter -> _iter(wave, tspan[end]), iter)
 
     gs = back(a)[1]
@@ -98,9 +97,8 @@ function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: Abstract
 
     for i in reverse(1:size(u, 3))
 
-        wave = selectdim(u, 3, i)
-
-        adjoint_state = selectdim(adj, 3, i)
+        wave = u[:, :, i]
+        adjoint_state = adj[:, :, i]
         _, back = pullback((_iter, _wave) -> _iter(_wave, tspan[i]), iter, wave)
         
         dparams, dwave = back(adjoint_state)
@@ -113,7 +111,6 @@ function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: Abstract
 end
 
 function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32})
-    println("Integrator rrule")
     u = iter(ui)
 
     function Integrator_back(adj::AbstractArray{Float32, 3})

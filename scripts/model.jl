@@ -1,11 +1,11 @@
 using CairoMakie
 using Flux
 using Flux: unbatch, mse
+Flux.CUDA.allowscalar(false)
 using Optimisers
 
 using Flux: pullback
 using ChainRulesCore
-
 
 using Interpolations
 using Interpolations: Extrapolation
@@ -16,6 +16,7 @@ using Flux: Params, Recur
 using Waves: speed
 include("../src/dynamics.jl")
 
+using IntervalSets
 include("env.jl")
 
 struct LatentPMLWaveDynamics <: AbstractDynamics
@@ -91,11 +92,7 @@ pulse = Pulse(dim, -5.0f0, 0.0f0, 1.0f0)
 wave = pulse(wave)
 
 initial = Scatterers([0.0f0 0.0f0], [1.0f0], [2100.0f0])
-# design = linear_interpolation([ti, tf], [initial, initial])
 design = DesignInterpolator(initial)
-
-dynamics = SplitWavePMLDynamics(design, dim, grid, ambient_speed, grad, bc, pml)
-iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
 
 env = ScatteredWaveEnv(
     wave, wave,
@@ -106,87 +103,67 @@ env = ScatteredWaveEnv(
     dt,
     steps) |> gpu
 
-states = ScatteredWaveEnvState[]
-actions = Scatterers[]
-sigma = []
-
-for i in 1:10
-    action = Scatterers([0.75f0 * randn(Float32) 0.75f0 * randn(Float32)], [0.0f0], [0.0f0])
-
-    push!(states, cpu(state(env)))
-    push!(actions, action)
-
-    @time env(gpu(action))
-
-    push!(sigma, cpu(env.σ))
-end
-
-data = Flux.DataLoader((states, actions, sigma), shuffle = true)
-
-latent_dim = OneDim(grid_size, 1024)
-latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
-
-model = WaveControlModel(
-    WaveEncoder(6, 32, 2, relu),
-    DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
-    Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-    Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec))
-
-opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
-
-for sample in data
-    s, a, σ = sample
-
-    for i in axes(s, 1)
-        loss, back = Flux.pullback(_model -> mse(σ[i], _model(s[i].wave_total, s[i].design, a[i])), model)
-        gs = back(one(loss))[1]
-
-        display(gs)
-        break
-    end
-
-    break
-end
+# states = ScatteredWaveEnvState[]
+# actions = Scatterers[]
+# sigma = []
 
 # for i in 1:10
-#     loss, back = Flux.pullback(_model -> mse(sigma, _model(ui, initial, action)), model)
-#     gs = back(one(loss))[1]
+#     action = Scatterers([0.75f0 * randn(Float32) 0.75f0 * randn(Float32)], [0.0f0], [0.0f0])
 
-#     opt_state, model = Optimisers.update(opt_state, model, gs)
+#     push!(states, cpu(state(env)))
+#     push!(actions, action)
 
-#     println(loss)
+#     @time env(gpu(action))
+
+#     push!(sigma, cpu(env.σ))
 # end
 
+# data = Flux.DataLoader((states, actions, sigma), shuffle = true)
 
-# # render!(latent_dim, z, path = "vid.mp4")
+# latent_dim = OneDim(grid_size, 1024)
+# latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
 
-# # designs = []
-# # sigma = []
-# # ts = []
-# # us = []
-# # sols = []
+# function main()
 
-# # for i in 1:10
-# #     action = Scatterers([(-1) ^ (i + 1) * 1.0f0 (-1) ^ i * 1.0f0], [0.0f0], [0.0f0])
-# #     @time sol = env(action)
+#     model = WaveControlModel(
+#         WaveEncoder(6, 32, 2, relu),
+#         DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
+#         Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
+#         Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec)) |> gpu
 
-# #     push!(sols, sol)
-# #     push!(designs, env.total.design)
-# #     push!(sigma, env.σ)
-# # end
+#     opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
 
-# # design_tspan = vcat(sols[1].t[1], [sol.t[end] for sol in sols]...)
-# # ds = [designs[1](0.0f0), [d(sol.t[end]) for (d, sol) in zip(designs, sols)]...]
-# # design_interp = linear_interpolation(design_tspan, ds)
+#     for epoch in 1:20
+#         train_loss = 0.0f0
+#         for sample in data
+#             s, a, σ = gpu.(sample)
 
-# # sol = WaveSol(sols...)
-# # u_interp = linear_interpolation(sol.t, sol.u)
+#             for i in axes(s, 1)
+#                 loss, back = Flux.pullback(_model -> mse(σ[i], _model(s[i].wave_total, s[i].design, a[i])), model)
+#                 gs = back(one(loss))[1]
+#                 opt_state, model = Optimisers.update(opt_state, model, gs)
+#                 train_loss += loss
+#             end
+#         end
 
-# # render!(dim, sol.t, u_interp, design_interp, seconds = 5.0f0)
+#         println(train_loss / length(data))
+#     end
 
-# # sigma = [sigma[1][1], [s[2:end] for s in sigma]...]
+#     return model
+# end
 
-# # fig = Figure()
-# # ax = Axis(fig[1, 1])
-# # lines!(ax, sol.t, vcat(sigma...), color = :blue)
-# # save("sigma2.png", fig)
+# model = main()
+
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, cpu(model.iter.dynamics.pml))
+# save("pml.png", fig)
+
+# model(states[1].total, states[1].design, actions[1])
+
+# sigma_pred = [cpu(model(gpu(states[i].wave_total), gpu(states[i].design), gpu(actions[i]))) for i in axes(states, 1)]
+
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(sigma_pred)
+# save("sigma.png", fig)

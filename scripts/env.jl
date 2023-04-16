@@ -9,11 +9,16 @@ end
 Flux.@functor ScatteredWaveEnvState
 
 mutable struct ScatteredWaveEnv
+    initial_condition::InitialCondition
+
     wave_total::AbstractArray{Float32}
     wave_incident::AbstractArray{Float32}
 
     total::SplitWavePMLDynamics
     incident::SplitWavePMLDynamics{Nothing}
+
+    reset_design::Function
+    design_space::ClosedInterval
 
     σ::Vector{Float32}
     time_step::Int
@@ -22,6 +27,10 @@ mutable struct ScatteredWaveEnv
 end
 
 Flux.@functor ScatteredWaveEnv
+
+# function ScatteredWaveEnv(dim::TwoDim; )
+
+# end
 
 function Base.time(env::ScatteredWaveEnv)
     return env.time_step * env.dt

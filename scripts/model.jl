@@ -1,6 +1,7 @@
 using CairoMakie
 using Flux
 using Flux: unbatch, mse
+using Optimisers
 
 using Flux: pullback
 using ChainRulesCore
@@ -118,10 +119,17 @@ model = WaveControlModel(
     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
     Chain(Flux.flatten, Dense(3072, 1), vec))
 
-# model(ui, initial, action)
+opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
 
-sigma, back = Flux.pullback(_model -> _model(ui, initial, action), model)
-gs = back(sigma)[1]
+for i in 1:10
+    loss, back = Flux.pullback(_model -> mse(sigma, _model(ui, initial, action)), model)
+    gs = back(one(loss))[1]
+
+    opt_state, model = Optimisers.update(opt_state, model, gs)
+
+    println(loss)
+end
+
 
 # render!(latent_dim, z, path = "vid.mp4")
 

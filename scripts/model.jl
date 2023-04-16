@@ -106,6 +106,11 @@ env = ScatteredWaveEnv(
 
 action = Scatterers([0.0f0 1.0f0], [0.0f0], [0.0f0])
 sol = env(action)
+action = Scatterers([1.0f0 1.0f0], [0.0f0], [0.0f0])
+sol = env(action)
+action = Scatterers([-1.0f0 -1.0f0], [0.0f0], [0.0f0])
+sol = env(action)
+
 sigma = env.σ
 
 ui = sol.u[1]
@@ -114,10 +119,10 @@ latent_dim = OneDim(grid_size, 1024)
 latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
 
 model = WaveControlModel(
-    WaveEncoder(6, 8, 2, relu),
+    WaveEncoder(6, 32, 2, relu),
     DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-    Chain(Flux.flatten, Dense(3072, 1), vec))
+    Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec))
 
 opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
 

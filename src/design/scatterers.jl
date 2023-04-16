@@ -123,8 +123,9 @@ function Base.vec(config::Scatterers)
     return vcat(vec(config.pos), config.r, config.c)
 end
 
-function Base.display(design::Scatterers)
-    println(typeof(design))
+function Base.display(config::Scatterers)
+    println(typeof(config), ":")
+    println(vec(config))
 end
 
 function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})

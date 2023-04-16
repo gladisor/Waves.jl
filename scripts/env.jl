@@ -4,7 +4,7 @@ mutable struct ScatteredWaveEnv
     wave_incident::AbstractArray{Float32}
 
     total::SplitWavePMLDynamics
-    incident::SplitWavePMLDynamics
+    incident::SplitWavePMLDynamics{Nothing}
 
     σ::Vector{Float32}
     time_step::Int
@@ -36,5 +36,5 @@ function (env::ScatteredWaveEnv)(action::AbstractDesign)
 
     env.time_step += env.integration_steps
 
-    return u_total
+    return WaveSol(env.total.dim, tspan, u_total)
 end

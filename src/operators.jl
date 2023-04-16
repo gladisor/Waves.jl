@@ -1,4 +1,4 @@
-export build_gradient
+export build_gradient, ∂x, ∂y
 
 const FORWARD_DIFF_COEF = [-3.0f0, 4.0f0, -1.0f0]
 const BACKWARD_DIFF_COEF = [1.0f0, -4.0f0, 3.0f0]
@@ -41,3 +41,6 @@ function laplacian(x::Vector{Float32})
 
     return sparse(laplace)
 end
+
+∂x(∇::AbstractMatrix, u::Union{AbstractVector, AbstractMatrix}) = ∇ * u
+∂y(∇::AbstractMatrix, u::AbstractMatrix) = (∇ * u')'

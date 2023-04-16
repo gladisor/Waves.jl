@@ -90,7 +90,8 @@ pulse = Pulse(dim, -5.0f0, 0.0f0, 1.0f0)
 wave = pulse(wave)
 
 initial = Scatterers([0.0f0 0.0f0], [1.0f0], [2100.0f0])
-design = linear_interpolation([ti, tf], [initial, initial])
+# design = linear_interpolation([ti, tf], [initial, initial])
+design = DesignInterpolator(initial)
 
 dynamics = SplitWavePMLDynamics(design, dim, grid, ambient_speed, grad, bc, pml)
 iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
@@ -107,7 +108,7 @@ env = ScatteredWaveEnv(
 sigma = []
 
 for i in 1:10
-    action = Scatterers([0.5f0 * randn(Float32) 0.5f0 * randn(Float32)], [0.0f0], [0.0f0])
+    action = Scatterers([0.75f0 * randn(Float32) 0.75f0 * randn(Float32)], [0.0f0], [0.0f0])
     @time env(gpu(action))
     push!(sigma, cpu(env.σ))
 end

@@ -1,3 +1,10 @@
+struct ScatteredWaveEnvState
+    dim::TwoDim
+    tspan::Vector{Float32}
+    wave_total::AbstractArray{Float32, 3}
+    wave_incident::AbstractArray{Float32, 3}
+    design::AbstractDesign
+end
 
 mutable struct ScatteredWaveEnv
     wave_total::AbstractArray{Float32}
@@ -35,6 +42,13 @@ function (env::ScatteredWaveEnv)(action::AbstractDesign)
     env.σ = sum.(energy.(displacement.(u_scattered)))
 
     env.time_step += env.integration_steps
+end
 
-    return WaveSol(env.total.dim, tspan, u_total)
+function state(env::ScatteredWaveEnv)
+    return ScatteredWaveEnvState(
+        env.total.dim,
+        build_tspan(time(env), env.dt, env.integration_steps),
+        env.wave_total,
+        env.wave_incident,
+        env.total.design(time(env)))
 end

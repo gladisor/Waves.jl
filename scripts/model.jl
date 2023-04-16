@@ -102,69 +102,75 @@ env = ScatteredWaveEnv(
     zeros(Float32, steps + 1),
     0,
     dt,
-    steps)
+    steps) |> gpu
 
-action = Scatterers([0.0f0 1.0f0], [0.0f0], [0.0f0])
-sol = env(action)
-action = Scatterers([1.0f0 1.0f0], [0.0f0], [0.0f0])
-sol = env(action)
-action = Scatterers([-1.0f0 -1.0f0], [0.0f0], [0.0f0])
-sol = env(action)
-
-sigma = env.σ
-
-ui = sol.u[1]
-
-latent_dim = OneDim(grid_size, 1024)
-latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
-
-model = WaveControlModel(
-    WaveEncoder(6, 32, 2, relu),
-    DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
-    Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-    Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec))
-
-opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
+sigma = []
 
 for i in 1:10
-    loss, back = Flux.pullback(_model -> mse(sigma, _model(ui, initial, action)), model)
-    gs = back(one(loss))[1]
-
-    opt_state, model = Optimisers.update(opt_state, model, gs)
-
-    println(loss)
+    action = Scatterers([0.5f0 * randn(Float32) 0.5f0 * randn(Float32)], [0.0f0], [0.0f0])
+    @time env(gpu(action))
+    push!(sigma, cpu(env.σ))
 end
 
+all_sigma = [sigma[1][1], vcat([s[2:end] for s in sigma]...)...]
 
-# render!(latent_dim, z, path = "vid.mp4")
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, all_sigma, color = :blue)
+save("sigma.png", fig)
 
-# designs = []
-# sigma = []
-# ts = []
-# us = []
-# sols = []
+# ui = sol.u[1]
+
+# latent_dim = OneDim(grid_size, 1024)
+# latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
+
+# model = WaveControlModel(
+#     WaveEncoder(6, 32, 2, relu),
+#     DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
+#     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
+#     Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec))
+
+# opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
 
 # for i in 1:10
-#     action = Scatterers([(-1) ^ (i + 1) * 1.0f0 (-1) ^ i * 1.0f0], [0.0f0], [0.0f0])
-#     @time sol = env(action)
+#     loss, back = Flux.pullback(_model -> mse(sigma, _model(ui, initial, action)), model)
+#     gs = back(one(loss))[1]
 
-#     push!(sols, sol)
-#     push!(designs, env.total.design)
-#     push!(sigma, env.σ)
+#     opt_state, model = Optimisers.update(opt_state, model, gs)
+
+#     println(loss)
 # end
 
-# design_tspan = vcat(sols[1].t[1], [sol.t[end] for sol in sols]...)
-# ds = [designs[1](0.0f0), [d(sol.t[end]) for (d, sol) in zip(designs, sols)]...]
-# design_interp = linear_interpolation(design_tspan, ds)
 
-# sol = WaveSol(sols...)
-# u_interp = linear_interpolation(sol.t, sol.u)
+# # render!(latent_dim, z, path = "vid.mp4")
 
-# render!(dim, sol.t, u_interp, design_interp, seconds = 5.0f0)
+# # designs = []
+# # sigma = []
+# # ts = []
+# # us = []
+# # sols = []
 
-# sigma = [sigma[1][1], [s[2:end] for s in sigma]...]
+# # for i in 1:10
+# #     action = Scatterers([(-1) ^ (i + 1) * 1.0f0 (-1) ^ i * 1.0f0], [0.0f0], [0.0f0])
+# #     @time sol = env(action)
 
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, sol.t, vcat(sigma...), color = :blue)
-# save("sigma2.png", fig)
+# #     push!(sols, sol)
+# #     push!(designs, env.total.design)
+# #     push!(sigma, env.σ)
+# # end
+
+# # design_tspan = vcat(sols[1].t[1], [sol.t[end] for sol in sols]...)
+# # ds = [designs[1](0.0f0), [d(sol.t[end]) for (d, sol) in zip(designs, sols)]...]
+# # design_interp = linear_interpolation(design_tspan, ds)
+
+# # sol = WaveSol(sols...)
+# # u_interp = linear_interpolation(sol.t, sol.u)
+
+# # render!(dim, sol.t, u_interp, design_interp, seconds = 5.0f0)
+
+# # sigma = [sigma[1][1], [s[2:end] for s in sigma]...]
+
+# # fig = Figure()
+# # ax = Axis(fig[1, 1])
+# # lines!(ax, sol.t, vcat(sigma...), color = :blue)
+# # save("sigma2.png", fig)

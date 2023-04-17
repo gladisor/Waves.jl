@@ -14,9 +14,15 @@ Flux.@functor Scatterers
 
 function random_pos(r::AbstractVector{Float32}, disk_r::Float32)
     r = rand.(Uniform.(0.0f0, disk_r .- r))
-    θ = rand.(Uniform.(zeros(Float32, size(r)), ones(Float32, size(r)) * 2π))
-    pos = hcat(r .* cos.(θ), r .* sin.(θ))
-    return pos
+    # θ = rand.(Uniform.(zeros(Float32, size(r)), ones(Float32, size(r)) * 2π))
+    theta = rand.(Uniform.(r * 0.0f0, r .^ 0.0f0 * 2pi))
+    pos = hcat(r .* cos.(theta), r .* sin.(theta))
+    return Float32.(pos)
+end
+
+function random_pos(config::Scatterers, disk_r::Float32)
+    pos = random_pos(config.r, disk_r)
+    return Scatterers(pos, config.r, config.c)
 end
 
 function Scatterers(;M::Int, r::Float32, disk_r::Float32, c::Float32)
@@ -51,11 +57,19 @@ function Base.:/(config::Scatterers, n::AbstractFloat)
     return Scatterers(config.pos / n, config.r / n, config.c / n)
 end
 
+# function Base.zero(config::Scatterers)
+#     return Scatterers(
+#         zeros(Float32, size(config.pos)), 
+#         zeros(Float32, size(config.r)), 
+#         zeros(Float32, size(config.c)))
+# end
+
 function Base.zero(config::Scatterers)
     return Scatterers(
-        zeros(Float32, size(config.pos)), 
-        zeros(Float32, size(config.r)), 
-        zeros(Float32, size(config.c)))
+        config.pos * 0.0f0,
+        config.r * 0.0f0,
+        config.c * 0.0f0
+    )
 end
 
 function location_mask(config::Scatterers, grid::AbstractArray{Float32, 3})

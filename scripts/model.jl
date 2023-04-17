@@ -16,6 +16,7 @@ using Flux: Params, Recur
 using Waves: speed
 include("../src/dynamics.jl")
 
+using ReinforcementLearning
 using IntervalSets
 include("env.jl")
 
@@ -44,7 +45,7 @@ function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
     C = u[:, 3] * dyn.ambient_speed
 
     ∇ = dyn.grad
-    σ = dyn.pml * dyn.pml_scale
+    σ = dyn.pml * dyn.pml_scale .^ 2
 
     du = C .^ 2 .* ∂x(∇, V) .- σ .* U
     dv = ∂x(∇, U) .- σ .* V
@@ -82,26 +83,25 @@ tspan = build_tspan(ti, dt, steps)
 tf = tspan[end]
 
 dim = TwoDim(grid_size, elements)
-grid = build_grid(dim)
-grad = build_gradient(dim)
-bc = dirichlet(dim)
-pml = build_pml(dim, 2.0f0, 20000.0f0)
-wave = build_wave(dim, fields = 6)
-
 pulse = Pulse(dim, -5.0f0, 0.0f0, 1.0f0)
-wave = pulse(wave)
-
-initial = Scatterers([0.0f0 0.0f0], [1.0f0], [2100.0f0])
-design = DesignInterpolator(initial)
+initial_design = Scatterers([0.0f0 0.0f0], [1.0f0], [2100.0f0])
 
 env = ScatteredWaveEnv(
-    wave, wave,
-    SplitWavePMLDynamics(design, dim, grid, ambient_speed, grad, bc, pml),
-    SplitWavePMLDynamics(nothing, dim, grid, ambient_speed, grad, bc, pml),
-    zeros(Float32, steps + 1),
-    0,
-    dt,
-    steps) |> gpu
+    dim,
+    initial_condition = pulse,
+    design = initial_design,
+    pml_width = 2.0f0,
+    pml_scale = 20000.0f0,
+    reset_design = d -> random_pos(d, 2.0f0),
+    action_space = Waves.design_space(initial_design, 0.75f0)) |> gpu
+
+reset!(env)
+
+while !is_terminated(env)
+    action = rand(action_space(env)) |> gpu
+    @time env(action)
+    println(time(env))
+end
 
 # states = ScatteredWaveEnvState[]
 # actions = Scatterers[]

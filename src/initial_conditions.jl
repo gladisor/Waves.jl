@@ -10,6 +10,8 @@ struct Pulse{D <: AbstractDim} <: InitialCondition
     intensity::Float32
 end
 
+Flux.@functor Pulse ()
+
 function Pulse(dim::OneDim, x::Float32, intensity::Float32)
     return Pulse{OneDim}(build_grid(dim), [x], intensity)
 end
@@ -42,83 +44,87 @@ function (pulse::Pulse{TwoDim})(wave::AbstractArray{Float32, 3})
     return cat(u, z, dims = 3)
 end
 
-function Flux.gpu(pulse::Pulse{D}) where D <: AbstractDim
-    return Pulse{D}(gpu(pulse.mesh_grid), gpu(pulse.pos), pulse.intensity)
-end
+# function Flux.gpu(pulse::Pulse{D}) where D <: AbstractDim
+#     return Pulse{D}(gpu(pulse.mesh_grid), gpu(pulse.pos), pulse.intensity)
+# end
 
-function Flux.cpu(pulse::Pulse{D}) where D <: AbstractDim
-    return Pulse{D}(cpu(pulse.mesh_grid), cpu(pulse.pos), pulse.intensity)
-end
+# function Flux.cpu(pulse::Pulse{D}) where D <: AbstractDim
+#     return Pulse{D}(cpu(pulse.mesh_grid), cpu(pulse.pos), pulse.intensity)
+# end
 
-mutable struct RandomPulseTwoDim <: InitialCondition
-    x_distribution::Uniform
-    y_distribution::Uniform
-    pulse::Pulse
-end
+# mutable struct RandomPulseTwoDim <: InitialCondition
+#     x_distribution::Uniform
+#     y_distribution::Uniform
+#     pulse::Pulse
+# end
 
-function RandomPulseTwoDim(
-        dim::TwoDim,
-        x_distribution::Uniform,
-        y_distribution::Uniform,
-        intensity::Float32)
+# Flux.@functor RandomPulseTwoDim
+
+# function RandomPulseTwoDim(
+#         dim::TwoDim,
+#         x_distribution::Uniform,
+#         y_distribution::Uniform,
+#         intensity::Float32)
     
-    pulse = Pulse(
-        dim, 
-        Float32(rand(x_distribution)), 
-        Float32(rand(y_distribution)), 
-        intensity)
+#     pulse = Pulse(
+#         dim, 
+#         Float32(rand(x_distribution)), 
+#         Float32(rand(y_distribution)), 
+#         intensity)
 
-    return RandomPulseTwoDim(x_distribution, y_distribution, pulse)
-end
+#     return RandomPulseTwoDim(x_distribution, y_distribution, pulse)
+# end
 
-function Waves.reset!(random_pulse::RandomPulseTwoDim)
-    random_pulse.pulse = Pulse{TwoDim}(
-        random_pulse.pulse.mesh_grid,
-        [Float32(rand(random_pulse.x_distribution)), Float32(rand(random_pulse.y_distribution))],
-        random_pulse.pulse.intensity)
-    return nothing
-end
+# function Waves.reset!(random_pulse::RandomPulseTwoDim)
+#     random_pulse.pulse = Pulse{TwoDim}(
+#         random_pulse.pulse.mesh_grid,
+#         [Float32(rand(random_pulse.x_distribution)), Float32(rand(random_pulse.y_distribution))],
+#         random_pulse.pulse.intensity)
+#     return nothing
+# end
 
-function (random_pulse::RandomPulseTwoDim)(wave::AbstractArray{Float32, 3})
-    return random_pulse.pulse(wave)
-end
+# function (random_pulse::RandomPulseTwoDim)(wave::AbstractArray{Float32, 3})
+#     return random_pulse.pulse(wave)
+# end
 
-function Flux.gpu(random_pulse::RandomPulseTwoDim)
-    random_pulse.pulse = gpu(random_pulse.pulse)
-    return random_pulse
-end
+# # function Flux.gpu(random_pulse::RandomPulseTwoDim)
+# #     random_pulse.pulse = gpu(random_pulse.pulse)
+# #     return random_pulse
+# # end
 
-function Flux.cpu(random_pulse::RandomPulseTwoDim)
-    random_pulse.pulse = cpu(random_pulse.pulse)
-    return random_pulse
-end
+# # function Flux.cpu(random_pulse::RandomPulseTwoDim)
+# #     random_pulse.pulse = cpu(random_pulse.pulse)
+# #     return random_pulse
+# # end
 
 
-struct PlaneWave <: InitialCondition
-    mesh_grid::AbstractArray{Float32}
-    x::Float32
-    intensity::Float32
-end
+# struct PlaneWave <: InitialCondition
+#     mesh_grid::AbstractArray{Float32}
+#     x::Float32
+#     intensity::Float32
+# end
 
-function PlaneWave(dim::TwoDim, x::Float32, intensity::Float32)
-    return PlaneWave(build_grid(dim), x, intensity)
-end
+# Flux.@functor PlaneWave
 
-function (ic::PlaneWave)()
-    return exp.(- ic.intensity * (ic.mesh_grid[:, :, 1] .- ic.x) .^ 2)
-end
+# function PlaneWave(dim::TwoDim, x::Float32, intensity::Float32)
+#     return PlaneWave(build_grid(dim), x, intensity)
+# end
 
-function (ic::PlaneWave)(wave::AbstractArray{Float32, 3})
-    u = ic()
-    z = dropdims(sum(ic.mesh_grid, dims = 3), dims = 3) * 0.0f0
-    z = repeat(z, 1, 1, size(wave, 3) - 1)
-    return cat(u, z, dims = 3)
-end
+# function (ic::PlaneWave)()
+#     return exp.(- ic.intensity * (ic.mesh_grid[:, :, 1] .- ic.x) .^ 2)
+# end
 
-function Flux.gpu(ic::PlaneWave)
-    return PlaneWave(gpu(ic.mesh_grid), ic.x, ic.intensity)
-end
+# function (ic::PlaneWave)(wave::AbstractArray{Float32, 3})
+#     u = ic()
+#     z = dropdims(sum(ic.mesh_grid, dims = 3), dims = 3) * 0.0f0
+#     z = repeat(z, 1, 1, size(wave, 3) - 1)
+#     return cat(u, z, dims = 3)
+# end
 
-function Flux.cpu(ic::PlaneWave)
-    return PlaneWave(cpu(ic.mesh_grid), ic.x, ic.intensity)
-end
+# # function Flux.gpu(ic::PlaneWave)
+# #     return PlaneWave(gpu(ic.mesh_grid), ic.x, ic.intensity)
+# # end
+
+# # function Flux.cpu(ic::PlaneWave)
+# #     return PlaneWave(cpu(ic.mesh_grid), ic.x, ic.intensity)
+# # end

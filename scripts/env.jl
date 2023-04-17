@@ -131,3 +131,12 @@ end
 function RLBase.reward(env::ScatteredWaveEnv)
     return sum(env.σ)
 end
+
+function episode_trajectory(env::ScatteredWaveEnv)
+    traj = CircularArraySARTTrajectory(
+        capacity = env.max_steps,
+        state = Vector{ScatteredWaveEnv} => (),
+        action = Vector{typeof(env.total_dynamics.design.initial)} => ())
+
+    return traj
+end

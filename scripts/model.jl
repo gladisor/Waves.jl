@@ -73,6 +73,20 @@ function (model::WaveControlModel)(wave::AbstractArray{Float32, 3}, design::Abst
     return model.mlp(z)
 end
 
+function build_control_sequence(action::AbstractDesign, steps::Int)
+    return [zero(action) for i in 1:steps]
+end
+
+function build_mpc_cost(model::WaveControlModel, s::ScatteredWaveEnvState, control_sequence::Vector{AbstractDesign})
+    cost = 0.0f0
+
+    for a in control_sequence
+        cost += sum(model(s.wave_total, s.design, a))
+    end
+
+    return cost
+end
+
 grid_size = 8.0f0
 elements = 256
 ambient_speed = 343.0f0
@@ -93,7 +107,9 @@ env = ScatteredWaveEnv(
     pml_width = 2.0f0,
     pml_scale = 20000.0f0,
     reset_design = d -> random_pos(d, 2.0f0),
-    action_space = Waves.design_space(initial_design, 0.75f0)) |> gpu
+    action_space = Waves.design_space(initial_design, 0.75f0),
+    max_steps = 200
+    ) |> gpu
 
 reset!(env)
 
@@ -102,6 +118,19 @@ while !is_terminated(env)
     @time env(action)
     println(time(env))
 end
+
+latent_dim = OneDim(grid_size, 1024)
+latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
+
+model = WaveControlModel(
+    WaveEncoder(6, 32, 2, relu),
+    DesignEncoder(2 * length(vec(initial_design)), 128, 1024, relu),
+    Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
+    Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec)) |> gpu
+
+s = gpu(state(env))
+control_sequence = build_control_sequence(initial_design, 3)
+cost = build_mpc_cost(model, s, control_sequence)
 
 # states = ScatteredWaveEnvState[]
 # actions = Scatterers[]

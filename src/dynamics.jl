@@ -215,3 +215,37 @@ function dirichlet(dim::TwoDim)
     bc[end, :] .= 0.0f0
     return bc
 end
+
+struct LatentPMLWaveDynamics <: AbstractDynamics
+    ambient_speed::Float32
+    pml_scale::Float32
+
+    pml::AbstractArray
+    grad::AbstractMatrix
+    bc::AbstractArray
+end
+
+Flux.@functor LatentPMLWaveDynamics
+Flux.trainable(dyn::LatentPMLWaveDynamics) = ()#(;dyn.pml)
+
+function LatentPMLWaveDynamics(dim::AbstractDim; ambient_speed::Float32, pml_scale::Float32)
+    pml = zeros(Float32, size(dim)...)
+    grad = build_gradient(dim)
+    bc = dirichlet(dim)
+    return LatentPMLWaveDynamics(ambient_speed, pml_scale, pml, grad, bc)
+end
+
+function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
+    U = u[:, 1]
+    V = u[:, 2]
+    C = u[:, 3] * dyn.ambient_speed
+
+    ∇ = dyn.grad
+    σ = dyn.pml * dyn.pml_scale .^ 2
+
+    du = C .^ 2 .* ∂x(∇, V) .- σ .* U
+    dv = ∂x(∇, U) .- σ .* V
+    dc = C * 0.0f0
+
+    return hcat(dyn.bc .* du, dv, dc)
+end

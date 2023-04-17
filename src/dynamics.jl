@@ -54,36 +54,36 @@ function Base.reverse(iter::Integrator)
     return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
 end
 
-function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3}, θ::Params)
-    println("calling continuous_backprop")
-    ## create timespan and a reversed iterator
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-    ## setting the wave to not mutate the original data
-    wave = u[:, :, end]
-    ## initializing an array with the final adjoint state
-    gs = [adj[:, :, end]]
-    _, back = pullback(() -> iter(wave, tspan[end]), θ)
-    θ_gs = back(adj[:, :, end])
+# function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3}, θ::Params)
+#     println("calling continuous_backprop")
+#     ## create timespan and a reversed iterator
+#     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
+#     ## setting the wave to not mutate the original data
+#     wave = u[:, :, end]
+#     ## initializing an array with the final adjoint state
+#     gs = [adj[:, :, end]]
+#     _, back = pullback(() -> iter(wave, tspan[end]), θ)
+#     θ_gs = back(adj[:, :, end])
 
-    for i in reverse(axes(tspan, 1))
-        wave = u[:, :, i]
+#     for i in reverse(axes(tspan, 1))
+#         wave = u[:, :, i]
         
-        ## computing sensitivity of dynamics to the current state
-        _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
-        a = adj[:, :, i] .+ back(adj[:, :, i])[1]
-        push!(gs, a)
+#         ## computing sensitivity of dynamics to the current state
+#         _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
+#         a = adj[:, :, i] .+ back(adj[:, :, i])[1]
+#         push!(gs, a)
 
-        ## computing the sensitivity of dynamics to the implicit parameters
-        _, back = pullback(() -> iter(wave, tspan[i]), θ)
+#         ## computing the sensitivity of dynamics to the implicit parameters
+#         _, back = pullback(() -> iter(wave, tspan[i]), θ)
 
-        ## accumulating parameter gradients
-        θ_gs .+= back(adj[:, :, i])
-    end
+#         ## accumulating parameter gradients
+#         θ_gs .+= back(adj[:, :, i])
+#     end
 
-    ## summing the intermediate adjoint states over the time dimension
-    adj_0 = dropdims(sum(batch(gs), dims = 3), dims = 3)
-    return (θ_gs, adj_0)
-end
+#     ## summing the intermediate adjoint states over the time dimension
+#     adj_0 = dropdims(sum(batch(gs), dims = 3), dims = 3)
+#     return (θ_gs, adj_0)
+# end
 
 function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32, 3}
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
@@ -241,7 +241,7 @@ function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
     C = u[:, 3] * dyn.ambient_speed
 
     ∇ = dyn.grad
-    σ = dyn.pml * dyn.pml_scale .^ 2
+    σ = (dyn.pml .^ 2) * dyn.pml_scale
 
     du = C .^ 2 .* ∂x(∇, V) .- σ .* U
     dv = ∂x(∇, U) .- σ .* V

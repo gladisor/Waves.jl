@@ -1,5 +1,35 @@
+using Flux
+using Flux: Recur, pullback
+using ChainRulesCore
 
+using Interpolations
+using Interpolations: Extrapolation
+using CairoMakie
 using Waves
+
+include("../src/dynamics.jl")
+include("plot.jl")
+
+grid_size = 8.0f0
+ambient_speed = 343.0f0
+ti =  0.0f0
+dt = 0.00005f0
+steps = 1000
+
+latent_dim = OneDim(grid_size, 1024)
+latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 500.0f0)
+iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
+
+pulse = Pulse(latent_dim, 0.0f0, 1.0f0)
+zi = pulse(build_wave(latent_dim, fields = 3))
+zi[:, 3] .= 1.0f0
+z = iter(zi)
+
+# render!(latent_dim, z, path = "vid.mp4")
+
+loss, back = pullback(_iter -> Flux.mean(sum(_iter(zi)[:, 1, :] .^ 2, dims = 1)), iter)
+gs = back(one(loss))[1]
+
 # ### MPC COST
 # # s = gpu(state(env))
 # # control_sequence = gpu(build_control_sequence(initial_design, 2))

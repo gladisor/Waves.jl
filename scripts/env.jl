@@ -95,7 +95,7 @@ end
 function (env::ScatteredWaveEnv)(action::AbstractDesign)
     ti = time(env)
     tspan = build_tspan(ti, env.dt, env.integration_steps)
-    env.total_dynamics = update_design(env.total_dynamics, tspan, action)
+    env.total_dynamics = update_design(env.total_dynamics, tspan, gpu(action))
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
     u_total = unbatch(total_iter(env.wave_total))
@@ -139,4 +139,12 @@ function episode_trajectory(env::ScatteredWaveEnv)
         action = Vector{typeof(env.total_dynamics.design.initial)} => ())
 
     return traj
+end
+
+mutable struct RandomDesignPolicy <: AbstractPolicy
+    action::ClosedInterval{<: AbstractDesign}
+end
+
+function (policy::RandomDesignPolicy)(::ScatteredWaveEnv)
+    return rand(policy.action)
 end

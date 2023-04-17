@@ -77,15 +77,32 @@ function build_control_sequence(action::AbstractDesign, steps::Int)
     return [zero(action) for i in 1:steps]
 end
 
-function build_mpc_cost(model::WaveControlModel, s::ScatteredWaveEnvState, control_sequence::Vector{AbstractDesign})
+function build_mpc_cost(model::WaveControlModel, s::ScatteredWaveEnvState, control_sequence::Vector{ <: AbstractDesign})
     cost = 0.0f0
 
-    for a in control_sequence
-        cost += sum(model(s.wave_total, s.design, a))
-    end
+    d1 = s.design
+    c1 = model.design_encoder(d1, control_sequence[1])
+    z1 = hcat(model.wave_encoder(s.wave_total), c1)
+    z = model.iter(z1)
+    cost = cost + sum(model.mlp(z))
+
+    d2 = d1 + control_sequence[1]
+    c2 = model.design_encoder(d2, control_sequence[2])
+    z2 = hcat(z[:, 1:2, end], c2)
+    z = model.iter(z2)
+    cost = cost + sum(model.mlp(z))
+
+    d3 = d2 + control_sequence[2]
+    c3 = model.design_encoder(d3, control_sequence[3])
+    z3 = hcat(z[:, 1:2, end], c3)
+    z = model.iter(z3)
+    cost = cost + sum(model.mlp(z))
 
     return cost
 end
+
+Flux.@functor Scatterers
+Flux.trainable(config::Scatterers) = (;config.pos,)
 
 grid_size = 8.0f0
 elements = 256
@@ -106,17 +123,28 @@ env = ScatteredWaveEnv(
     design = initial_design,
     pml_width = 2.0f0,
     pml_scale = 20000.0f0,
-    reset_design = d -> random_pos(d, 2.0f0),
+    reset_design = d -> random_pos(d, 0.5f0),
     action_space = Waves.design_space(initial_design, 0.75f0),
-    max_steps = 200
+    max_steps = 1000
     ) |> gpu
 
-reset!(env)
+policy = RandomDesignPolicy(action_space(env))
 
-while !is_terminated(env)
-    action = rand(action_space(env)) |> gpu
-    @time env(action)
-    println(time(env))
+states = ScatteredWaveEnvState[]
+actions = AbstractDesign[]
+sigmas = []
+
+for episode in 1:1
+    reset!(env)
+
+    while !is_terminated(env)
+        action = policy(env)
+        @time env(action)
+
+        push!(states, state(env))
+        push!(actions, action)
+        push!(sigmas, env.σ)
+    end
 end
 
 latent_dim = OneDim(grid_size, 1024)
@@ -128,71 +156,28 @@ model = WaveControlModel(
     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
     Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec)) |> gpu
 
-s = gpu(state(env))
-control_sequence = build_control_sequence(initial_design, 3)
-cost = build_mpc_cost(model, s, control_sequence)
+data = Flux.DataLoader((states, actions, sigmas), shuffle = true)
 
-# states = ScatteredWaveEnvState[]
-# actions = Scatterers[]
-# sigma = []
+opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
+
+for (s, a, sigma) in data
+
+    loss, back = pullback(_model -> mse(_model(gpu(s[1].wave_total), gpu(s[1].design), gpu(a[1])), gpu(sigma[1])), model)
+    gs = back(one(loss))[1]
+    opt_state, model = Optimisers.update(opt_state, model, gs)
+
+    println(loss)
+end
+
+
+# s = gpu(state(env))
+# control_sequence = gpu(build_control_sequence(initial_design, 2))
+
+# opt_state = Optimisers.setup(Optimisers.Momentum(1e-5), control_sequence)
 
 # for i in 1:10
-#     action = Scatterers([0.75f0 * randn(Float32) 0.75f0 * randn(Float32)], [0.0f0], [0.0f0])
-
-#     push!(states, cpu(state(env)))
-#     push!(actions, action)
-
-#     @time env(gpu(action))
-
-#     push!(sigma, cpu(env.σ))
+#     cost, back = pullback(a -> build_mpc_cost(model, s, a), control_sequence)
+#     gs = back(one(cost))[1]
+#     opt_state, control_sequence = Optimisers.update(opt_state, control_sequence, gs)
+#     println(cost)
 # end
-
-# data = Flux.DataLoader((states, actions, sigma), shuffle = true)
-
-# latent_dim = OneDim(grid_size, 1024)
-# latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
-
-# function main()
-
-#     model = WaveControlModel(
-#         WaveEncoder(6, 32, 2, relu),
-#         DesignEncoder(2 * length(vec(initial)), 128, 1024, relu),
-#         Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-#         Chain(Flux.flatten, Dense(3072, 512, relu), Dense(512, 512, relu), Dense(512, 1), vec)) |> gpu
-
-#     opt_state = Optimisers.setup(Optimisers.Adam(1e-5), model)
-
-#     for epoch in 1:20
-#         train_loss = 0.0f0
-#         for sample in data
-#             s, a, σ = gpu.(sample)
-
-#             for i in axes(s, 1)
-#                 loss, back = Flux.pullback(_model -> mse(σ[i], _model(s[i].wave_total, s[i].design, a[i])), model)
-#                 gs = back(one(loss))[1]
-#                 opt_state, model = Optimisers.update(opt_state, model, gs)
-#                 train_loss += loss
-#             end
-#         end
-
-#         println(train_loss / length(data))
-#     end
-
-#     return model
-# end
-
-# model = main()
-
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, cpu(model.iter.dynamics.pml))
-# save("pml.png", fig)
-
-# model(states[1].total, states[1].design, actions[1])
-
-# sigma_pred = [cpu(model(gpu(states[i].wave_total), gpu(states[i].design), gpu(actions[i]))) for i in axes(states, 1)]
-
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(sigma_pred)
-# save("sigma.png", fig)

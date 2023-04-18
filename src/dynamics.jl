@@ -239,14 +239,14 @@ end
 function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
     U = u[:, 1]
     V = u[:, 2]
-    C = u[:, 3] * dyn.ambient_speed
 
+    b = dyn.ambient_speed .^ 2 * u[:, 3]
     ∇ = dyn.grad
     σ = (dyn.pml .^ 2) * dyn.pml_scale
 
-    du = C .^ 2 .* ∂x(∇, V) .- σ .* U
+    du = b .* ∂x(∇, V) .- σ .* U
     dv = ∂x(∇, U) .- σ .* V
-    dc = C * 0.0f0
+    dc = b * 0.0f0
 
     return hcat(dyn.bc .* du, dv, dc)
 end

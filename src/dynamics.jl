@@ -226,10 +226,11 @@ struct LatentPMLWaveDynamics <: AbstractDynamics
 end
 
 Flux.@functor LatentPMLWaveDynamics
-Flux.trainable(dyn::LatentPMLWaveDynamics) = ()#(;dyn.pml)
+Flux.trainable(dyn::LatentPMLWaveDynamics) = (;dyn.pml)
 
 function LatentPMLWaveDynamics(dim::AbstractDim; ambient_speed::Float32, pml_scale::Float32)
-    pml = zeros(Float32, size(dim)...)
+    # pml = zeros(Float32, size(dim)...)
+    pml = sqrt.(build_pml(dim, dim.x[end], 1.0f0))
     grad = build_gradient(dim)
     bc = dirichlet(dim)
     return LatentPMLWaveDynamics(ambient_speed, pml_scale, pml, grad, bc)

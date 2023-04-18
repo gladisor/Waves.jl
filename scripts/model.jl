@@ -20,6 +20,8 @@ using ReinforcementLearning
 using IntervalSets
 include("env.jl")
 
+using BSON: @save
+
 struct WaveControlModel
     wave_encoder::WaveEncoder
     design_encoder::DesignEncoder
@@ -30,7 +32,9 @@ end
 Flux.@functor WaveControlModel
 
 function encode(model::WaveControlModel, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    return hcat(model.wave_encoder(wave), model.design_encoder(design, action))
+    u = model.wave_encoder(wave)
+    v = u * 0.0f0
+    return hcat(u, v, model.design_encoder(design, action))
 end
 
 function (model::WaveControlModel)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
@@ -151,7 +155,7 @@ function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String
     return nothing
 end
 
-Flux.trainable(config::Scatterers) = (;config.pos,)
+Flux.trainable(config::Scatterers) = (;config.r,)
 
 grid_size = 8.0f0
 elements = 256
@@ -173,31 +177,42 @@ env = ScatteredWaveEnv(
     pml_scale = 20000.0f0,
     reset_design = d -> random_pos(d, 3.0f0),
     action_space = Waves.design_space(initial_design, 1.0f0),
+    dt = dt,
+    integration_steps = steps,
     max_steps = 1000
 ) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
-
-data = generate_episode_data(policy, env, 1)
+data = generate_episode_data(policy, env, 3)
 
 latent_dim = OneDim(grid_size, 1024)
-latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 1.0f0)
+latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 5000.0f0)
 
+activation = relu
 model = WaveControlModel(
-    WaveEncoder(6, 64, 2, tanh),
-    DesignEncoder(2 * length(vec(initial_design)), 1024, 1024, relu),
+    WaveEncoder(6, 64, 1, tanh),
+    DesignEncoder(2 * length(vec(initial_design)), 256, 1024, activation),
     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-    Chain(Flux.flatten, Dense(3072, 256, relu), Dense(256, 256, relu), Dense(256, 256, relu), Dense(256, 1), vec)
+    Chain(Flux.flatten, Dense(3072, 1024, activation), Dense(1024, 1024, activation), Dense(1024, 1), vec)
     ) |> gpu
 
 episode = data[1]
-plot_sigma!(episode, path = "sigma1.png")
-plot_episode_data!(episode, cols = 5, path = "episode_data1.png")
+s, d, a, sigma = episode.states[5].wave_total, episode.states[5].design, episode.actions[5], episode.sigmas[5]
+s, d, a, sigma = gpu(s), gpu(d), gpu(a), gpu(sigma)
 
-train_loader = Flux.DataLoader((episode.states, episode.actions, episode.sigmas), shuffle = true)
-opt_state = Optimisers.setup(Optimisers.Adam(8e-7), model)
+states = vcat([d.states for d in data]...)
+actions = vcat([d.actions for d in data]...)
+sigmas = vcat([d.sigmas for d in data]...)
 
-plot_sigma!(model, episode, path = "sigma_original.png")
+train_loader = Flux.DataLoader((states, actions, sigmas), shuffle = true)
+println("Train Loader Length: $(length(train_loader))")
+# opt_state = Optimisers.setup(Optimisers.Adam(8e-5), model)
+opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
+
+
+zi = encode(model, s, d, a)
+z = model.iter(zi)
+render!(latent_dim, cpu(z), path = "latent_wave_original.mp4")
 
 for i in 1:50
     train_loss = 0.0f0
@@ -205,14 +220,30 @@ for i in 1:50
     for batch in train_loader
         s, a, sigma = gpu.(batch)
 
-        loss, back = pullback(_model -> huber_loss(_model(s[1].wave_total, s[1].design, a[1]), sigma[1]), model)
+        loss, back = pullback(_model -> sqrt(mse(_model(s[1].wave_total, s[1].design, a[1]), sigma[1])), model)
         gs = back(one(loss))[1]
         opt_state, model = Optimisers.update(opt_state, model, gs)
 
         train_loss += loss
     end
 
+    print("Epoch: $i, Loss: ")
     println(train_loss / length(data))
 end
 
 plot_sigma!(model, episode, path = "sigma_opt.png")
+
+episode = data[1]
+s, d, a, sigma = episode.states[5].wave_total, episode.states[5].design, episode.actions[5], episode.sigmas[5]
+s, d, a, sigma = gpu(s), gpu(d), gpu(a), gpu(sigma)
+
+zi = encode(model, s, d, a)
+z = model.iter(zi)
+render!(latent_dim, cpu(z), path = "latent_wave_opt.mp4")
+
+@save "model.bson" model
+
+validation_episode = generate_episode_data(policy, env, 1)
+plot_sigma!(model, validation_episode[1], path = "validation_ep.png")
+
+

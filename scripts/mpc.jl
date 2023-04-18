@@ -9,6 +9,7 @@ using Optimisers
 using BSON
 using ReinforcementLearning
 using IntervalSets
+using LinearAlgebra
 using Waves
 
 include("../src/dynamics.jl")
@@ -45,7 +46,42 @@ env = ScatteredWaveEnv(
 model = BSON.load("model.bson")[:model] |> gpu
 s = state(env)
 
-control = build_control_sequence(initial_design, 3)
-action = control[1]
+wave = gpu(s.wave_total)
+design = gpu(s.design)
+control = build_control_sequence(initial_design, 1)
+action = gpu(control[1])
 
-sigma_pred = model(gpu(s.wave_total), gpu(s.design), gpu(action))
+opt_state = Optimisers.setup(Optimisers.Adam(1e-2), action)
+
+z_wave = model.wave_encoder(wave)
+f = a -> sum(model.mlp(model.iter(hcat(z_wave, z_wave * 0.0f0, model.design_encoder(design, a))))) + norm(vec(a))
+
+for i in 1:10
+    sigma, back = pullback(f, action)
+    gs = back(one(sigma))[1]
+    opt_state, action = Optimisers.update(opt_state, action, gs)
+    println(sigma)
+end
+
+env(action)
+
+s = state(env)
+wave = gpu(s.wave_total)
+design = gpu(s.design)
+control = build_control_sequence(initial_design, 1)
+action = gpu(control[1])
+
+opt_state = Optimisers.setup(Optimisers.Adam(1.0f0), action)
+
+z_wave = model.wave_encoder(wave)
+f = a -> sum(model.mlp(model.iter(hcat(z_wave, z_wave * 0.0f0, model.design_encoder(design, a))))) + norm(vec(a)) * 0.001
+
+for i in 1:20
+    sigma, back = pullback(f, action)
+    gs = back(one(sigma))[1]
+    opt_state, action = Optimisers.update(opt_state, action, gs)
+    println(sigma)
+end
+
+env(action)
+println(sum(env.σ))

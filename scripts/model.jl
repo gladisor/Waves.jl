@@ -21,6 +21,7 @@ using IntervalSets
 include("env.jl")
 
 using BSON: @save
+include("wave_control_model.jl")
 
 struct EpisodeData
     states::Vector{ScatteredWaveEnvState}
@@ -106,8 +107,6 @@ function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String
     return nothing
 end
 
-Flux.trainable(config::Scatterers) = (;config.pos,)
-
 grid_size = 8.0f0
 elements = 256
 ambient_speed = 343.0f0
@@ -134,7 +133,7 @@ env = ScatteredWaveEnv(
 ) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
-data = generate_episode_data(policy, env, 3)
+data = generate_episode_data(policy, env, 5)
 
 latent_dim = OneDim(grid_size, 1024)
 latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 5000.0f0)
@@ -192,9 +191,8 @@ zi = encode(model, s, d, a)
 z = model.iter(zi)
 render!(latent_dim, cpu(z), path = "latent_wave_opt.mp4")
 
-@save "model.bson" model
-
 validation_episode = generate_episode_data(policy, env, 1)
 plot_sigma!(model, validation_episode[1], path = "validation_ep.png")
 
-
+model = cpu(model)
+@save "model.bson" model

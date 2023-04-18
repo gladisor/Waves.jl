@@ -238,8 +238,9 @@ end
 function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
     U = u[:, 1]
     V = u[:, 2]
+    C = u[:, 3]
 
-    b = dyn.ambient_speed .^ 2 * u[:, 3]
+    b = dyn.ambient_speed ^ 2 * C
     ∇ = dyn.grad
     σ = (dyn.pml .^ 2) * dyn.pml_scale
 

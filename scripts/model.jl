@@ -133,10 +133,10 @@ env = ScatteredWaveEnv(
 ) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
-data = generate_episode_data(policy, env, 5)
+data = generate_episode_data(policy, env, 20)
 
 latent_dim = OneDim(grid_size, 1024)
-latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 5000.0f0)
+latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed / 20.0f0, pml_scale = 5000.0f0)
 
 activation = relu
 model = WaveControlModel(
@@ -156,9 +156,7 @@ sigmas = vcat([d.sigmas for d in data]...)
 
 train_loader = Flux.DataLoader((states, actions, sigmas), shuffle = true)
 println("Train Loader Length: $(length(train_loader))")
-# opt_state = Optimisers.setup(Optimisers.Adam(8e-5), model)
 opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
-
 
 zi = encode(model, s, d, a)
 z = model.iter(zi)

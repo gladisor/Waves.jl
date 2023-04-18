@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J data
+#SBATCH -J mpc
 
 #SBATCH -p gpu
 #SBATCH -N 1

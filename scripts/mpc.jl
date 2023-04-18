@@ -27,6 +27,16 @@ dt = 0.00005f0
 steps = 100
 tf = ti + steps * dt
 
+# latent_dim = OneDim(grid_size, 1024)
+# latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
+# iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
+
+# pulse = Pulse(latent_dim, 0.0f0, 1.0f0)
+# wave = build_wave(latent_dim, fields = 3)
+
+# wave = pulse(wave)
+# iter(wave)
+
 dim = TwoDim(grid_size, elements)
 pulse = Pulse(dim, -5.0f0, 0.0f0, 1.0f0)
 initial_design = Scatterers([0.0f0 0.0f0], [1.0f0], [2100.0f0])

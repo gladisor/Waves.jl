@@ -229,7 +229,6 @@ Flux.@functor LatentPMLWaveDynamics
 Flux.trainable(dyn::LatentPMLWaveDynamics) = (;dyn.pml)
 
 function LatentPMLWaveDynamics(dim::AbstractDim; ambient_speed::Float32, pml_scale::Float32)
-    # pml = zeros(Float32, size(dim)...)
     pml = sqrt.(build_pml(dim, dim.x[end], 1.0f0))
     grad = build_gradient(dim)
     bc = dirichlet(dim)

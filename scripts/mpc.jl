@@ -54,6 +54,7 @@ env = ScatteredWaveEnv(
     max_steps = 1000) |> gpu
 
 model = BSON.load("model.bson")[:model] |> gpu
+env = BSON.load("env.bson")[:env] |> gpu
 s = state(env)
 
 wave = gpu(s.wave_total)

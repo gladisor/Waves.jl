@@ -107,6 +107,29 @@ function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String
     return nothing
 end
 
+function train(model::WaveControlModel, train_loader::Flux.DataLoader)
+    opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
+
+    for i in 1:50
+        train_loss = 0.0f0
+
+        for batch in train_loader
+            s, a, sigma = gpu.(batch)
+
+            loss, back = pullback(_model -> sqrt(mse(_model(s[1].wave_total, s[1].design, a[1]), sigma[1])), model)
+            gs = back(one(loss))[1]
+            opt_state, model = Optimisers.update(opt_state, model, gs)
+
+            train_loss += loss
+        end
+
+        print("Epoch: $i, Loss: ")
+        println(train_loss / length(data))
+    end
+
+    return model
+end
+
 grid_size = 8.0f0
 elements = 256
 ambient_speed = 343.0f0
@@ -133,7 +156,7 @@ env = ScatteredWaveEnv(
 ) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
-data = generate_episode_data(policy, env, 20)
+data = generate_episode_data(policy, env, 100)
 
 latent_dim = OneDim(grid_size, 1024)
 latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed / 20.0f0, pml_scale = 5000.0f0)
@@ -156,41 +179,25 @@ sigmas = vcat([d.sigmas for d in data]...)
 
 train_loader = Flux.DataLoader((states, actions, sigmas), shuffle = true)
 println("Train Loader Length: $(length(train_loader))")
-opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
 
 zi = encode(model, s, d, a)
 z = model.iter(zi)
-render!(latent_dim, cpu(z), path = "latent_wave_original.mp4")
+render!(latent_dim, cpu(z), path = "results/latent_wave_original.mp4")
 
-for i in 1:50
-    train_loss = 0.0f0
+model = train(model, train_loader)
 
-    for batch in train_loader
-        s, a, sigma = gpu.(batch)
+plot_sigma!(model, episode, path = "results/sigma_opt.png")
 
-        loss, back = pullback(_model -> sqrt(mse(_model(s[1].wave_total, s[1].design, a[1]), sigma[1])), model)
-        gs = back(one(loss))[1]
-        opt_state, model = Optimisers.update(opt_state, model, gs)
+zi = encode(model, s, d, a)
+z = model.iter(zi)
+render!(latent_dim, cpu(z), path = "results/latent_wave_opt.mp4")
 
-        train_loss += loss
-    end
-
-    print("Epoch: $i, Loss: ")
-    println(train_loss / length(data))
+validation_episode = generate_episode_data(policy, env, 10)
+for (i, ep) in enumerate(validation_episode)
+    plot_sigma!(model, ep, path = "results/validation_ep$i.png")
 end
 
-plot_sigma!(model, episode, path = "sigma_opt.png")
-
-episode = data[1]
-s, d, a, sigma = episode.states[5].wave_total, episode.states[5].design, episode.actions[5], episode.sigmas[5]
-s, d, a, sigma = gpu(s), gpu(d), gpu(a), gpu(sigma)
-
-zi = encode(model, s, d, a)
-z = model.iter(zi)
-render!(latent_dim, cpu(z), path = "latent_wave_opt.mp4")
-
-validation_episode = generate_episode_data(policy, env, 1)
-plot_sigma!(model, validation_episode[1], path = "validation_ep.png")
-
 model = cpu(model)
-@save "model.bson" model
+@save "results/model.bson" model
+env = cpu(env)
+@save "results/env.bson" env

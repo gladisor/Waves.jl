@@ -88,7 +88,7 @@ function RLBase.reset!(env::ScatteredWaveEnv)
         env.total_dynamics.bc,
         env.total_dynamics.pml)
 
-    env.σ = zeros(Float32, steps + 1)
+    env.σ = zeros(Float32, env.integration_steps + 1)
     return nothing
 end
 

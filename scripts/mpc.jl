@@ -1,98 +1,45 @@
-using Flux
-using Flux: Recur, pullback
-using ChainRulesCore
+include("dependencies.jl")
 
-using Interpolations
-using Interpolations: Extrapolation
-using CairoMakie
-using Optimisers
-using BSON
-using ReinforcementLearning
-using IntervalSets
-using LinearAlgebra
-using Waves
+Flux.trainable(config::Scatterers) = (;config.pos)
 
-include("../src/dynamics.jl")
-include("env.jl")
-include("plot.jl")
-include("wave_control_model.jl")
+function optimize_action(opt_state::NamedTuple, model::WaveControlModel, s::ScatteredWaveEnvState, a::AbstractDesign, steps::Int)
+    println("optimize_action")
 
-Flux.trainable(config::Scatterers) = (;config.pos,)
+    for i in 1:steps
+        cost, back = pullback(_a -> sum(model(s, _a)), a)
+        gs = back(one(cost))[1]
+        opt_state, a = Optimisers.update(opt_state, a, gs)
+        println(cost)
+    end
 
-grid_size = 8.0f0
-elements = 256
-ambient_speed = 343.0f0
-ti =  0.0f0
-dt = 0.00005f0
-steps = 100
-tf = ti + steps * dt
+    return a
+end
 
-# latent_dim = OneDim(grid_size, 1024)
-# latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 10000.0f0)
-# iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
+model = BSON.load("results/model.bson")[:model] |> gpu
+env = BSON.load("results/env.bson")[:env] |> gpu
+reset!(env)
 
-# pulse = Pulse(latent_dim, 0.0f0, 1.0f0)
-# wave = build_wave(latent_dim, fields = 3)
+# policy = RandomDesignPolicy(action_space(env))
+# @time data = generate_episode_data(policy, env)
+# plot_episode_data!(data, cols = 5, path = "data.png")
+# plot_sigma!(model, data, path = "sigma.png")
 
-# wave = pulse(wave)
-# iter(wave)
+idx = 5
+s = gpu(data.states[idx])
+a = gpu(data.actions[idx])
+sigma = data.sigmas[idx]
+tspan = data.tspans[idx]
+println("True σ = ", sum(sigma))
 
-dim = TwoDim(grid_size, elements)
-pulse = Pulse(dim, -5.0f0, 0.0f0, 1.0f0)
-initial_design = Scatterers([0.0f0 0.0f0], [1.0f0], [2100.0f0])
+opt_state = Optimisers.setup(Optimisers.Adam(0.01), a)
 
-env = ScatteredWaveEnv(
-    dim,
-    initial_condition = gpu(pulse),
-    design = initial_design,
-    pml_width = 2.0f0,
-    pml_scale = 20000.0f0,
-    reset_design = d -> random_pos(d, 3.0f0),
-    action_space = Waves.design_space(initial_design, 1.0f0),
-    dt = dt,
-    integration_steps = steps,
-    max_steps = 1000) |> gpu
+# display(a)
+# a = optimize_action(opt_state, model, s, a, 10)
+# display(a)
 
-model = BSON.load("model.bson")[:model] |> gpu
-env = BSON.load("env.bson")[:env] |> gpu
-s = state(env)
-
-wave = gpu(s.wave_total)
-design = gpu(s.design)
-control = build_control_sequence(initial_design, 1)
-action = gpu(control[1])
-
-opt_state = Optimisers.setup(Optimisers.Adam(1e-2), action)
-
-z_wave = model.wave_encoder(wave)
-f = a -> sum(model.mlp(model.iter(hcat(z_wave, z_wave * 0.0f0, model.design_encoder(design, a))))) + norm(vec(a))
-
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0, title = "Variation of predicted sigma", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
 for i in 1:10
-    sigma, back = pullback(f, action)
-    gs = back(one(sigma))[1]
-    opt_state, action = Optimisers.update(opt_state, action, gs)
-    println(sigma)
+    lines!(ax, tspan, cpu(model(s, policy(env))))
 end
-
-env(action)
-
-s = state(env)
-wave = gpu(s.wave_total)
-design = gpu(s.design)
-control = build_control_sequence(initial_design, 1)
-action = gpu(control[1])
-
-opt_state = Optimisers.setup(Optimisers.Adam(1.0f0), action)
-
-z_wave = model.wave_encoder(wave)
-f = a -> sum(model.mlp(model.iter(hcat(z_wave, z_wave * 0.0f0, model.design_encoder(design, a))))) + norm(vec(a)) * 0.001
-
-for i in 1:20
-    sigma, back = pullback(f, action)
-    gs = back(one(sigma))[1]
-    opt_state, action = Optimisers.update(opt_state, action, gs)
-    println(sigma)
-end
-
-env(action)
-println(sum(env.σ))
+save("sigma_variation.png", fig)

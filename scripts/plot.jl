@@ -1,5 +1,3 @@
-export plot_solution!
-
 const FRAMES_PER_SECOND = 24
 
 function plot_solution!(nrows::Int, ncols::Int, dim::TwoDim, u::AbstractArray{Float32, 4}; path::String, field::Int = 1)

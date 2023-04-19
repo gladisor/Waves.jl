@@ -1,155 +1,67 @@
-using CairoMakie
-using SparseArrays
-using Flux
-using Flux: pullback, mean
-using ChainRulesCore
-using ChainRulesCore: canonicalize
-using Optimisers
+include("dependencies.jl")
 using Waves
 
-struct AcousticWaveDynamics <: AbstractDynamics
-    grad::AbstractMatrix
-    ambient_speed::Float32
-    C::AbstractArray
-    bc::AbstractArray
-    pml_scale::Float32
-    pml::AbstractArray
+struct PercentageWaveControlModel <: AbstractWaveControlModel
+    wave_encoder::WaveEncoder
+    wave_encoder_mlp::Chain
+
+    design_encoder::DesignEncoder
+    design_encoder_mlp::Chain
+
+    iter::Integrator
+    mlp::Chain
 end
 
-Flux.@functor AcousticWaveDynamics
-Flux.trainable(dyn::AcousticWaveDynamics) = (;dyn.C, dyn.pml)
+Flux.@functor PercentageWaveControlModel
 
-function (dyn::AcousticWaveDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u = wave[:, 1]
-    v = wave[:, 2]
-
-    ∇ = dyn.grad
-    C = dyn.C .* dyn.ambient_speed
-    b = C .^ 2
-    σ = dyn.pml * dyn.pml_scale
-
-    du = b .* (∇ * v) .- σ .* u
-    dv = ∇ * u .- σ .* v
-
-    return hcat(dyn.bc .* du, dv)
+function (model::PercentageWaveControlModel)(s::ScatteredWaveEnvState, a::AbstractDesign)
+    u = vec(model.wave_encoder_mlp(model.wave_encoder(s.wave_total)))
+    v = u * 0.0f0
+    c = model.design_encoder_mlp(model.design_encoder(s.design, a))
+    
+    zi = hcat(u, v, c)
+    z = model.iter(zi)
+    return model.mlp(z)
 end
 
-function (dyn::AcousticWaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
-    ## extract fields from wave
-    U = wave[:, :, 1]
-    Vx = wave[:, :, 2]
-    Vy = wave[:, :, 3]
-    Ψx = wave[:, :, 4]
-    Ψy = wave[:, :, 5]
-    Ω = wave[:, :, 6]
+env = BSON.load("results/WaveControlModel/env.bson")[:env] |> gpu
+policy = RandomDesignPolicy(action_space(env))
 
-    ## get parameters from dynamics
-    C = dyn.C
-    b = C .^ 2
-    ∇ = dyn.grad
-    σx = dyn.pml
-    σy = σx'
+data = generate_episode_data(policy, env, 100)
+states = vcat([d.states for d in data]...)
+actions = vcat([d.actions for d in data]...)
+sigmas = vcat([d.sigmas for d in data]...)
+train_loader = Flux.DataLoader((states, actions, sigmas), shuffle = true)
 
-    ## compute relevant gradients
-    Vxx = ∇ * Vx
-    Vyy = (∇ * Vy')'
-    Ux = ∇ * U
-    Uy = (∇ * U')'
+s = state(env)
+a = policy(env) |> gpu
+design_size = 2 * length(vec(a))
 
-    ## compute time derivative of fields
-    dU = b .* (Vxx .+ Vyy) .+ (Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω)
-    dVx = Ux .- σx .* Vx
-    dVy = Uy .- σy .* Vy
-    dΨx = b .* σx .* Vyy
-    dΨy = b .* σy .* Vxx
-    dΩ = σx .* σy .* U
+latent_elements = 1024
+latent_dim = OneDim(grid_size, latent_elements)
+latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 5000.0f0)
 
-    ## concatenate into tensor
-    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+model = PercentageWaveControlModel(
+    WaveEncoder(6, 64, 1, tanh),
+    Chain(Dense(latent_elements, latent_elements, tanh), vec),
+    DesignEncoder(design_size, 512, latent_elements, relu),
+    Chain(c -> 1.0f0 .+ (c .- 0.5f0) * 0.5f0),
+    Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
+    Chain(Flux.flatten, Dense(3 * latent_elements, latent_elements, relu), Dense(latent_elements, latent_elements, relu), Dense(latent_elements, 1), vec)) |> gpu
+
+model = train(model, train_loader, 50)
+
+u = vec(model.wave_encoder_mlp(model.wave_encoder(s.wave_total)))
+v = u * 0.0f0
+c = model.design_encoder_mlp(model.design_encoder(s.design, a))
+
+zi = hcat(u, v, c)
+z = model.iter(zi)
+render!(latent_dim, cpu(z), path = "results/PercentageWaveControlModel/vid.mp4")
+
+for (i, ep) in enumerate(data)
+    plot_sigma!(model, ep, path = "results/PercentageWaveControlModel/train_ep$i.png")
 end
 
-struct ReverseAcousticWaveDynamics <: AbstractDynamics
-    grad::AbstractMatrix
-    ambient_speed::Float32
-    C::AbstractArray
-    bc::AbstractArray
-    pml_scale::Float32
-    pml::AbstractArray
-end
-
-Flux.@functor ReverseAcousticWaveDynamics
-Flux.trainable(dyn::ReverseAcousticWaveDynamics) = (;dyn.C, dyn.pml)
-
-function (dyn::ReverseAcousticWaveDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u = wave[:, 1]
-    v = wave[:, 2]
-
-    ∇ = dyn.grad
-    C = dyn.C .* dyn.ambient_speed
-    b = C .^ 2
-    σ = dyn.pml * dyn.pml_scale
-
-    du = b .* (∇ * v) .+ σ .* u
-    dv = ∇ * u .+ σ .* v
-
-    return hcat(dyn.bc .* du, dv)
-end
-
-function train(iter::Integrator, wave::AbstractMatrix{Float32})
-
-    opt_state = Optimisers.setup(Optimisers.Adam(1e-3), iter)
-
-    for i in 1:100
-        z = iter(wave)
-
-        z, iter_back = pullback(_iter -> _iter(wave), iter)
-        loss, loss_back = pullback(_z -> mean(sum(_z[:, 1, :] .^ 2, dims = 1)), z)
-
-        gs = iter_back(loss_back(one(loss))[1])[1]
-
-        opt_state, iter = Optimisers.update(opt_state, iter, gs)
-        println("Iteration $i, Energy: $loss")
-    end
-
-    return iter
-end
-
-grid_size = 10.f0
-elements = 512
-ti = 0.0f0
-dt = 0.00001f0
-steps = 800
-tf = ti + steps * dt
-
-pulse_intensity = 5.0f0
-
-dim = OneDim(grid_size, elements)
-grid = build_grid(dim)
-grad = build_gradient(dim)
-ambient_speed = 1543.0f0
-C = ones(Float32, size(dim)...)
-bc = dirichlet(dim)
-pml_scale = 15000.0f0
-pml = build_pml(dim, 1.0f0, 1.0f0)
-
-dynamics = gpu(AcousticWaveDynamics(grad, ambient_speed, C, bc, pml_scale, pml))
-reverse_dynamics = gpu(ReverseAcousticWaveDynamics(grad, ambient_speed, C, bc, pml_scale, pml))
-iter = Integrator(runge_kutta, dynamics, ti, dt, steps)
-reverse_iter = Integrator(runge_kutta, reverse_dynamics, tf, -dt, steps)
-
-pulse = Pulse(dim, 0.0f0, pulse_intensity)
-wave = gpu(pulse(build_wave(dim, fields = 2)))
-
-iter = train(iter, wave)
-@time z = iter(wave)
-@time render!(dim, z, path = "z.mp4")
-z_reverse = reverse_iter(z[:, :, end])
-@time render!(dim, z_reverse, path = "z_reverse.mp4")
-
-C = iter.dynamics.C
-fig, ax = plot_wave(dim, C, ylims = (minimum(C), maximum(C)))
-save("C.png", fig)
-
-pml = iter.dynamics.pml
-fig, ax = plot_wave(dim, pml, ylims = (minimum(pml), maximum(pml)))
-save("pml.png", fig)
+model = cpu(model)
+@save "results/PercentageWaveControlModel/model.bson" model

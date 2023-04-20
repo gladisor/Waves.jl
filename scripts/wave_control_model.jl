@@ -173,11 +173,14 @@ end
 Flux.@functor PercentageWaveControlModel
 
 function (model::PercentageWaveControlModel)(s::ScatteredWaveEnvState, a::AbstractDesign)
-    u = vec(model.wave_encoder_mlp(model.wave_encoder(s.wave_total)))
-    v = u * 0.0f0
-    c = model.design_encoder_mlp(model.design_encoder(s.design, a))
-    
-    zi = hcat(u, v, c)
+    zi = encode(model, s.wave_total, s.design, a)
     z = model.iter(zi)
     return model.mlp(z)
+end
+
+function encode(model::PercentageWaveControlModel, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
+    u = vec(model.wave_encoder_mlp(model.wave_encoder(wave)))
+    v = u * 0.0f0
+    c = model.design_encoder_mlp(model.design_encoder(design, a))
+    return hcat(u, v, c)
 end

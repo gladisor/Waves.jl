@@ -144,7 +144,8 @@ function train(model::AbstractWaveControlModel, train_loader::Flux.DataLoader, e
         for batch in train_loader
             s, a, sigma = gpu.(batch)
 
-            loss, back = pullback(_model -> sqrt(mse(_model(s[1], a[1]), sigma[1])), model)
+            # loss, back = pullback(_model -> sqrt(mse(_model(s[1], a[1]), sigma[1])), model)
+            loss, back = pullback(_model -> mse(_model(s[1], a[1]), sigma[1]), model)
             gs = back(one(loss))[1]
 
             opt_state, model = Optimisers.update(opt_state, model, gs)
@@ -156,4 +157,27 @@ function train(model::AbstractWaveControlModel, train_loader::Flux.DataLoader, e
     end
 
     return model
+end
+
+struct PercentageWaveControlModel <: AbstractWaveControlModel
+    wave_encoder::WaveEncoder
+    wave_encoder_mlp::Chain
+
+    design_encoder::DesignEncoder
+    design_encoder_mlp::Chain
+
+    iter::Integrator
+    mlp::Chain
+end
+
+Flux.@functor PercentageWaveControlModel
+
+function (model::PercentageWaveControlModel)(s::ScatteredWaveEnvState, a::AbstractDesign)
+    u = vec(model.wave_encoder_mlp(model.wave_encoder(s.wave_total)))
+    v = u * 0.0f0
+    c = model.design_encoder_mlp(model.design_encoder(s.design, a))
+    
+    zi = hcat(u, v, c)
+    z = model.iter(zi)
+    return model.mlp(z)
 end

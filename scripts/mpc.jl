@@ -15,14 +15,14 @@ function optimize_action(opt_state::NamedTuple, model::WaveControlModel, s::Scat
     return a
 end
 
-model = BSON.load("results/model.bson")[:model] |> gpu
-env = BSON.load("results/env.bson")[:env] |> gpu
+model = BSON.load("results/PercentageWaveControlModel/model.bson")[:model] |> gpu
+env = BSON.load("results/WaveControlModel/env.bson")[:env] |> gpu
 reset!(env)
+policy = RandomDesignPolicy(action_space(env))
 
-# policy = RandomDesignPolicy(action_space(env))
-# @time data = generate_episode_data(policy, env)
-# plot_episode_data!(data, cols = 5, path = "data.png")
-# plot_sigma!(model, data, path = "sigma.png")
+@time data = generate_episode_data(policy, env)
+plot_episode_data!(data, cols = 5, path = "data.png")
+plot_sigma!(model, data, path = "sigma.png")
 
 idx = 5
 s = gpu(data.states[idx])

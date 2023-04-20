@@ -1,7 +1,7 @@
-export Scatterers, random_pos, radii_design_space, scatterer_formation, random_radii_scatterer_formation
+export Scatterers, random_pos, radii_design_space, scatterer_formation, random_radii_scatterer_formation, speed
 
-const MIN_RADII = 0.1f0
-const MAX_RADII = 1.0f0
+const MIN_RADII = 0.5f0
+const MAX_RADII = 2.0f0
 const MIN_SPEED = 0.0f0
 
 struct Scatterers <: AbstractDesign
@@ -14,7 +14,6 @@ Flux.@functor Scatterers
 
 function random_pos(r::AbstractVector{Float32}, disk_r::Float32)
     r = rand.(Uniform.(0.0f0, disk_r .- r))
-    # θ = rand.(Uniform.(zeros(Float32, size(r)), ones(Float32, size(r)) * 2π))
     theta = rand.(Uniform.(r * 0.0f0, r .^ 0.0f0 * 2pi))
     pos = hcat(r .* cos.(theta), r .* sin.(theta))
     return Float32.(pos)
@@ -32,19 +31,6 @@ function Scatterers(;M::Int, r::Float32, disk_r::Float32, c::Float32)
     return Scatterers(pos, r, c)
 end
 
-function Base.:+(config1::Scatterers, config2::Scatterers)
-    # r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
-    # c = max.(config1.c .+ config2.c, MIN_SPEED)
-    r = max.(0.5f0, config1.r .+ config2.r)
-    return Scatterers(config1.pos .+ config2.pos, r, config1.c .+ config2.c)
-end
-
-function Base.:-(config1::Scatterers, config2::Scatterers)
-    r = config1.r .- config2.r
-    c = config1.c .- config2.c
-    return Scatterers(config1.pos .- config2.pos, r, c)
-end
-
 function Base.:*(config::Scatterers, n::AbstractFloat)
     return Scatterers(config.pos * n, config.r * n, config.c * n)
 end
@@ -53,16 +39,19 @@ function Base.:*(n::AbstractFloat, config::Scatterers)
     return config * n
 end
 
+function Base.:+(config1::Scatterers, config2::Scatterers)
+    r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
+    c = max.(config1.c .+ config2.c, MIN_SPEED)
+    return Scatterers(config1.pos .+ config2.pos, r, config1.c .+ config2.c)
+end
+
+function Base.:-(config1::Scatterers, config2::Scatterers)
+    return config1 + config2 * -1.0f0
+end
+
 function Base.:/(config::Scatterers, n::AbstractFloat)
     return Scatterers(config.pos / n, config.r / n, config.c / n)
 end
-
-# function Base.zero(config::Scatterers)
-#     return Scatterers(
-#         zeros(Float32, size(config.pos)), 
-#         zeros(Float32, size(config.r)), 
-#         zeros(Float32, size(config.c)))
-# end
 
 function Base.zero(config::Scatterers)
     return Scatterers(

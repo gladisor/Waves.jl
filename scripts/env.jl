@@ -24,7 +24,7 @@ mutable struct ScatteredWaveEnv <: AbstractEnv
     time_step::Int
     dt::Float32
     integration_steps::Int
-    max_steps::Int
+    actions::Int
 end
 
 Flux.@functor ScatteredWaveEnv
@@ -39,7 +39,8 @@ function ScatteredWaveEnv(
         action_space::ClosedInterval,
         dt::Float32 = Float32(5e-5),
         integration_steps::Int = 100,
-        max_steps::Int = 1000
+        # max_steps::Int = 1000
+        actions::Int = 10
         )
 
     design = DesignInterpolator(design)
@@ -60,7 +61,7 @@ function ScatteredWaveEnv(
         wave, wave,
         total_dynamics, incident_dynamics,
         reset_design, action_space, sigma,
-        0, dt, integration_steps, max_steps
+        0, dt, integration_steps, actions
         )
 end
 
@@ -69,7 +70,7 @@ function Base.time(env::ScatteredWaveEnv)
 end
 
 function RLBase.is_terminated(env::ScatteredWaveEnv)
-    return env.time_step >= env.max_steps
+    return env.time_step >= env.actions * env.integration_steps
 end
 
 function RLBase.reset!(env::ScatteredWaveEnv)

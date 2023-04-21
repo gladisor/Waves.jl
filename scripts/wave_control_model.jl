@@ -1,3 +1,16 @@
+function optimize_action(opt_state::NamedTuple, model::AbstractWaveControlModel, s::ScatteredWaveEnvState, a::AbstractDesign, steps::Int)
+    println("optimize_action")
+
+    for i in 1:steps
+        cost, back = pullback(_a -> sum(model(s, _a)), a)
+        gs = back(one(cost))[1]
+        opt_state, a = Optimisers.update(opt_state, a, gs)
+        println(cost)
+    end
+
+    return a
+end
+
 struct WaveControlModel <: AbstractWaveControlModel
     wave_encoder::Union{WaveEncoder, Chain}
     design_encoder::Union{DesignEncoder, Chain}
@@ -172,15 +185,16 @@ end
 
 Flux.@functor PercentageWaveControlModel
 
+function encode(model::PercentageWaveControlModel, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
+    u = vec(model.wave_encoder_mlp(model.wave_encoder(wave)))
+    v = u * 0.0f0
+    c = model.design_encoder_mlp(model.design_encoder(design, action))
+    # v = c * 0.01f0
+    return hcat(u, v, c)
+end
+
 function (model::PercentageWaveControlModel)(s::ScatteredWaveEnvState, a::AbstractDesign)
     zi = encode(model, s.wave_total, s.design, a)
     z = model.iter(zi)
     return model.mlp(z)
-end
-
-function encode(model::PercentageWaveControlModel, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    u = vec(model.wave_encoder_mlp(model.wave_encoder(wave)))
-    v = u * 0.0f0
-    c = model.design_encoder_mlp(model.design_encoder(design, a))
-    return hcat(u, v, c)
 end

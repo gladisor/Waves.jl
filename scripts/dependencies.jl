@@ -1,7 +1,7 @@
 using BSON
 using BSON: @save
 using Flux
-using Flux: Recur, batch, unbatch, pullback, norm, mse, huber_loss
+using Flux: Recur, batch, unbatch, pullback, norm, mse, huber_loss, mean
 Flux.CUDA.allowscalar(false)
 using Interpolations: Extrapolation
 using ReinforcementLearning

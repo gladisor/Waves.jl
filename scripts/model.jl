@@ -10,6 +10,7 @@ env = gpu(ScatteredWaveEnv(
     dim,
     initial_condition = Pulse(dim, -5.0f0, 0.0f0, 1.0f0),
     design = initial_design,
+    ambient_speed = ambient_speed,
     pml_width = 2.0f0,
     pml_scale = 20000.0f0,
     reset_design = d -> gpu(random_radii_scatterer_formation(;random_design_kwargs...)),
@@ -20,27 +21,23 @@ env = gpu(ScatteredWaveEnv(
 ))
 ;
 
-# policy = RandomDesignPolicy(action_space(env))
-# data = generate_episode_data(policy, env, 3)
-
-# for (i, episode) in enumerate(data)
-#     plot_episode_data!(episode, cols = 5, path = joinpath(path, "data$i.png"))
-#     plot_sigma!(episode, path = joinpath(path, "sigma$i.png"))
-# end
-
-latent_elements = 1024
+latent_elements = 64
 latent_dim = OneDim(grid_size, latent_elements)
 latent_dynamics = LatentPMLWaveDynamics(latent_dim, ambient_speed = ambient_speed, pml_scale = 5000.0f0)
 design_size = 2 * length(vec(rand(action_space(env))))
-model = PercentageWaveControlModel(
-    WaveEncoder(6, 64, 1, tanh),
-    Chain(Dense(latent_elements, latent_elements, tanh), vec),
-    DesignEncoder(design_size, 512, latent_elements, relu),
-    Chain(c -> 1.0f0 .+ (c .- 0.5f0) * 0.5f0),
-    Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
-    Chain(Flux.flatten, Dense(3 * latent_elements, latent_elements, relu), Dense(latent_elements, latent_elements, relu), Dense(latent_elements, 1), vec)) |> gpu
 
-data = generate_episode_data(policy, env, 20)
+wave_encoder = WaveEncoder(6, 8, 1, tanh)
+wave_encoder_mlp = Chain(Dense(1024, latent_elements, tanh), vec)
+design_encoder = DesignEncoder(design_size, 512, latent_elements, relu)
+design_encoder_mlp = Chain(c -> c .+ 0.5f0)
+iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
+mlp = Chain(Flux.flatten, Dense(3 * latent_elements, latent_elements, relu), Dense(latent_elements, latent_elements, relu), Dense(latent_elements, 1), vec)
+
+model = gpu(PercentageWaveControlModel(wave_encoder, wave_encoder_mlp, design_encoder, design_encoder_mlp, iter, mlp))
+
+## generating data
+policy = RandomDesignPolicy(action_space(env))
+data = generate_episode_data(policy, env, 5)
 
 episode = data[1]
 s, d, a, sigma = episode.states[5].wave_total, episode.states[5].design, episode.actions[5], episode.sigmas[5]
@@ -58,7 +55,7 @@ z = model.iter(encode(model, s, d, a))
 render!(latent_dim, cpu(z), path = joinpath(path, "latent_wave_original.mp4"))
 
 ## train the model
-model = train(model, train_loader, 50)
+model = train(model, train_loader, 10)
 
 ## plot latent wave after training
 z = model.iter(encode(model, s, d, a))
@@ -69,6 +66,27 @@ validation_episode = generate_episode_data(policy, env, 2)
 for (i, ep) in enumerate(validation_episode)
     plot_sigma!(model, ep, path = joinpath(path, "validation_ep$i.png"))
 end
+
+## plot sigma distributions with random actions
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+
+reset!(env)
+
+## propagate a few random actions
+for i in 1:3
+    env(policy(env))
+end
+
+s = state(env)
+tspan = build_tspan(time(env), env.dt, env.integration_steps)
+
+for i in 1:4
+    sigma_pred = cpu(model(s, gpu(policy(env))))
+    lines!(ax, tspan, sigma_pred)
+end
+
+save(joinpath(path, "sigma_distribution.png"), fig)
 
 ## saving model and env
 model = cpu(model)

@@ -33,13 +33,13 @@ function ScatteredWaveEnv(
         dim::TwoDim;
         initial_condition::InitialCondition,
         design::AbstractDesign,
+        ambient_speed::Float32,
         pml_width::Float32,
         pml_scale::Float32,
         reset_design::Function,
         action_space::ClosedInterval,
         dt::Float32 = Float32(5e-5),
         integration_steps::Int = 100,
-        # max_steps::Int = 1000
         actions::Int = 10
         )
 

@@ -21,4 +21,12 @@ for i in 1:4
     lines!(ax1, tspan, temp_env.σ)
 end
 
+ax2 = Axis(fig[1, 2], aspect = 1.0f0, xlabel = "Time (s)", ylabel = "Scattered Energy (σ)", title = "Effect of random actions on model dynamics")
+
+s = state(env)
+for i in 1:4
+    sigma_pred = cpu(model(s, gpu(policy(env))))
+    lines!(ax2, tspan, sigma_pred)
+end
+
 save("sigma_compare.png", fig)

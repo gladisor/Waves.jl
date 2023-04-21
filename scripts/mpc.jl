@@ -2,19 +2,6 @@ include("dependencies.jl")
 
 Flux.trainable(config::Scatterers) = (;config.pos)
 
-function optimize_action(opt_state::NamedTuple, model::WaveControlModel, s::ScatteredWaveEnvState, a::AbstractDesign, steps::Int)
-    println("optimize_action")
-
-    for i in 1:steps
-        cost, back = pullback(_a -> sum(model(s, _a)), a)
-        gs = back(one(cost))[1]
-        opt_state, a = Optimisers.update(opt_state, a, gs)
-        println(cost)
-    end
-
-    return a
-end
-
 model = BSON.load("results/PercentageWaveControlModel/model.bson")[:model] |> gpu
 env = BSON.load("results/WaveControlModel/env.bson")[:env] |> gpu
 reset!(env)

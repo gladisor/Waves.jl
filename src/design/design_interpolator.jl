@@ -23,24 +23,6 @@ function (interp::DesignInterpolator)(t::Float32)
     return interp.initial + t * interp.action
 end
 
-# function Flux.gpu(design::DesignInterpolator)
-#     return DesignInterpolator(
-#         gpu(design.initial),
-#         gpu(design.action),
-#         design.ti,
-#         design.tf
-#     )
-# end
-
-# function Flux.cpu(design::DesignInterpolator)
-#     return DesignInterpolator(
-#         cpu(design.initial),
-#         cpu(design.action),
-#         design.ti,
-#         design.tf
-#     )
-# end
-
 function initial_design(design::DesignInterpolator)
     return design(design.ti)
 end

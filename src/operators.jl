@@ -44,3 +44,4 @@ end
 
 ∂x(∇::AbstractMatrix, u::Union{AbstractVector, AbstractMatrix}) = ∇ * u
 ∂y(∇::AbstractMatrix, u::AbstractMatrix) = (∇ * u')'
+divergence(∇::AbstractMatrix{Float32}, u::AbstractMatrix{Float32}) = ∂x(∇, u) .+ ∂y(∇, u)

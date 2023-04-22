@@ -9,7 +9,7 @@ end
 Flux.@functor ScatteredWaveEnvState
 
 mutable struct ScatteredWaveEnv <: AbstractEnv
-    initial_condition::InitialCondition
+    initial_condition::AbstractInitialCondition
 
     wave_total::AbstractArray{Float32}
     wave_incident::AbstractArray{Float32}
@@ -31,7 +31,7 @@ Flux.@functor ScatteredWaveEnv
 
 function ScatteredWaveEnv(
         dim::TwoDim;
-        initial_condition::InitialCondition,
+        initial_condition::AbstractInitialCondition,
         design::AbstractDesign,
         ambient_speed::Float32,
         pml_width::Float32,

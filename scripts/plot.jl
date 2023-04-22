@@ -53,7 +53,13 @@ function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
     end
 end
 
-function render!(dim::TwoDim, tspan::Vector{Float32}, u::Extrapolation, design::Extrapolation; seconds::Float32 = 1.0f0)
+function CairoMakie.mesh!(ax::Axis, config::Scatterers)
+    for i ∈ axes(config.pos, 1)
+        mesh!(ax, Circle(Point(config.pos[i, :]...), config.r[i]), color = :gray)
+    end
+end
+
+function render!(dim::TwoDim, tspan::Vector{Float32}, u::Extrapolation, design::Union{Extrapolation, Nothing} = nothing; seconds::Float32 = 1.0f0, path::String)
     fig = Figure()
     ax = Axis(fig[1, 1], aspect = 1.0f0)
 
@@ -63,6 +69,8 @@ function render!(dim::TwoDim, tspan::Vector{Float32}, u::Extrapolation, design::
     record(fig, "vid.mp4", tspan, framerate = FRAMES_PER_SECOND) do t
         empty!(ax)
         heatmap!(ax, dim.x, dim.y, u(t)[:, :, 1], colormap = :ice)
-        mesh!(ax, design(t))
+        if !isnothing(design)
+            mesh!(ax, design(t))
+        end
     end
 end

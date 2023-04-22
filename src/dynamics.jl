@@ -1,8 +1,3 @@
-export
-    build_tspan, runge_kutta, euler,
-    Integrator, SplitWavePMLDynamics, update_design,
-    dirichlet, adjoint_sensitivity, continuous_backprop
-
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
     return collect(range(ti, ti + steps * dt, steps + 1))
 end
@@ -52,6 +47,10 @@ end
 function Base.reverse(iter::Integrator)
     tf = iter.ti + iter.steps * iter.dt
     return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
+end
+
+function build_tspan(iter::Integrator)
+    return collect(range(iter.ti, iter.steps * iter.dt, iter.steps + 1))
 end
 
 # function continuous_backprop(iter::Integrator, u::AbstractArray{Float32, 3}, adj::AbstractArray{Float32, 3}, θ::Params)
@@ -249,4 +248,47 @@ function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
     dc = b * 0.0f0
 
     return hcat(dyn.bc .* du, dv, dc)
+end
+
+struct TimeHarmonicWaveDynamics <: AbstractDynamics
+    design::DesignInterpolator
+    ambient_speed::Float32
+    grid::AbstractArray{Float32, 3}
+    grad::AbstractMatrix{Float32}
+    pml::AbstractMatrix{Float32}
+    source::AbstractMatrix{Float32}
+    freq::Float32
+    bc::AbstractMatrix{Float32}
+end
+
+Flux.@functor TimeHarmonicWaveDynamics
+
+function (dyn::TimeHarmonicWaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
+    U = wave[:, :, 1]
+    Vx = wave[:, :, 2]
+    Vy = wave[:, :, 3]
+    Ψx = wave[:, :, 4]
+    Ψy = wave[:, :, 5]
+    Ω = wave[:, :, 6]
+
+    C = speed(dyn.design(t), dyn.grid, ambient_speed)
+    b = C .^ 2
+    ∇ = dyn.grad
+    σx = dyn.pml
+    σy = σx'
+
+    Vxx = ∂x(∇, Vx)
+    Vyy = ∂y(∇, Vy)
+    Ux = ∂x(∇, U)
+    Uy = ∂y(∇, U)
+    
+    force = dyn.source * sin(t * 2.0f0 * pi / dyn.freq)
+    dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
+    dVx = Ux .- σx .* Vx .+ force
+    dVy = Uy .- σy .* Vy .+ force
+    dΨx = b .* σx .* Vyy
+    dΨy = b .* σy .* Vxx
+    dΩ = σx .* σy .* U
+
+    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end

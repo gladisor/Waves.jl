@@ -15,6 +15,7 @@ function encode(model::WaveMPC, wave::AbstractArray{Float32, 3}, design::Abstrac
     z_v = z_wave[:, 2] * 0.0f0
 
     z_design = model.design_encoder(vcat(vec(design), vec(action)))
+    z_design = reshape(z_design, size(z_design, 1) ÷ 2, 2)
     z_f = tanh.(z_design[:, 1])
     z_c = sigmoid.(z_design[:, 2])
     zi = hcat(z_u, z_v, z_f, z_c)
@@ -80,12 +81,12 @@ reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 ;
 
-data = generate_episode_data(policy, env, 1)
+data = generate_episode_data(policy, env, 50)
 episode = first(data)
-plot_episode_data!(episode, cols = 5, path = "data.png")
-plot_sigma!(episode, path = "episode_sigma.png")
+# plot_episode_data!(episode, cols = 5, path = "data.png")
+# plot_sigma!(episode, path = "episode_sigma.png")
 
-idx = 5
+idx = 6
 s = gpu(episode.states[idx])
 a = gpu(episode.actions[idx])
 sigma = gpu(episode.sigmas[idx])
@@ -101,7 +102,7 @@ latent_dim = OneDim(grid_size, latent_elements)
 latent_dynamics = ForceLatentDynamics(ambient_speed, build_gradient(latent_dim), dirichlet(latent_dim))
 model = gpu(WaveMPC(
     Chain(WaveEncoder(6, 8, 2, tanh), Dense(1024, latent_elements, tanh)),
-    Chain(Dense(2 * design_size, h_size, relu), Dense(h_size, 2 * latent_elements), z -> reshape(z, size(z, 1) ÷ 2, 2)),
+    Chain(Dense(2 * design_size, h_size, relu), Dense(h_size, 2 * latent_elements)),
     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
     Chain(flatten, Dense(latent_elements * 4, h_size, relu), Dense(h_size, 1), vec)
 ))
@@ -117,40 +118,20 @@ println("Train Loader Length: $(length(train_loader))")
 plot_action_distribution!(model, s, policy, env, path = "action_distribution_original.png")
 render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_original.mp4")
 
-opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
+# ## train the model
+model = train(model, train_loader, 20)
+## plot latent wave after training
+plot_action_distribution!(model, s, policy, env, path = "action_distribution_opt.png")
+render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_opt.mp4")
 
-for i in 1:epochs
-    train_loss = 0.0f0
-
-    for batch in train_loader
-        s, a, sigma = batch
-        s, a, sigma = gpu(s[1]), gpu(a[1]), gpu(sigma[1])
-
-        loss, back = pullback(_model -> mse(_model(s, a), sigma), model)
-        gs = gpu(back(one(loss))[1])
-
-        opt_state, model = Optimisers.update(opt_state, model, gs)
-        train_loss += loss
-    end
-
-    print("Epoch: $i, Loss: ")
-    println(train_loss / length(data))
+## generate and plot prediction performance after training
+validation_episode = generate_episode_data(policy, env, 2)
+for (i, ep) in enumerate(validation_episode)
+    plot_sigma!(model, ep, path = "validation_ep$i.png")
 end
 
-# ## train the model
-# model = train(model, train_loader, 5)
-# ## plot latent wave after training
-# plot_action_distribution!(model, s, policy, env, path = "action_distribution_opt.png")
-# render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_opt.mp4")
-
-# # ## generate and plot prediction performance after training
-# validation_episode = generate_episode_data(policy, env, 2)
-# for (i, ep) in enumerate(validation_episode)
-#     plot_sigma!(model, ep, path = "validation_ep$i.png")
-# end
-
-# ## saving model and env
-# model = cpu(model)
-# @save joinpath(path, "model.bson") model
-# env = cpu(env)
-# @save joinpath(path, "env.bson") env
+## saving model and env
+model = cpu(model)
+@save "model.bson" model
+env = cpu(env)
+@save "env.bson" env

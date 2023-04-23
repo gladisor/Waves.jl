@@ -233,6 +233,7 @@ struct ForceLatentDynamics <: AbstractDynamics
 end
 
 Flux.@functor ForceLatentDynamics
+Flux.trainable(::ForceLatentDynamics) = (;)
 
 function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]

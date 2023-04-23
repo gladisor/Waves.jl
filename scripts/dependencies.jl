@@ -1,7 +1,7 @@
 using BSON
 using BSON: @save
 using Flux
-using Flux: Recur, batch, unbatch, pullback, norm, mse, huber_loss, mean
+using Flux: Recur, batch, unbatch, pullback, norm, mse, huber_loss, mean, flatten
 Flux.CUDA.allowscalar(false)
 using Interpolations
 using Interpolations: Extrapolation
@@ -26,3 +26,5 @@ ambient_speed = 343.0f0
 ti =  0.0f0
 dt = 0.00005f0
 steps = 100
+
+random_design_kwargs = Dict(:width => 1, :hight => 2, :spacing => 3.0f0, :r => Waves.MAX_RADII, :c => 2100.0f0, :center => [0.0f0, 0.0f0])

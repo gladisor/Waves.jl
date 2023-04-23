@@ -1,6 +1,5 @@
 include("dependencies.jl")
 
-random_design_kwargs = Dict(:width => 1, :hight => 2, :spacing => 3.0f0, :r => Waves.MAX_RADII, :c => 2100.0f0, :center => [0.0f0, 0.0f0])
 ## load env from disk
 env = gpu(BSON.load("results/radii/PercentageWaveControlModel_old/env.bson")[:env])
 reset!(env)
@@ -30,38 +29,22 @@ model = gpu(PercentageWaveControlModel(wave_encoder, wave_encoder_mlp, design_en
 policy = RandomDesignPolicy(action_space(env))
 reset!(env)
 
+## propagate a few random actions
+for i in 1:2
+    env(policy(env))
+end
+
 s = state(env)
-zi = encode(model, gpu(s.wave_total), gpu(s.design), gpu(policy(env)))
-
-cost, back = pullback(_zi -> mean(sum(model.iter(_zi)[:, 1, :] .^ 2, dims = 1)), zi)
-gs = cpu(back(one(cost))[1])
-
+z = model.iter(encode(model, gpu(s.wave_total), gpu(s.design), gpu(policy(env))))
+render!(latent_dim, cpu(z), path = "latent_wave.mp4")
+tspan = build_tspan(time(env), env.dt, env.integration_steps)
 fig = Figure()
-ax1 = Axis(fig[1, 1], aspect = 1.0f0, title = "Displacement", ylabel = "Gradient Value", xlabel = "Distance ?")
-ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Velocity", xlabel = "Distance ?")
-ax3 = Axis(fig[1, 3], aspect = 1.0f0, title = "Speed", xlabel = "Distance ?")
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+s = state(env)
 
-lines!(ax1, latent_dim.x, gs[:, 1])
-lines!(ax2, latent_dim.x, gs[:, 2])
-lines!(ax3, latent_dim.x, gs[:, 3])
-save("gs.png", fig)
+for i in 1:4
+    sigma_pred = cpu(model(s, gpu(policy(env))))
+    lines!(ax, tspan, sigma_pred)
+end
 
-# ## propagate a few random actions
-# for i in 1:2
-#     env(policy(env))
-# end
-
-# s = state(env)
-# z = model.iter(encode(model, gpu(s.wave_total), gpu(s.design), gpu(policy(env))))
-# render!(latent_dim, cpu(z), path = "latent_wave.mp4")
-
-# fig = Figure()
-# ax = Axis(fig[1, 1], aspect = 1.0f0)
-# s = state(env)
-
-# for i in 1:4
-#     sigma_pred = cpu(model(s, gpu(policy(env))))
-#     lines!(ax, tspan, sigma_pred)
-# end
-
-# save("untrained_model.png", fig)
+save("untrained_model.png", fig)

@@ -15,7 +15,7 @@ mutable struct ScatteredWaveEnv <: AbstractEnv
     wave_incident::AbstractArray{Float32}
 
     total_dynamics::SplitWavePMLDynamics
-    incident_dynamics::SplitWavePMLDynamics{Nothing}
+    incident_dynamics::SplitWavePMLDynamics
 
     reset_design::Function
     action_space::ClosedInterval
@@ -51,8 +51,12 @@ function ScatteredWaveEnv(
     pml = build_pml(dim, pml_width, pml_scale)
     wave = initial_condition(build_wave(dim, fields = 6))
 
-    total_dynamics = SplitWavePMLDynamics(design, dim, grid, ambient_speed, grad, bc, pml)
-    incident_dynamics = SplitWavePMLDynamics(nothing, dim, grid, ambient_speed, grad, bc, pml)
+    total_dynamics = SplitWavePMLDynamics(
+        design, dim, grid, ambient_speed, grad, bc, pml)
+        
+    incident_dynamics = SplitWavePMLDynamics(
+        DesignInterpolator(NoDesign()), 
+        dim, grid, ambient_speed, grad, bc, pml)
 
     sigma = zeros(Float32, steps + 1)
 

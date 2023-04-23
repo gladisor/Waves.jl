@@ -108,46 +108,6 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv, ep
     return data
 end
 
-function plot_sigma!(episode_data::EpisodeData; path::String)
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, vcat(episode_data.tspans...), vcat(episode_data.sigmas...))
-    save(path, fig)
-    return nothing
-end
-
-function plot_episode_data!(episode_data::EpisodeData; cols::Int, path::String)
-
-    fig = Figure(resolution = (1920, 1080))
-
-    for i in axes(episode_data.states, 1)
-        dim = episode_data.states[i].dim
-        wave = episode_data.states[i].wave_total
-        design = episode_data.states[i].design
-
-        row = (i - 1) ÷ cols
-        col = (i - 1) % cols + 1
-
-        ax = Axis(fig[row, col], aspect = 1.0f0)
-        heatmap!(ax, dim.x, dim.y, wave[:, :, 1], colormap = :ice)
-        mesh!(ax, design)
-    end
-
-    save(path, fig)
-    return nothing
-end
-
-function plot_sigma!(model::AbstractWaveControlModel, episode::EpisodeData; path::String)
-    pred_sigmas = cpu([model(gpu(s), gpu(a)) for (s, a) in zip(episode.states, episode.actions)])
-
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, vcat(episode.tspans...), vcat(episode.sigmas...), color = :blue)
-    lines!(ax, vcat(episode.tspans...), vcat(pred_sigmas...), color = :orange)
-    save(path, fig)
-    return nothing
-end
-
 function train(model::AbstractWaveControlModel, train_loader::Flux.DataLoader, epochs::Int)
     opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
 

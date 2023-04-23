@@ -1,4 +1,4 @@
-export OneDim, TwoDim, ThreeDim, build_grid, build_wave
+export OneDim, TwoDim, ThreeDim, build_grid, build_wave, dirichlet
 
 struct OneDim <: AbstractDim
     x::AbstractVector{Float32}
@@ -103,4 +103,19 @@ end
 
 function build_wave(dim::AbstractDim; fields::Int)
     return zeros(Float32, size(dim)..., fields)
+end
+
+function dirichlet(dim::OneDim)
+    bc = ones(Float32, size(dim)[1])
+    bc[[1, end]] .= 0.0f0
+    return bc
+end
+
+function dirichlet(dim::TwoDim)
+    bc = one(dim)
+    bc[:, 1] .= 0.0f0
+    bc[1, :] .= 0.0f0
+    bc[:, end] .= 0.0f0
+    bc[end, :] .= 0.0f0
+    return bc
 end

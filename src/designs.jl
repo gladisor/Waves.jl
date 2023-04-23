@@ -1,9 +1,47 @@
-export Scatterers, random_pos, radii_design_space, scatterer_formation, random_radii_scatterer_formation
+export speed
+
+export NoDesign
+export Scatterers, pos_design_space, radii_design_space, random_pos, random_radii_scatterer_formation
+
+export DesignInterpolator
+
+struct DesignInterpolator
+    initial::AbstractDesign
+    action::AbstractDesign
+    ti::Float32
+    tf::Float32
+end
+
+Flux.@functor DesignInterpolator
+
+function DesignInterpolator(initial::AbstractDesign)
+    return DesignInterpolator(initial, zero(initial), 0.0f0, 0.0f0)
+end
+
+function (interp::DesignInterpolator)(t::Float32)
+    d = (interp.tf - interp.ti)
+    t = ifelse(d > 0.0f0, (t - interp.ti) / d, 0.0f0)
+    return interp.initial + t * interp.action
+end
 
 const MIN_RADII = 0.5f0
 const MAX_RADII = 2.0f0
 const MIN_SPEED = 0.0f0
 
+#### NoDesign Design ####
+struct NoDesign <: AbstractDesign end
+Flux.@functor NoDesign
+Base.:+(d1::NoDesign, ::NoDesign) = d1
+Base.:-(d1::NoDesign, ::NoDesign) = d1
+Base.:*(d1::NoDesign, n) = d1
+Base.:*(n, d1::NoDesign) = d1
+Base.:/(d1::NoDesign, n) = d1
+Base.zero(d::NoDesign) = d
+speed(::NoDesign, ::AbstractArray{Float32}, ambient_speed::Float32) = ambient_speed
+########
+
+
+#### Scatterers Design ####
 struct Scatterers <: AbstractDesign
     pos::AbstractMatrix{Float32}
     r::AbstractVector{Float32}
@@ -11,33 +49,6 @@ struct Scatterers <: AbstractDesign
 end
 
 Flux.@functor Scatterers
-
-function random_pos(r::AbstractVector{Float32}, disk_r::Float32)
-    r = rand.(Uniform.(0.0f0, disk_r .- r))
-    theta = rand.(Uniform.(r * 0.0f0, r .^ 0.0f0 * 2pi))
-    pos = hcat(r .* cos.(theta), r .* sin.(theta))
-    return Float32.(pos)
-end
-
-function random_pos(config::Scatterers, disk_r::Float32)
-    pos = random_pos(config.r, disk_r)
-    return Scatterers(pos, config.r, config.c)
-end
-
-function Scatterers(;M::Int, r::Float32, disk_r::Float32, c::Float32)
-    r = ones(Float32, M) * r
-    pos = random_pos(r, disk_r)
-    c = ones(Float32, M) * c
-    return Scatterers(pos, r, c)
-end
-
-function Base.:*(config::Scatterers, n::AbstractFloat)
-    return Scatterers(config.pos * n, config.r * n, config.c * n)
-end
-
-function Base.:*(n::AbstractFloat, config::Scatterers)
-    return config * n
-end
 
 function Base.:+(config1::Scatterers, config2::Scatterers)
     r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
@@ -49,16 +60,16 @@ function Base.:-(config1::Scatterers, config2::Scatterers)
     return config1 + config2 * -1.0f0
 end
 
-function Base.:/(config::Scatterers, n::AbstractFloat)
-    return Scatterers(config.pos / n, config.r / n, config.c / n)
+function Base.:*(config::Scatterers, n::AbstractFloat)
+    return Scatterers(config.pos * n, config.r * n, config.c * n)
+end
+
+function Base.:*(n::AbstractFloat, config::Scatterers)
+    return config * n
 end
 
 function Base.zero(config::Scatterers)
-    return Scatterers(
-        config.pos * 0.0f0,
-        config.r * 0.0f0,
-        config.c * 0.0f0
-    )
+    return Scatterers(config.pos * 0.0f0, config.r * 0.0f0, config.c * 0.0f0)
 end
 
 function location_mask(config::Scatterers, grid::AbstractArray{Float32, 3})
@@ -76,13 +87,11 @@ function speed(config::Scatterers, g::AbstractArray{Float32, 3}, ambient_speed::
     return C0 .+ C_design
 end
 
-function CairoMakie.mesh!(ax::Axis, config::Scatterers)
-    for i ∈ axes(config.pos, 1)
-        mesh!(ax, Circle(Point(config.pos[i, :]...), config.r[i]), color = :gray)
-    end
+function Base.vec(config::Scatterers)
+    return vcat(vec(config.pos), config.r)
 end
 
-function design_space(config::Scatterers, scale::Float32)
+function pos_design_space(config::Scatterers, scale::Float32)
     pos_low = ones(Float32, size(config.pos)) * -scale
     pos_high = ones(Float32, size(config.pos)) * scale
     r = zeros(Float32, size(config.r))
@@ -91,13 +100,10 @@ function design_space(config::Scatterers, scale::Float32)
 end
 
 function radii_design_space(config::Scatterers, scale::Float32)
-
     pos = zeros(Float32, size(config.pos))
-
     radii_low = - scale * ones(Float32, size(config.r))
     radii_high =  scale * ones(Float32, size(config.r))
     c = zeros(Float32, size(config.c))
-
     return Scatterers(pos, radii_low, c)..Scatterers(pos, radii_high, c)
 end
 
@@ -119,16 +125,25 @@ function Base.rand(config::ClosedInterval{Scatterers})
     else
         c = zeros(Float32, size(config.left.c))
     end
-    return Scatterers(pos, r, c)
-end
 
-function Base.vec(config::Scatterers)
-    return vcat(vec(config.pos), config.r, config.c)
+    return Scatterers(pos, r, c)
 end
 
 function Base.display(config::Scatterers)
     println(typeof(config), ":")
     println(vec(config))
+end
+
+function random_pos(r::AbstractVector{Float32}, disk_r::Float32)
+    r = rand.(Uniform.(0.0f0, disk_r .- r))
+    theta = rand.(Uniform.(r * 0.0f0, r .^ 0.0f0 * 2pi))
+    pos = hcat(r .* cos.(theta), r .* sin.(theta))
+    return Float32.(pos)
+end
+
+function random_pos(config::Scatterers, disk_r::Float32)
+    pos = random_pos(config.r, disk_r)
+    return Scatterers(pos, config.r, config.c)
 end
 
 function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})
@@ -156,3 +171,5 @@ function random_radii_scatterer_formation(;kwargs...)
     r = r * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
     return Scatterers(config.pos, r, config.c)
 end
+
+########

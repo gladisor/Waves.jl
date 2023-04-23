@@ -115,10 +115,10 @@ function train(model::AbstractWaveControlModel, train_loader::Flux.DataLoader, e
         train_loss = 0.0f0
 
         for batch in train_loader
-            s, a, sigma = gpu.(batch)
+            s, a, sigma = batch
+            s, a, sigma = gpu(s[1]), gpu(a[1]), gpu(sigma[1])
 
-            # loss, back = pullback(_model -> sqrt(mse(_model(s[1], a[1]), sigma[1])), model)
-            loss, back = pullback(_model -> mse(_model(s[1], a[1]), sigma[1]), model)
+            loss, back = pullback(_model -> mse(_model(s, a), sigma), model)
             gs = back(one(loss))[1]
 
             opt_state, model = Optimisers.update(opt_state, model, gs)

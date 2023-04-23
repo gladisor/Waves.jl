@@ -242,7 +242,7 @@ function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
 
     b = dyn.ambient_speed .^ 2 .* c
 
-    du = b .* dyn.grad * v
+    du = b .* (dyn.grad * v)
     dv = dyn.grad * u .+ f .* (u .+ v)
 
     df = f * 0.0f0

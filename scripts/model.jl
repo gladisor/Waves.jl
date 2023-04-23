@@ -40,7 +40,7 @@ function plot_action_distribution!(
     ax = Axis(fig[1, 1])
 
     for _ in 1:10
-        lines!(ax, model(s, policy(env)))
+        lines!(ax, cpu(model(s, gpu(policy(env)))))
     end
 
     save(path, fig)
@@ -52,7 +52,7 @@ function render_latent_wave!(
         s::ScatteredWaveEnvState,
         action::AbstractDesign; path::String)
 
-    z = model.iter(encode(model, s.wave_total, s.design, action))
+    z = cpu(model.iter(encode(model, s.wave_total, s.design, action)))
     render!(dim, z, path = path)
 end
 
@@ -60,7 +60,7 @@ path = "results/radii/PercentageWaveControlModel"
 
 initial_design = random_radii_scatterer_formation(;random_design_kwargs...)
 
-dim = TwoDim(grid_size, 128)
+dim = TwoDim(grid_size, elements)
 env = gpu(ScatteredWaveEnv(
     dim,
     initial_condition = Pulse(dim, -5.0f0, 0.0f0, 1.0f0),
@@ -80,14 +80,15 @@ reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 ;
 
-data = generate_episode_data(policy, env, 2)
+data = generate_episode_data(policy, env, 1)
 episode = first(data)
 plot_episode_data!(episode, cols = 5, path = "data.png")
 plot_sigma!(episode, path = "episode_sigma.png")
 
-idx = 3
-s = episode.states[idx]
-a = episode.actions[idx]
+idx = 5
+s = gpu(episode.states[idx])
+a = gpu(episode.actions[idx])
+sigma = gpu(episode.sigmas[idx])
 
 wave = s.wave_total
 design = s.design
@@ -98,14 +99,12 @@ latent_elements = 512
 latent_dim = OneDim(grid_size, latent_elements)
 
 latent_dynamics = ForceLatentDynamics(ambient_speed, build_gradient(latent_dim), dirichlet(latent_dim))
-iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
-
-model = WaveMPC(
-    Chain(WaveEncoder(6, 8, 2, tanh), Dense(256, latent_elements, tanh)),
-    Chain(Dense(2 * design_size, h_size, relu), LayerNorm(h_size), Dense(h_size, 2 * latent_elements), z -> reshape(z, size(z, 1) ÷ 2, 2)),
+model = gpu(WaveMPC(
+    Chain(WaveEncoder(6, 8, 2, tanh), Dense(1024, latent_elements, tanh)),
+    Chain(Dense(2 * design_size, h_size, relu), Dense(h_size, 2 * latent_elements), z -> reshape(z, size(z, 1) ÷ 2, 2)),
     Integrator(runge_kutta, latent_dynamics, ti, dt, steps),
     Chain(flatten, Dense(latent_elements * 4, h_size, relu), Dense(h_size, 1), vec)
-)
+))
 
 ## package data into train_loader
 states = vcat([d.states for d in data]...)
@@ -114,25 +113,41 @@ sigmas = vcat([d.sigmas for d in data]...)
 train_loader = Flux.DataLoader((states, actions, sigmas), shuffle = true)
 println("Train Loader Length: $(length(train_loader))")
 
-## plot the latent wave before training
-episode = data[1]
-s = gpu(episode.states[5])
-a = gpu(episode.actions[5])
-sigma = gpu(episode.sigmas[5])
-
+# plot the latent wave before training
 plot_action_distribution!(model, s, policy, env, path = "action_distribution_original.png")
 render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_original.mp4")
-# ## train the model
-model = train(model, train_loader, 5)
-# ## plot latent wave after training
-plot_action_distribution!(model, s, policy, env, path = "action_distribution_opt.png")
-render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_opt.mp4")
 
-# ## generate and plot prediction performance after training
-validation_episode = generate_episode_data(policy, env, 2)
-for (i, ep) in enumerate(validation_episode)
-    plot_sigma!(model, ep, path = "validation_ep$i.png")
+opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
+
+for i in 1:epochs
+    train_loss = 0.0f0
+
+    for batch in train_loader
+        s, a, sigma = batch
+        s, a, sigma = gpu(s[1]), gpu(a[1]), gpu(sigma[1])
+
+        loss, back = pullback(_model -> mse(_model(s, a), sigma), model)
+        gs = gpu(back(one(loss))[1])
+
+        opt_state, model = Optimisers.update(opt_state, model, gs)
+        train_loss += loss
+    end
+
+    print("Epoch: $i, Loss: ")
+    println(train_loss / length(data))
 end
+
+# ## train the model
+# model = train(model, train_loader, 5)
+# ## plot latent wave after training
+# plot_action_distribution!(model, s, policy, env, path = "action_distribution_opt.png")
+# render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_opt.mp4")
+
+# # ## generate and plot prediction performance after training
+# validation_episode = generate_episode_data(policy, env, 2)
+# for (i, ep) in enumerate(validation_episode)
+#     plot_sigma!(model, ep, path = "validation_ep$i.png")
+# end
 
 # ## saving model and env
 # model = cpu(model)

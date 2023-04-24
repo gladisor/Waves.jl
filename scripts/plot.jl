@@ -114,3 +114,28 @@ function plot_sigma!(model::AbstractWaveControlModel, episode::EpisodeData; path
     save(path, fig)
     return nothing
 end
+
+function plot_action_distribution!(
+    model::WaveMPC,
+    policy::RandomDesignPolicy, 
+    env::ScatteredWaveEnv; path::String)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+
+    for _ in 1:10
+        lines!(ax, cpu(model(state(env), gpu(policy(env)))))
+    end
+
+    save(path, fig)
+end
+
+function render_latent_wave!(
+        dim::OneDim, 
+        model::WaveMPC, 
+        s::ScatteredWaveEnvState,
+        action::AbstractDesign; path::String)
+
+    z = cpu(model.iter(encode(model, s.wave_total, s.design, action)))
+    render!(dim, z, path = path)
+end

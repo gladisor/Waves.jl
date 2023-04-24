@@ -158,3 +158,35 @@ function (model::PercentageWaveControlModel)(s::ScatteredWaveEnvState, a::Abstra
     z = model.iter(zi)
     return model.mlp(z)
 end
+
+
+struct WaveMPC <: AbstractWaveControlModel
+    wave_encoder::Chain
+    design_encoder::Chain
+    iter::Integrator
+    mlp::Chain
+end
+
+Flux.@functor WaveMPC
+
+function encode(model::WaveMPC, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
+    z_wave = model.wave_encoder(wave)
+    z_u = z_wave[:, 1]
+    z_v = z_wave[:, 2] * 0.0f0
+
+    z_design = model.design_encoder(vcat(vec(design), vec(action)))
+    z_design = reshape(z_design, size(z_design, 1) ÷ 2, 2)
+    z_f = tanh.(z_design[:, 1])
+    z_c = sigmoid.(z_design[:, 2])
+    zi = hcat(z_u, z_v, z_f, z_c)
+    return zi
+end
+
+function (model::WaveMPC)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
+    z = model.iter(encode(model, wave, design, action))
+    return model.mlp(z)
+end
+
+function (model::WaveMPC)(s::ScatteredWaveEnvState, action::AbstractDesign)
+    return model(s.wave_total, s.design, action)
+end

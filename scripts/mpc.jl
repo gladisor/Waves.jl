@@ -100,9 +100,7 @@ mlp = Chain(
 model = gpu(WaveMPC(wave_encoder, design_encoder, iter, mlp))
 
 z_wave = model.wave_encoder(s.wave_total)
-recur = Flux.Recur(model, z_wave)
 
-recur((design, a))
 
 # model(s, [a, a, a])
 # z_u, z_v = model.wave_encoder(s.wave_total)

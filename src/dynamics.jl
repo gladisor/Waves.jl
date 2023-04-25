@@ -228,12 +228,15 @@ end
 
 struct ForceLatentDynamics <: AbstractDynamics
     ambient_speed::Float32
+    pml_scale::Float32
+
     grad::AbstractMatrix{Float32}
+    pml::AbstractVector{Float32}
     bc::AbstractVector{Float32}
 end
 
 Flux.@functor ForceLatentDynamics
-Flux.trainable(::ForceLatentDynamics) = (;)
+Flux.trainable(dyn::ForceLatentDynamics) = (;dyn.pml)
 
 function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]
@@ -242,12 +245,13 @@ function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     c = wave[:, 4]
 
     b = dyn.ambient_speed .^ 2 .* c
+    σ = dyn.pml_scale * exp.(dyn.pml)
 
-    du = b .* (dyn.grad * v)
-    dv = dyn.grad * u .+ f .* (u .+ v)
+    du = b .* (dyn.grad * v) .- σ .* u
+    dv = dyn.grad * u .- σ .* v .+ f .* (u .+ v)
 
     df = f * 0.0f0
     dc = c * 0.0f0
 
-    return hcat(dyn.bc .* du, dv, df, dc)
+    return hcat(dyn.bc .* du, dyn.bc .* dv, df, dc)
 end

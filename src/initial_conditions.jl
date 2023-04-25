@@ -44,7 +44,7 @@ function Pulse(dim::TwoDim, x::Float32, y::Float32, intensity::Float32)
 end
 
 function (pulse::Pulse{OneDim})(wave::AbstractMatrix{Float32})
-    u = build_pulse(pulse.grid, x = pulse.x, intensity = pulse.intensity)
+    u = build_pulse(pulse.grid, x = pulse.pos[1], intensity = pulse.intensity)
     z = pulse.grid * 0.0f0
     z = repeat(z, 1, size(wave, 2) - 1)
     return cat(u, z, dims = 2)

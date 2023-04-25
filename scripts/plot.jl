@@ -136,6 +136,6 @@ function render_latent_wave!(
         s::ScatteredWaveEnvState,
         action::AbstractDesign; path::String)
 
-    z = cpu(model.iter(encode(model, s.wave_total, s.design, action)))
+    z = cpu(model.iter(encode(model, s, action)))
     render!(dim, z, path = path)
 end

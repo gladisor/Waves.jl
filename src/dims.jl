@@ -1,5 +1,7 @@
 export OneDim, TwoDim, ThreeDim, build_grid, build_wave, dirichlet
 
+Base.size(dim::AbstractDim, i::Int) = size(dim)[i]
+
 struct OneDim <: AbstractDim
     x::AbstractVector{Float32}
 end

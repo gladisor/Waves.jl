@@ -44,13 +44,13 @@ iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
 mlp = Chain(flatten, Dense(latent_elements * 4, h_size, relu), Dense(h_size, 1), vec)
 model = gpu(WaveMPC(wave_encoder, design_encoder, iter, mlp))
 
-data = generate_episode_data(policy, env, 1)
+data = generate_episode_data(policy, env, 50)
 
 plot_sigma!(model, data[1], path = "episode_sigma_original.png")
 render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_original.mp4")
 
 train_loader = Flux.DataLoader(prepare_data(data, 1), shuffle = true)
-model = train(model, train_loader, 20)
+model = train(model, train_loader, 15)
 
 plot_sigma!(model, data[1], path = "episode_sigma_opt.png")
 render_latent_wave!(latent_dim, model, s, a, path = "latent_wave_original.mp4")

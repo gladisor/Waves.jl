@@ -5,6 +5,10 @@ export Scatterers, pos_design_space, radii_design_space, random_pos, random_radi
 
 export DesignInterpolator
 
+const MIN_RADII = 0.5f0
+const MAX_RADII = 2.0f0
+const MIN_SPEED = 0.0f0
+
 struct DesignInterpolator
     initial::AbstractDesign
     action::AbstractDesign
@@ -24,10 +28,6 @@ function (interp::DesignInterpolator)(t::Float32)
     return interp.initial + t * interp.action
 end
 
-const MIN_RADII = 0.5f0
-const MAX_RADII = 2.0f0
-const MIN_SPEED = 0.0f0
-
 #### NoDesign Design ####
 struct NoDesign <: AbstractDesign end
 Flux.@functor NoDesign
@@ -40,7 +40,6 @@ Base.zero(d::NoDesign) = d
 speed(::NoDesign, ::AbstractArray{Float32}, ambient_speed::Float32) = ambient_speed
 ########
 
-
 #### Scatterers Design ####
 struct Scatterers <: AbstractDesign
     pos::AbstractMatrix{Float32}
@@ -49,6 +48,15 @@ struct Scatterers <: AbstractDesign
 end
 
 Flux.@functor Scatterers
+Flux.trainable(config::Scatterers) = (;config.r)
+
+function Base.:*(config::Scatterers, n::AbstractFloat)
+    return Scatterers(config.pos * n, config.r * n, config.c * n)
+end
+
+function Base.:*(n::AbstractFloat, config::Scatterers)
+    return config * n
+end
 
 function Base.:+(config1::Scatterers, config2::Scatterers)
     r = clamp.(config1.r .+ config2.r, MIN_RADII, MAX_RADII)
@@ -58,14 +66,6 @@ end
 
 function Base.:-(config1::Scatterers, config2::Scatterers)
     return config1 + config2 * -1.0f0
-end
-
-function Base.:*(config::Scatterers, n::AbstractFloat)
-    return Scatterers(config.pos * n, config.r * n, config.c * n)
-end
-
-function Base.:*(n::AbstractFloat, config::Scatterers)
-    return config * n
 end
 
 function Base.zero(config::Scatterers)
@@ -88,7 +88,7 @@ function speed(config::Scatterers, g::AbstractArray{Float32, 3}, ambient_speed::
 end
 
 function Base.vec(config::Scatterers)
-    return vcat(vec(config.pos), config.r)
+    return config.r
 end
 
 function pos_design_space(config::Scatterers, scale::Float32)

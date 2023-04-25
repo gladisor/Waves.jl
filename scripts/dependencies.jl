@@ -1,7 +1,7 @@
 using BSON
 using BSON: @save
 using Flux
-using Flux: Recur, batch, unbatch, pullback, norm, mse, huber_loss, mean, flatten
+using Flux: Recur, batch, unbatch, pullback, norm, mse, huber_loss, mean, flatten, DataLoader
 Flux.CUDA.allowscalar(false)
 using Interpolations
 using Interpolations: Extrapolation

@@ -1,69 +1,3 @@
-function optimize_action(opt_state::NamedTuple, model::AbstractWaveControlModel, s::ScatteredWaveEnvState, a::AbstractDesign, steps::Int)
-    println("optimize_action")
-
-    for i in 1:steps
-        cost, back = pullback(_a -> sum(model(s, _a)), a)
-        gs = back(one(cost))[1]
-        opt_state, a = Optimisers.update(opt_state, a, gs)
-        println(cost)
-    end
-
-    return a
-end
-
-struct WaveControlModel <: AbstractWaveControlModel
-    wave_encoder::Union{WaveEncoder, Chain}
-    design_encoder::Union{DesignEncoder, Chain}
-    iter::Integrator
-    mlp::Chain
-end
-
-Flux.@functor WaveControlModel
-
-function encode(model::WaveControlModel, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    u = model.wave_encoder(wave)
-    v = u * 0.0f0
-    return hcat(u, v, model.design_encoder(design, action))
-end
-
-function (model::WaveControlModel)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    zi = encode(model, wave, design, action)
-    z = model.iter(zi)
-    return model.mlp(z)
-end
-
-function (model::WaveControlModel)(s::ScatteredWaveEnvState, a::AbstractDesign)
-    return model(s.wave_total, s.design, a)
-end
-
-function build_control_sequence(action::AbstractDesign, steps::Int)
-    return [zero(action) for i in 1:steps]
-end
-
-function build_mpc_cost(model::WaveControlModel, s::ScatteredWaveEnvState, control_sequence::Vector{ <: AbstractDesign})
-    cost = 0.0f0
-
-    d1 = s.design
-    c1 = model.design_encoder(d1, control_sequence[1])
-    z1 = hcat(model.wave_encoder(s.wave_total), c1)
-    z = model.iter(z1)
-    cost = cost + sum(model.mlp(z))
-
-    d2 = d1 + control_sequence[1]
-    c2 = model.design_encoder(d2, control_sequence[2])
-    z2 = hcat(z[:, 1:2, end], c2)
-    z = model.iter(z2)
-    cost = cost + sum(model.mlp(z))
-
-    d3 = d2 + control_sequence[2]
-    c3 = model.design_encoder(d3, control_sequence[3])
-    z3 = hcat(z[:, 1:2, end], c3)
-    z = model.iter(z3)
-    cost = cost + sum(model.mlp(z))
-
-    return cost
-end
-
 struct EpisodeData
     states::Vector{ScatteredWaveEnvState}
     actions::Vector{<: AbstractDesign}
@@ -72,6 +6,8 @@ struct EpisodeData
 end
 
 Flux.@functor EpisodeData
+
+Base.length(episode::EpisodeData) = length(episode.states)
 
 function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv)
     states = ScatteredWaveEnvState[]
@@ -89,7 +25,7 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv)
         push!(actions, cpu(action))
         push!(tspans, tspan)
 
-        @time env(action)
+        env(action)
 
         push!(sigmas, cpu(env.σ))
     end
@@ -108,57 +44,23 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv, ep
     return data
 end
 
-function train(model::AbstractWaveControlModel, train_loader::Flux.DataLoader, epochs::Int)
-    opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
+function prepare_data(episode::EpisodeData, n::Int)
+    states = ScatteredWaveEnvState[]
+    actions = Vector{<:AbstractDesign}[]
+    sigmas = AbstractMatrix{Float32}[]
 
-    for i in 1:epochs
-        train_loss = 0.0f0
-
-        for batch in train_loader
-            s, a, sigma = batch
-            s, a, sigma = gpu(s[1]), gpu(a[1]), gpu(sigma[1])
-
-            loss, back = pullback(_model -> mse(_model(s, a), sigma), model)
-            gs = back(one(loss))[1]
-
-            opt_state, model = Optimisers.update(opt_state, model, gs)
-            train_loss += loss
-        end
-
-        print("Epoch: $i, Loss: ")
-        println(train_loss / length(data))
+    for i in 1:(length(episode) - n)
+        push!(states, episode.states[i])
+        push!(actions, episode.actions[i:i+n])
+        push!(sigmas, hcat(episode.sigmas[i:i+n]...))
     end
 
-    return model
+    return (states, actions, sigmas)
 end
 
-struct PercentageWaveControlModel <: AbstractWaveControlModel
-    wave_encoder::WaveEncoder
-    wave_encoder_mlp::Chain
-
-    design_encoder::DesignEncoder
-    design_encoder_mlp::Chain
-
-    iter::Integrator
-    mlp::Chain
+function prepare_data(data::Vector{EpisodeData}, n::Int)
+    vcat.(prepare_data.(data, n)...)
 end
-
-Flux.@functor PercentageWaveControlModel
-
-function encode(model::PercentageWaveControlModel, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    u = vec(model.wave_encoder_mlp(model.wave_encoder(wave)))
-    v = u * 0.0f0
-    c = model.design_encoder_mlp(model.design_encoder(design, action))
-    # v = c * 0.01f0
-    return hcat(u, v, c)
-end
-
-function (model::PercentageWaveControlModel)(s::ScatteredWaveEnvState, a::AbstractDesign)
-    zi = encode(model, s.wave_total, s.design, a)
-    z = model.iter(zi)
-    return model.mlp(z)
-end
-
 
 struct WaveMPC <: AbstractWaveControlModel
     wave_encoder::Chain
@@ -169,24 +71,47 @@ end
 
 Flux.@functor WaveMPC
 
-function encode(model::WaveMPC, wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    z_wave = model.wave_encoder(wave)
-    z_u = z_wave[:, 1]
-    z_v = z_wave[:, 2] * 0.0f0
-
+function (model::WaveMPC)(z_wave::AbstractMatrix{Float32}, design::AbstractDesign, action::AbstractDesign)
     z_design = model.design_encoder(vcat(vec(design), vec(action)))
-    z_design = reshape(z_design, size(z_design, 1) ÷ 2, 2)
-    z_f = tanh.(z_design[:, 1])
-    z_c = sigmoid.(z_design[:, 2])
-    zi = hcat(z_u, z_v, z_f, z_c)
-    return zi
-end
-
-function (model::WaveMPC)(wave::AbstractArray{Float32, 3}, design::AbstractDesign, action::AbstractDesign)
-    z = model.iter(encode(model, wave, design, action))
-    return model.mlp(z)
+    zi = hcat(z_wave, z_design)
+    z = model.iter(zi)
+    z_wave = z[:, [1, 2], end]
+    sigma = model.mlp(z)
+    return z_wave, sigma
 end
 
 function (model::WaveMPC)(s::ScatteredWaveEnvState, action::AbstractDesign)
-    return model(s.wave_total, s.design, action)
+    z_wave = model.wave_encoder(s.wave_total)
+    _, sigma = model(z_wave, s.design, action)
+    return sigma
+end
+
+function build_cost(model::WaveMPC, s::ScatteredWaveEnvState, actions::Vector{AbstractDesign})
+    z_wave = model.wave_encoder(s.wave_total)
+    design = s.design
+
+    cost = 0.0f0
+
+    for a in actions
+        z_wave, sigma = model(z_wave, design, a)
+        cost += mean(sigma)
+        design += a
+    end
+
+    return cost
+end
+
+function build_loss(model::WaveMPC, s::ScatteredWaveEnvState, actions::Vector{<: AbstractDesign}, sigma::AbstractMatrix{Float32})
+    z_wave = model.wave_encoder(s.wave_total)
+    design = s.design
+
+    loss = 0.0f0
+
+    for (i, a) in enumerate(actions)
+        z_wave, sigma_pred = model(z_wave, design, a)
+        loss += mse(sigma_pred, sigma[:, i])
+        design += a
+    end
+
+    return loss
 end

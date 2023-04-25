@@ -29,7 +29,6 @@ function (policy::MPCPolicy)(env::ScatteredWaveEnv)
 end
 
 function (model::WaveMPC)(z_wave::AbstractMatrix{Float32}, da) #design::AbstractDesign, action::AbstractDesign)
-
     design, action = da
     z_design = model.design_encoder(vcat(vec(design), vec(action)))
     zi = hcat(z_wave, z_design)
@@ -39,33 +38,35 @@ function (model::WaveMPC)(z_wave::AbstractMatrix{Float32}, da) #design::Abstract
     return z_wave, zf
 end
 
-# function (model::WaveMPC)(s::ScatteredWaveEnvState, actions::Vector{<: AbstractDesign})
+function train(model::WaveMPC, train_loader::DataLoader, epochs::Int)
+    opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
 
-#     z_u, z_v = model.wave_encoder(s.wave_total)
-#     design = s.design
-#     for (i, a) in enumerate(actions)
-#         z_f, z_c = model.design_encoder(vcat(vec(s.design), vec(a)))
-#         zi = hcat(z_u, z_v, z_f, z_c)
-#         z = model.iter(zi)
-#         sigma = model.mlp(z)
-#         z_u, z_v = z[:, 1, end], z[:, 2, end]
-#         design = design + a
-#         display(design)
-#     end
-# end
+    for i in 1:epochs
+        train_loss = 0.0f0
 
-Flux.trainable(config::Scatterers) = (;config.r)
+        for (s, a, σ) in train_loader
+            s, a, σ = gpu(s[1]), gpu(a[1]), gpu(σ[1])
+
+            loss, back = pullback(_model -> build_loss(model, s, a, σ), model)
+            gs = back(one(loss))[1]
+
+            opt_state, model = Optimisers.update(opt_state, model, gs)
+            train_loss += loss
+        end
+
+        print("Epoch: $i, Loss: ")
+        println(train_loss / length(train_loader))
+    end
+
+    return model
+end
 
 path = "results/radii/WaveMPC"
-
-# model = BSON.load(joinpath(path, "model.bson"))[:model] |> gpu
 env = BSON.load(joinpath(path, "env.bson"))[:env] |> gpu
-
 policy = RandomDesignPolicy(action_space(env))
-# mpc = MPCPolicy(policy, model)
 ;
-reset!(env)
 
+reset!(env)
 s = state(env)
 a = gpu(policy(env))
 
@@ -90,51 +91,11 @@ design_encoder = Chain(
     )
 
 iter = Integrator(runge_kutta, latent_dynamics, ti, dt, steps)
-
-mlp = Chain(
-    flatten,
-    Dense(latent_elements * 4, h_size, relu), 
-    Dense(h_size, 1), 
-    vec)
+mlp = Chain(flatten, Dense(latent_elements * 4, h_size, relu), Dense(h_size, 1), vec)
 
 model = gpu(WaveMPC(wave_encoder, design_encoder, iter, mlp))
+data = generate_episode_data(policy, env, 10)
 
-z_wave = model.wave_encoder(s.wave_total)
-
-
-# model(s, [a, a, a])
-# z_u, z_v = model.wave_encoder(s.wave_total)
-
-# z_f, z_c = model.design_encoder(vcat(vec(s.design), vec(a)))
-# zi = hcat(z_u, z_v, z_f, z_c)
-# z = model.iter(zi)
-
-
-# z_u, z_v = unbatch(z[:, [1, 2], end])
-
-# cost = 0.0f0
-# while !is_terminated(env)
-#     env(mpc(env))
-#     cost += reward(env)
-# end
-# println("MPC cost: $cost")
-
-# reset!(env)
-# cost = 0.0f0
-# while !is_terminated(env)
-#     env(policy(env))
-#     cost += reward(env)
-# end
-# println("Random cost: $cost")
-
-
-
-# # while !is_terminated(env)
-# #     plot_action_distribution!(model, policy, env, path = joinpath(path, "d$(env.time_step).png"))
-# #     env(policy(env))
-# # end
-
-# # validation_episode = generate_episode_data(policy, env, 10)
-# # for (i, ep) in enumerate(validation_episode)
-# #     plot_sigma!(model, ep, path = joinpath(path, "validation_ep$i.png"))
-# # end
+train_loader = Flux.DataLoader(prepare_data(data, 0), shuffle = true)
+model = train(model, train_loader, 2)
+;

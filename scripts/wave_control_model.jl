@@ -25,7 +25,7 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv)
         push!(actions, cpu(action))
         push!(tspans, tspan)
 
-        env(action)
+        @time env(action)
 
         push!(sigmas, cpu(env.σ))
     end
@@ -71,47 +71,61 @@ end
 
 Flux.@functor WaveMPC
 
-function (model::WaveMPC)(z_wave::AbstractMatrix{Float32}, design::AbstractDesign, action::AbstractDesign)
+# function (model::WaveMPC)(z_wave::AbstractMatrix{Float32}, design::AbstractDesign, action::AbstractDesign)
+#     z_design = model.design_encoder(vcat(vec(design), vec(action)))
+#     zi = hcat(z_wave, z_design)
+#     z = model.iter(zi)
+#     z_wave = z[:, [1, 2], end]
+#     sigma = model.mlp(z)
+#     return z_wave, sigma
+# end
+
+function (model::WaveMPC)(h::Tuple{AbstractMatrix{Float32}, AbstractDesign}, action::AbstractDesign)
+    z_wave, design = h
     z_design = model.design_encoder(vcat(vec(design), vec(action)))
-    zi = hcat(z_wave, z_design)
-    z = model.iter(zi)
-    z_wave = z[:, [1, 2], end]
+    z = model.iter(hcat(z_wave, z_design))
     sigma = model.mlp(z)
-    return z_wave, sigma
+    return (z[:, [1, 2], end], design + action), sigma
 end
 
-function (model::WaveMPC)(s::ScatteredWaveEnvState, action::AbstractDesign)
+function (model::WaveMPC)(s::ScatteredWaveEnvState, actions::Vector{<:AbstractDesign})
     z_wave = model.wave_encoder(s.wave_total)
-    _, sigma = model(z_wave, s.design, action)
-    return sigma
+    recur = Recur(model, (z_wave, s.design))
+    return hcat([recur(a) for a in actions]...)
 end
 
-function build_cost(model::WaveMPC, s::ScatteredWaveEnvState, actions::Vector{AbstractDesign})
-    z_wave = model.wave_encoder(s.wave_total)
-    design = s.design
+# function (model::WaveMPC)(s::ScatteredWaveEnvState, action::AbstractDesign)
+#     z_wave = model.wave_encoder(s.wave_total)
+#     _, sigma = model(z_wave, s.design, action)
+#     return sigma
+# end
 
-    cost = 0.0f0
+# function build_cost(model::WaveMPC, s::ScatteredWaveEnvState, actions::Vector{AbstractDesign})
+#     z_wave = model.wave_encoder(s.wave_total)
+#     design = s.design
 
-    for a in actions
-        z_wave, sigma = model(z_wave, design, a)
-        cost += mean(sigma)
-        design += a
-    end
+#     cost = 0.0f0
 
-    return cost
-end
+#     for a in actions
+#         z_wave, sigma = model(z_wave, design, a)
+#         cost += mean(sigma)
+#         design += a
+#     end
 
-function build_loss(model::WaveMPC, s::ScatteredWaveEnvState, actions::Vector{<: AbstractDesign}, sigma::AbstractMatrix{Float32})
-    z_wave = model.wave_encoder(s.wave_total)
-    design = s.design
+#     return cost
+# end
 
-    loss = 0.0f0
+# function build_loss(model::WaveMPC, s::ScatteredWaveEnvState, actions::Vector{<: AbstractDesign}, sigma::AbstractMatrix{Float32})
+#     z_wave = model.wave_encoder(s.wave_total)
+#     design = s.design
 
-    for (i, a) in enumerate(actions)
-        z_wave, sigma_pred = model(z_wave, design, a)
-        loss += mse(sigma_pred, sigma[:, i])
-        design += a
-    end
+#     loss = 0.0f0
 
-    return loss
-end
+#     for (i, a) in enumerate(actions)
+#         z_wave, sigma_pred = model(z_wave, design, a)
+#         loss += mse(sigma_pred, sigma[:, i])
+#         design += a
+#     end
+
+#     return loss
+# end

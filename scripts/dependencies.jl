@@ -27,4 +27,7 @@ ti =  0.0f0
 dt = 0.00005f0
 steps = 100
 
+h_size = 128
+latent_elements = 512
+
 random_design_kwargs = Dict(:width => 1, :hight => 2, :spacing => 3.0f0, :r => Waves.MAX_RADII, :c => 2100.0f0, :center => [0.0f0, 0.0f0])

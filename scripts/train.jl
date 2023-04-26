@@ -51,9 +51,9 @@ mlp = Chain(
     vec)
 
 model = gpu(WaveMPC(wave_encoder, design_encoder, iter, mlp))
-data = generate_episode_data(policy, env, 50)
+data = generate_episode_data(policy, env, 100)
 
-path = "results/radii/force/"
+path = "results/radii/long/"
 render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_original.mp4"))
 train_loader = Flux.DataLoader(prepare_data(data, 1), shuffle = true)
 model = train(model, train_loader, 10)
@@ -65,7 +65,7 @@ lines!(ax, cpu(pml))
 lines!(ax, cpu(model.iter.dynamics.pml))
 save(joinpath(path, "pml.png"), fig)
 
-val_episodes = generate_episode_data(policy, env, 4)
+val_episodes = generate_episode_data(policy, env, 5)
 for (i, episode) in enumerate(val_episodes)
     plot_sigma!(model, episode, path = joinpath(path, "val_episode$i.png"))
 end

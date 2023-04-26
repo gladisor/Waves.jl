@@ -25,7 +25,7 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv)
         push!(actions, cpu(action))
         push!(tspans, tspan)
 
-        @time env(action)
+        env(action)
 
         push!(sigmas, cpu(env.σ))
     end
@@ -95,13 +95,13 @@ function encode(model::WaveMPC, s::ScatteredWaveEnvState, action::AbstractDesign
     return hcat(z_wave, z_design)
 end
 
-function train(model::WaveMPC, train_loader::DataLoader, epochs::Int)
+function train(model::WaveMPC, train_loader::DataLoader, epochs::Int, )
     opt_state = Optimisers.setup(Optimisers.Adam(1e-4), model)
 
     for i in 1:epochs
-        train_loss = 0.0f0
 
-        for (s, a, σ) in train_loader
+        train_loss = 0.0f0
+        @showprogress for (s, a, σ) in train_loader
             s, a, σ = gpu(s[1]), gpu(a[1]), gpu(σ[1])
 
             loss, back = pullback(_model -> mse(_model(s, a), σ), model)

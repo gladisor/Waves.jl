@@ -148,41 +148,6 @@ function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32
     return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-struct LatentPMLWaveDynamics <: AbstractDynamics
-    ambient_speed::Float32
-    pml_scale::Float32
-
-    pml::AbstractArray
-    grad::AbstractMatrix
-    bc::AbstractArray
-end
-
-Flux.@functor LatentPMLWaveDynamics
-Flux.trainable(dyn::LatentPMLWaveDynamics) = (;dyn.pml)
-
-function LatentPMLWaveDynamics(dim::AbstractDim; ambient_speed::Float32, pml_scale::Float32)
-    pml = sqrt.(build_pml(dim, dim.x[end], 1.0f0))
-    grad = build_gradient(dim)
-    bc = dirichlet(dim)
-    return LatentPMLWaveDynamics(ambient_speed, pml_scale, pml, grad, bc)
-end
-
-function (dyn::LatentPMLWaveDynamics)(u::AbstractMatrix{Float32}, t::Float32)
-    U = u[:, 1]
-    V = u[:, 2]
-    C = u[:, 3]
-
-    b = dyn.ambient_speed ^ 2 * C
-    ∇ = dyn.grad
-    σ = (dyn.pml .^ 2) * dyn.pml_scale
-
-    du = b .* ∂x(∇, V) .- σ .* U
-    dv = ∂x(∇, U) .- σ .* V
-    dc = b * 0.0f0
-
-    return hcat(dyn.bc .* du, dv, dc)
-end
-
 struct TimeHarmonicWaveDynamics <: AbstractDynamics
     design::DesignInterpolator
     ambient_speed::Float32
@@ -236,7 +201,7 @@ struct ForceLatentDynamics <: AbstractDynamics
 end
 
 Flux.@functor ForceLatentDynamics
-Flux.trainable(dyn::ForceLatentDynamics) = (;dyn.pml)
+Flux.trainable(dyn::ForceLatentDynamics) = (;)
 
 function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]
@@ -245,13 +210,12 @@ function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     c = wave[:, 4]
 
     b = dyn.ambient_speed .^ 2 .* c
-    σ = dyn.pml_scale * exp.(dyn.pml)
+    σ = dyn.pml * dyn.pml_scale
 
     du = b .* (dyn.grad * v) .- σ .* u
     dv = dyn.grad * u .- σ .* v .+ f .* (u .+ v)
-
     df = f * 0.0f0
     dc = c * 0.0f0
 
-    return hcat(dyn.bc .* du, dyn.bc .* dv, df, dc)
+    return hcat(dyn.bc .* du, dv, df, dc)
 end

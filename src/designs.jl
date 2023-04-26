@@ -2,12 +2,17 @@ export speed
 
 export NoDesign
 export Scatterers, pos_design_space, radii_design_space, random_pos, random_radii_scatterer_formation
-
 export DesignInterpolator
+export ALUMINIUM, COPPER, BRASS
 
 const MIN_RADII = 0.5f0
 const MAX_RADII = 2.0f0
 const MIN_SPEED = 0.0f0
+
+# https://www.rshydro.co.uk/sound-speeds/
+const ALUMINIUM = 3100.0f0
+const COPPER = 2260.0f0
+const BRASS = 2120.0f0
 
 struct DesignInterpolator
     initial::AbstractDesign

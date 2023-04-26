@@ -10,6 +10,7 @@ using IntervalSets
 using CairoMakie
 using Optimisers
 using ChainRulesCore
+using ProgressMeter
 using Waves
 using Waves: speed
 

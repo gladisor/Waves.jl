@@ -7,62 +7,74 @@ function optimise_actions(opt_state, model::WaveMPC, s::ScatteredWaveEnvState, a
     return opt_state, a
 end
 
-function optimise_actions(model::WaveMPC, s::ScatteredWaveEnvState, a::Vector{<:AbstractDesign}, steps::Int)
-    opt_state = Optimisers.setup(Optimisers.Descent(0.01), a)
+function optimise_actions(opt::AbstractRule, model::WaveMPC, s::ScatteredWaveEnvState, a::Vector{<: AbstractDesign}, steps::Int)
+    opt_state = Optimisers.setup(opt, a)
 
     for i in 1:steps
         opt_state, a = optimise_actions(opt_state, model, s, a)
     end
-    
+
     return a
 end
 
-model = BSON.load("results/radii/force/model.bson")[:model] |> gpu
-env = BSON.load("results/radii/force/env.bson")[:env] |> gpu
+struct MPC <: AbstractPolicy
+    policy::AbstractPolicy
+    model::WaveMPC
+    opt::AbstractRule
+    horizon::Int
+    opt_steps::Int
+end
+
+function (policy::MPC)(env::ScatteredWaveEnv)
+    a = gpu([policy.policy(env) for _ in 1:policy.horizon])
+    s = gpu(state(env))
+    a = optimise_actions(policy.opt, policy.model, s, a, policy.opt_steps)
+    return a[1]
+end
+
+model = BSON.load("results/radii/long/model.bson")[:model] |> gpu
+env = BSON.load("results/radii/long/env.bson")[:env] |> gpu
 reset!(env)
 policy = RandomDesignPolicy(action_space(env))
-episode = generate_episode_data(policy, env)
 
-plot_sigma!(episode, path = "episode.png")
-plot_episode_data!(episode, cols = 5, path = "data.png")
+opt = Optimisers.Descent(0.001)
+mpc = MPC(policy, model, opt, 2, 3)
+a = mpc(env)
+run(mpc, env, StopWhenDone(), TotalRewardPerEpisode())
 
-states = episode.states
-actions = episode.actions
-sigmas = episode.sigmas
-tspans = episode.tspans
+# episode = generate_episode_data(policy, env)
 
-idx = 3
+# plot_sigma!(episode, path = "episode.png")
+# plot_sigma!(model, episode, path = "episode_full.png")
+# plot_episode_data!(episode, cols = 5, path = "data.png")
 
-s = gpu(states[idx])
-a = gpu(actions[idx:idx+1])
+# states = episode.states
+# actions = episode.actions
+# sigmas = episode.sigmas
+# tspans = episode.tspans
 
-println("Initial Action")
-display(a)
+# idx = 8
 
-fig = Figure()
-ax = Axis(fig[1, 1])
+# s = gpu(states[idx])
+# a = gpu(actions[idx:idx+1])
 
-tspan = vec(hcat(tspans[idx:idx+1]...)[2:end, :])
-sigma = vec(model(s, a)[2:end, :])
-lines!(ax, tspan, cpu(sigma))
-
-a = optimise_actions(model, s, a, 3)
-sigma = vec(model(s, a)[2:end, :])
-lines!(ax, tspan, cpu(sigma))
-
-save("sigma.png", fig)
-
-println("Optimized Action")
-display(a)
-
-
-# sigma = model(s, a)
-# sigma = vec(sigma[2:end, :])
-# tspan = vec(hcat(tspans[1:2]...)[2:end, :])
+# println("Initial Action")
+# display(a)
 
 # fig = Figure()
 # ax = Axis(fig[1, 1])
-# lines!(ax, tspan, cpu(sigma), label = "Predicted")
-# lines!(ax, tspan, vec(hcat(sigmas[idx:idx+1]...)[2:end, :]), label = "True")
-# axislegend(ax)
+
+# tspan = vec(hcat(tspans[idx:idx+1]...)[2:end, :])
+# sigma = vec(model(s, a)[2:end, :])
+# lines!(ax, tspan, cpu(sigma))
+
+# opt = Optimisers.Descent(0.001)
+# a = optimise_actions(opt, model, s, a, 3)
+
+# sigma = vec(model(s, a)[2:end, :])
+# lines!(ax, tspan, cpu(sigma))
+
 # save("sigma.png", fig)
+
+# println("Optimized Action")
+# display(a)

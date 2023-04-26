@@ -40,7 +40,24 @@ policy = RandomDesignPolicy(action_space(env))
 opt = Optimisers.Descent(0.001)
 mpc = MPC(policy, model, opt, 2, 3)
 a = mpc(env)
-run(mpc, env, StopWhenDone(), TotalRewardPerEpisode())
+
+episodes = 10
+
+mpc_hook = TotalRewardPerEpisode()
+run(mpc, env, StopAfterEpisode(episodes), mpc_hook)
+
+random_hook = TotalRewardPerEpisode()
+run(policy, env, StopAfterEpisode(episodes), random_hook)
+
+avg_mpc = mean(mpc_hook.rewards)
+avg_random = mean(random_hook.rewards)
+
+mpc_episode = generate_episode_data(mpc, env)
+plot_episode_data!(mpc_episode, cols = 5, path = "mpc_episode.png")
+
+random_episode = generate_episode_data(policy, env)
+plot_episode_data!(random_episode, cols = 5, path = "random_episode.png")
+
 
 # episode = generate_episode_data(policy, env)
 

@@ -53,27 +53,26 @@ mlp = Chain(
 
 model = gpu(WaveMPC(wave_encoder, design_encoder, iter, mlp))
 
-model.wave_encoder(s.wave_total)
-# data = generate_episode_data(policy, env, 1)
+data = generate_episode_data(policy, env, 1)
 
-# path = "results/radii/long/"
-# render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_original.mp4"))
-# train_loader = Flux.DataLoader(prepare_data(data, 1), shuffle = true)
-# model = train(model, train_loader, 10)
-# render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_opt.mp4"))
+path = "results/radii/DisplacementImage/"
+render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_original.mp4"))
+train_loader = Flux.DataLoader(prepare_data(data, 1), shuffle = true)
+model = train(model, train_loader, 10)
+render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_opt.mp4"))
 
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, cpu(pml))
-# lines!(ax, cpu(model.iter.dynamics.pml))
-# save(joinpath(path, "pml.png"), fig)
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, cpu(pml))
+lines!(ax, cpu(model.iter.dynamics.pml))
+save(joinpath(path, "pml.png"), fig)
 
-# val_episodes = generate_episode_data(policy, env, 5)
-# for (i, episode) in enumerate(val_episodes)
-#     plot_sigma!(model, episode, path = joinpath(path, "val_episode$i.png"))
-# end
+val_episodes = generate_episode_data(policy, env, 5)
+for (i, episode) in enumerate(val_episodes)
+    plot_sigma!(model, episode, path = joinpath(path, "val_episode$i.png"))
+end
 
-# model = cpu(model)
-# env = cpu(env)
-# @save joinpath(path, "model.bson") model
-# @save joinpath(path, "env.bson") env
+model = cpu(model)
+env = cpu(env)
+@save joinpath(path, "model.bson") model
+@save joinpath(path, "env.bson") env

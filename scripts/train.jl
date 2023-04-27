@@ -9,12 +9,12 @@ dt = 0.00005f0
 steps = 100
 actions = 10
 h_channels = 8
-h_size = 128
-latent_elements = 512
+h_size = 512
+latent_elements = 1024
 latent_pml_width = 1.0f0
 latent_pml_scale = 20000.0f0
 n_mlp_layers = 2
-horizon = 6
+horizon = 2
 lr = 1e-4
 
 episodes = 100

@@ -1,6 +1,11 @@
 include("dependencies.jl")
 
-struct Source
+abstract type AbstractSource end
+
+struct NoSource <: AbstractSource end
+(source::NoSource)(t::Float32) = 0.0f0
+
+struct Source <: AbstractSource
     source::AbstractArray{Float32}
     freq::Float32
 end
@@ -14,7 +19,7 @@ end
 struct WaveDynamics <: AbstractDynamics
     ambient_speed::Float32
     design::DesignInterpolator
-    source::Source
+    source::AbstractSource
     grid::AbstractArray{Float32}
     grad::AbstractMatrix{Float32}
     pml::AbstractArray{Float32}
@@ -23,6 +28,23 @@ end
 
 Flux.@functor WaveDynamics
 Flux.trainable(dyn::WaveDynamics) = (;)
+
+function WaveDynamics(dim::AbstractDim; 
+        ambient_speed::Float32,
+        pml_width::Float32,
+        pml_scale::Float32,
+        design::AbstractDesign = NoDesign(),
+        source::AbstractSource = NoSource()
+        )
+
+    design = DesignInterpolator(design)
+    grid = build_grid(dim)
+    grad = build_gradient(dim)
+    pml = build_pml(dim, pml_width, pml_scale)
+    bc = dirichlet(dim)
+
+    return WaveDynamics(ambient_speed, design, source, grid, grad, pml, bc)
+end
 
 function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     U = wave[:, :, 1]
@@ -41,12 +63,12 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
 
     Vxx = ∂x(∇, Vx)
     Vyy = ∂y(∇, Vy)
-    Ux = ∂x(∇, U)
-    Uy = ∂y(∇, U)
+    Ux = ∂x(∇, U .+ force)
+    Uy = ∂y(∇, U .+ force)
 
     dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
-    dVx = Ux .- σx .* Vx .+ force
-    dVy = Uy .- σy .* Vy .+ force
+    dVx = Ux .- σx .* Vx
+    dVy = Uy .- σy .* Vy
     dΨx = b .* σx .* Vyy
     dΨy = b .* σy .* Vxx
     dΩ = σx .* σy .* U
@@ -54,30 +76,28 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
+function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, action::AbstractDesign)
+    initial = dyn.design(tspan[1])
+    design = DesignInterpolator(initial, action, tspan[1], tspan[end])
+    return WaveDynamics(dyn.ambient_speed, design, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
+end
+
 dim = TwoDim(8.0f0, 256)
 wave = build_wave(dim, fields = 6) |> gpu
-grid = build_grid(dim)
-grad = build_gradient(dim)
-pml = build_pml(dim, 2.0f0, 20000.0f0)
-bc = dirichlet(dim)
+pulse = build_pulse(build_grid(dim), 0.0f0, -3.0f0, 5.0f0)
 
-design = DesignInterpolator(NoDesign())
-source = Source(build_pulse(grid, 0.0f0, 0.0f0, 1.0f0), 200.0f0)
+dynamics = WaveDynamics(
+    dim,
+    ambient_speed = AIR,
+    pml_width = 2.0f0,
+    pml_scale = 20000.0f0,
+    design = Scatterers([0.0f0 0.0f0], [1.0f0], [BRASS]),
+    source = Source(pulse, 300.0f0))
 
-dynamics = WaveDynamics(AIR, design, source, grid, grad, pml, bc)
+iter = Integrator(runge_kutta, dynamics, 0.0f0, 5e-5, 500) |> gpu
 
-iter1 = Integrator(runge_kutta, dynamics, 0.0f0, 5e-5, 500) |> gpu
-
-ti = iter1.ti + iter1.steps * iter1.dt
-iter2 = Integrator(runge_kutta, dynamics, ti, 5e-5, 500) |> gpu
-
-@time u1 = iter1(wave) |> cpu
-tspan1 = build_tspan(iter1)
-@time u2 = iter2(gpu(u1[:, :, :, end])) |> cpu
-tspan2 = build_tspan(iter2)
-
-tspan = vcat(tspan1, tspan2)
-u = cat(u1, u2, dims = ndims(u1))
+tspan = build_tspan(iter)
+@time u = iter(wave) |> cpu
 
 u = linear_interpolation(tspan, unbatch(u))
-@time render!(dim, tspan, u, path = "vid.mp4", seconds = 10.0f0)
+@time render!(dim, tspan, u, path = "vid.mp4", seconds = 5.0f0)

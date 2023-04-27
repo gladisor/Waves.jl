@@ -116,7 +116,7 @@ function plot_sigma!(model::AbstractWaveControlModel, episode::EpisodeData; path
 end
 
 function plot_action_distribution!(
-    model::WaveMPC,
+    model::WaveControlModel,
     policy::RandomDesignPolicy, 
     env::WaveEnv; path::String)
 
@@ -132,7 +132,7 @@ end
 
 function render_latent_wave!(
         dim::OneDim, 
-        model::WaveMPC, 
+        model::WaveControlModel, 
         s::WaveEnvState,
         action::AbstractDesign; path::String)
 

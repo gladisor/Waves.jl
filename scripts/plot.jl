@@ -118,7 +118,7 @@ end
 function plot_action_distribution!(
     model::WaveMPC,
     policy::RandomDesignPolicy, 
-    env::ScatteredWaveEnv; path::String)
+    env::WaveEnv; path::String)
 
     fig = Figure()
     ax = Axis(fig[1, 1])
@@ -133,7 +133,7 @@ end
 function render_latent_wave!(
         dim::OneDim, 
         model::WaveMPC, 
-        s::ScatteredWaveEnvState,
+        s::WaveEnvState,
         action::AbstractDesign; path::String)
 
     z = cpu(model.iter(encode(model, s, action)))

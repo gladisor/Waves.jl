@@ -1,19 +1,16 @@
 include("dependencies.jl")
 
-initial_design = random_radii_scatterer_formation(;random_design_kwargs...)
-
 dim = TwoDim(grid_size, elements)
-env = gpu(ScatteredWaveEnv(
+pulse = Pulse(dim, x = -5.0f0, y = 0.0f0, intensity = 1.0f0)
+random_radii = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 3.0f0, c = BRASS, center = zeros(Float32, 2))
+ds = radii_design_space(random_radii(), 1.0f0)
+
+env = gpu(WaveEnv(
     dim,
-    initial_condition = Pulse(dim, -5.0f0, 0.0f0, 1.0f0),
-    design = initial_design,
-    ambient_speed = ambient_speed,
-    pml_width = pml_width,
-    pml_scale = pml_scale,
-    reset_design = d -> gpu(random_radii_scatterer_formation(;random_design_kwargs...)),
-    action_space = radii_design_space(initial_design, 1.0f0),
-    dt = dt,
-    integration_steps = steps,
+    reset_wave = pulse,
+    reset_design = random_radii,
+    action_space = ds,
+    sensor = DisplacementImage(),
     actions = 10
 ))
 
@@ -23,8 +20,12 @@ reset!(env)
 s = gpu(state(env))
 a = gpu(policy(env))
 
+@time episode = generate_episode_data(policy, env)
+@time plot_episode_data!(episode, cols = 5, path = "data.png")
+@time plot_sigma!(episode, path = "sigma.png")
+
 wave_encoder = Chain(
-    WaveEncoder(6, 8, 2, tanh), 
+    WaveEncoder(1, 8, 2, tanh),
     Dense(1024, latent_elements, tanh),
     z -> hcat(z[:, 1], z[:, 2] * 0.0f0)
     )
@@ -51,26 +52,28 @@ mlp = Chain(
     vec)
 
 model = gpu(WaveMPC(wave_encoder, design_encoder, iter, mlp))
-data = generate_episode_data(policy, env, 100)
 
-path = "results/radii/long/"
-render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_original.mp4"))
-train_loader = Flux.DataLoader(prepare_data(data, 1), shuffle = true)
-model = train(model, train_loader, 10)
-render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_opt.mp4"))
+model.wave_encoder(s.wave_total)
+# data = generate_episode_data(policy, env, 1)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, cpu(pml))
-lines!(ax, cpu(model.iter.dynamics.pml))
-save(joinpath(path, "pml.png"), fig)
+# path = "results/radii/long/"
+# render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_original.mp4"))
+# train_loader = Flux.DataLoader(prepare_data(data, 1), shuffle = true)
+# model = train(model, train_loader, 10)
+# render_latent_wave!(latent_dim, model, s, a, path = joinpath(path, "latent_wave_opt.mp4"))
 
-val_episodes = generate_episode_data(policy, env, 5)
-for (i, episode) in enumerate(val_episodes)
-    plot_sigma!(model, episode, path = joinpath(path, "val_episode$i.png"))
-end
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, cpu(pml))
+# lines!(ax, cpu(model.iter.dynamics.pml))
+# save(joinpath(path, "pml.png"), fig)
 
-model = cpu(model)
-env = cpu(env)
-@save joinpath(path, "model.bson") model
-@save joinpath(path, "env.bson") env
+# val_episodes = generate_episode_data(policy, env, 5)
+# for (i, episode) in enumerate(val_episodes)
+#     plot_sigma!(model, episode, path = joinpath(path, "val_episode$i.png"))
+# end
+
+# model = cpu(model)
+# env = cpu(env)
+# @save joinpath(path, "model.bson") model
+# @save joinpath(path, "env.bson") env

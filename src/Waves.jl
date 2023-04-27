@@ -1,6 +1,6 @@
 module Waves
 
-export AbstractDim, AbstractDesign, AbstractInitialCondition, AbstractDynamics, AbstractWaveCell
+export AbstractDim, AbstractDesign, AbstractInitialWave, AbstractInitialDesign, AbstractDynamics
 
 using SparseArrays
 using IntervalSets
@@ -19,20 +19,20 @@ using Flux:
 using ChainRulesCore
 using Optimisers
 using ReinforcementLearning
-using JLD2
 using ProgressMeter: @showprogress
 
 abstract type AbstractDim end
 abstract type AbstractDesign end
-abstract type AbstractInitialCondition end
+abstract type AbstractInitialWave end
+abstract type AbstractInitialDesign end
 abstract type AbstractDynamics end
-abstract type AbstractWaveCell end
 
 include("dims.jl")                         ## Core structures for defining dimensional spaces
 include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                          ## Perfectly Matched Layer
-include("initial_conditions.jl")           ## Pulses, waves, etc...
+include("initial_wave.jl")           ## Pulses, waves, etc...
+include("initial_design.jl")
 
 include("designs.jl")
 # include("dynamics.jl")                     ## Defines the dynamics of the wave simulation

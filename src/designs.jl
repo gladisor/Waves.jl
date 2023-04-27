@@ -1,9 +1,9 @@
 export speed
 
 export NoDesign
-export Scatterers, pos_design_space, radii_design_space, random_pos, random_radii_scatterer_formation
+export Scatterers, pos_design_space, radii_design_space, random_pos
 export DesignInterpolator
-export ALUMINIUM, COPPER, BRASS
+export ALUMINIUM, COPPER, BRASS, AIR
 
 const MIN_RADII = 0.5f0
 const MAX_RADII = 2.0f0
@@ -13,6 +13,8 @@ const MIN_SPEED = 0.0f0
 const ALUMINIUM = 3100.0f0
 const COPPER = 2260.0f0
 const BRASS = 2120.0f0
+# https://www.sfu.ca/sonic-studio-webdav/handbook/Speed__Of_Sound.html
+const AIR = 344.0f0
 
 struct DesignInterpolator
     initial::AbstractDesign
@@ -151,11 +153,11 @@ function random_pos(config::Scatterers, disk_r::Float32)
     return Scatterers(pos, config.r, config.c)
 end
 
-function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})
+function scatterer_formation(;width::Int, height::Int, spacing::Float32, r::Float32, c::Float32, center::Vector{Float32})
     pos = []
 
     for i ∈ 1:width
-        for j ∈ 1:hight
+        for j ∈ 1:height
             point = [(i - 1) * (2 * r + spacing), (j - 1) * (2 * r + spacing)]
             push!(pos, point)
         end
@@ -168,13 +170,6 @@ function scatterer_formation(;width::Int, hight::Int, spacing::Float32, r::Float
     c = ones(Float32, size(pos, 1)) * c
 
     return Scatterers(pos, r, c)
-end
-
-function random_radii_scatterer_formation(;kwargs...)
-    config = scatterer_formation(r = MAX_RADII; kwargs...)
-    r = rand(Float32, size(config.r))
-    r = r * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
-    return Scatterers(config.pos, r, config.c)
 end
 
 ########

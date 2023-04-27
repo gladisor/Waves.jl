@@ -180,7 +180,7 @@ function (dyn::TimeHarmonicWaveDynamics)(wave::AbstractArray{Float32, 3}, t::Flo
     Ux = ∂x(∇, U)
     Uy = ∂y(∇, U)
     
-    force = dyn.source * sin(t * 2.0f0 * pi / dyn.freq)
+    force = dyn.source * sin(t * 2.0f0 * pi * dyn.freq)
     dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
     dVx = Ux .- σx .* Vx .+ force
     dVy = Uy .- σy .* Vy .+ force

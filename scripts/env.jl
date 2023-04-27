@@ -1,4 +1,4 @@
-struct ScatteredWaveEnvState
+struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
     wave_total::AbstractArray{Float32, 3}
@@ -6,19 +6,34 @@ struct ScatteredWaveEnvState
     design::AbstractDesign
 end
 
-Flux.@functor ScatteredWaveEnvState
+abstract type AbstractSensor end
 
-mutable struct ScatteredWaveEnv <: AbstractEnv
-    initial_condition::AbstractInitialCondition
+struct WaveImage <: AbstractSensor end
+(sensor::WaveImage)(s::WaveEnvState) = s
+
+struct DisplacementImage <: AbstractSensor end
+
+function (sensor::DisplacementImage)(s::WaveEnvState)
+    return WaveEnvState(
+        s.dim, s.tspan,
+        s.wave_total[:, :, 1, :], s.wave_incident[:, :, 1, :],
+        s.design)
+end
+
+Flux.@functor WaveEnvState
+
+mutable struct WaveEnv <: AbstractEnv
+    reset_wave::AbstractInitialWave
+    reset_design::AbstractInitialDesign
+    action_space::ClosedInterval
+
+    sensor::AbstractSensor
 
     wave_total::AbstractArray{Float32}
     wave_incident::AbstractArray{Float32}
 
     total_dynamics::SplitWavePMLDynamics
     incident_dynamics::SplitWavePMLDynamics
-
-    reset_design::Function
-    action_space::ClosedInterval
 
     σ::Vector{Float32}
     time_step::Int
@@ -27,29 +42,30 @@ mutable struct ScatteredWaveEnv <: AbstractEnv
     actions::Int
 end
 
-Flux.@functor ScatteredWaveEnv
+Flux.@functor WaveEnv
 
-function ScatteredWaveEnv(
+function WaveEnv(
         dim::TwoDim;
-        initial_condition::AbstractInitialCondition,
-        design::AbstractDesign,
-        ambient_speed::Float32,
-        pml_width::Float32,
-        pml_scale::Float32,
-        reset_design::Function,
+        reset_wave::AbstractInitialWave,
+        reset_design::AbstractInitialDesign,
         action_space::ClosedInterval,
+
+        sensor::AbstractSensor = WaveImage(),
+        ambient_speed::Float32 = AIR,
+        pml_width::Float32 = 2.0f0,
+        pml_scale::Float32 = 20000.0f0,
         dt::Float32 = Float32(5e-5),
         integration_steps::Int = 100,
         actions::Int = 10
         )
 
-    design = DesignInterpolator(design)
+    design = DesignInterpolator(reset_design())
 
     grid = build_grid(dim)
     grad = build_gradient(dim)
     bc = dirichlet(dim)
     pml = build_pml(dim, pml_width, pml_scale)
-    wave = initial_condition(build_wave(dim, fields = 6))
+    wave = reset_wave(build_wave(dim, fields = 6))
 
     total_dynamics = SplitWavePMLDynamics(
         design, dim, grid, ambient_speed, grad, bc, pml)
@@ -60,32 +76,27 @@ function ScatteredWaveEnv(
 
     sigma = zeros(Float32, steps + 1)
 
-    return ScatteredWaveEnv(
-        initial_condition, 
-        wave, wave,
-        total_dynamics, incident_dynamics,
-        reset_design, action_space, sigma,
-        0, dt, integration_steps, actions
-        )
+    return WaveEnv(
+        reset_wave, reset_design, action_space, sensor,
+        wave, wave, total_dynamics, incident_dynamics, 
+        sigma, 0, dt, integration_steps, actions)
 end
 
-function Base.time(env::ScatteredWaveEnv)
+function Base.time(env::WaveEnv)
     return env.time_step * env.dt
 end
 
-function RLBase.is_terminated(env::ScatteredWaveEnv)
+function RLBase.is_terminated(env::WaveEnv)
     return env.time_step >= env.actions * env.integration_steps
 end
 
-function RLBase.reset!(env::ScatteredWaveEnv)
+function RLBase.reset!(env::WaveEnv)
     env.time_step = 0
-    env.wave_total = gpu(env.initial_condition(env.wave_total))
-    env.wave_incident = gpu(env.initial_condition(env.wave_incident))
-
-    initial = env.reset_design(env.total_dynamics.design.initial)
-
+    env.wave_total = gpu(env.reset_wave(env.wave_total))
+    env.wave_incident = gpu(env.reset_wave(env.wave_incident))
+    design = gpu(DesignInterpolator(env.reset_design()))
     env.total_dynamics = SplitWavePMLDynamics(
-        DesignInterpolator(initial),
+        design,
         env.total_dynamics.dim,
         env.total_dynamics.grid,
         env.total_dynamics.ambient_speed,
@@ -97,7 +108,7 @@ function RLBase.reset!(env::ScatteredWaveEnv)
     return nothing
 end
 
-function (env::ScatteredWaveEnv)(action::AbstractDesign)
+function (env::WaveEnv)(action::AbstractDesign)
     ti = time(env)
     tspan = build_tspan(ti, env.dt, env.integration_steps)
     env.total_dynamics = update_design(env.total_dynamics, tspan, gpu(action))
@@ -116,32 +127,32 @@ function (env::ScatteredWaveEnv)(action::AbstractDesign)
     env.time_step += env.integration_steps
 end
 
-function RLBase.state(env::ScatteredWaveEnv)
-    return ScatteredWaveEnvState(
+function RLBase.state(env::WaveEnv)
+    return env.sensor(WaveEnvState(
         env.total_dynamics.dim,
         build_tspan(time(env), env.dt, env.integration_steps),
         env.wave_total,
         env.wave_incident,
-        env.total_dynamics.design(time(env)))
+        env.total_dynamics.design(time(env))))
 end
 
-function RLBase.state_space(env::ScatteredWaveEnv)
+function RLBase.state_space(env::WaveEnv)
     return state(env)
 end
 
-function RLBase.action_space(env::ScatteredWaveEnv)
+function RLBase.action_space(env::WaveEnv)
     return env.action_space
 end
 
-function RLBase.reward(env::ScatteredWaveEnv)
+function RLBase.reward(env::WaveEnv)
     return sum(env.σ)
 end
 
-function episode_trajectory(env::ScatteredWaveEnv)
+function episode_trajectory(env::WaveEnv)
     traj = CircularArraySARTTrajectory(
-        capacity = env.max_steps,
-        state = Vector{ScatteredWaveEnv} => (),
-        action = Vector{typeof(env.total_dynamics.design.initial)} => ())
+        capacity = env.actions,
+        state = Vector{WaveEnvState} => (),
+        action = Vector{typeof(env.reset_design())} => ())
 
     return traj
 end
@@ -150,6 +161,6 @@ mutable struct RandomDesignPolicy <: AbstractPolicy
     action::ClosedInterval{<: AbstractDesign}
 end
 
-function (policy::RandomDesignPolicy)(::ScatteredWaveEnv)
+function (policy::RandomDesignPolicy)(::WaveEnv)
     return rand(policy.action)
 end

@@ -1,5 +1,5 @@
 struct EpisodeData
-    states::Vector{ScatteredWaveEnvState}
+    states::Vector{WaveEnvState}
     actions::Vector{<: AbstractDesign}
     tspans::Vector{Vector{Float32}}
     sigmas::Vector{Vector{Float32}}
@@ -9,8 +9,8 @@ Flux.@functor EpisodeData
 
 Base.length(episode::EpisodeData) = length(episode.states)
 
-function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv)
-    states = ScatteredWaveEnvState[]
+function generate_episode_data(policy::AbstractPolicy, env::WaveEnv)
+    states = WaveEnvState[]
     actions = AbstractDesign[]
     tspans = []
     sigmas = []
@@ -33,7 +33,7 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv)
     return EpisodeData(states, actions, tspans, sigmas)
 end
 
-function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv, episodes::Int)
+function generate_episode_data(policy::AbstractPolicy, env::WaveEnv, episodes::Int)
     data = EpisodeData[]
 
     for episode in 1:episodes
@@ -45,7 +45,7 @@ function generate_episode_data(policy::AbstractPolicy, env::ScatteredWaveEnv, ep
 end
 
 function prepare_data(episode::EpisodeData, n::Int)
-    states = ScatteredWaveEnvState[]
+    states = WaveEnvState[]
     actions = Vector{<:AbstractDesign}[]
     sigmas = AbstractMatrix{Float32}[]
 
@@ -79,17 +79,17 @@ function (model::WaveMPC)(h::Tuple{AbstractMatrix{Float32}, AbstractDesign}, act
     return (z[:, [1, 2], end], design + action), sigma
 end
 
-function (model::WaveMPC)(s::ScatteredWaveEnvState, actions::Vector{<:AbstractDesign})
+function (model::WaveMPC)(s::WaveEnvState, actions::Vector{<:AbstractDesign})
     z_wave = model.wave_encoder(s.wave_total)
     recur = Recur(model, (z_wave, s.design))
     return hcat([recur(action) for action in actions]...)
 end
 
-function (model::WaveMPC)(s::ScatteredWaveEnvState, action::AbstractDesign)
+function (model::WaveMPC)(s::WaveEnvState, action::AbstractDesign)
     return vec(model(s, [action]))
 end
 
-function encode(model::WaveMPC, s::ScatteredWaveEnvState, action::AbstractDesign)
+function encode(model::WaveMPC, s::WaveEnvState, action::AbstractDesign)
     z_wave = model.wave_encoder(s.wave_total)
     z_design = model.design_encoder(vcat(vec(s.design), vec(action)))
     return hcat(z_wave, z_design)

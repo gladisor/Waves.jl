@@ -10,13 +10,13 @@ steps = 100
 actions = 20
 h_channels = 16
 h_size = 512
-latent_elements = 512
+latent_elements = 1024
 latent_pml_width = 1.0f0
 latent_pml_scale = 20000.0f0
 n_mlp_layers = 2
-horizon = 2
+horizon = 3
 lr = 1e-4
-episodes = 100
+episodes = 50
 epochs = 10
 
 dim = TwoDim(grid_size, elements)
@@ -25,7 +25,7 @@ pulse = build_pulse(build_grid(dim), -5.0f0, 0.0f0, 5.0f0)
 random_radii = RandomRadiiScattererGrid(
     width = 1, height = 2, spacing = 3.0f0, 
     c = BRASS, center = zeros(Float32, 2))
-    
+
 ds = radii_design_space(random_radii(), 1.0f0)
 
 env = WaveEnv(

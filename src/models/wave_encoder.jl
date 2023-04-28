@@ -24,6 +24,6 @@ function (encoder::WaveEncoder)(wave::AbstractArray{Float32, 3})
     return Flux.flatten(z[:, :, :, 1])
 end
 
-function (encoder::WaveEncoder)(sol::WaveSol)
-    return encoder(sol.u[1])
-end
+# function (encoder::WaveEncoder)(sol::WaveSol)
+#     return encoder(sol.u[1])
+# end

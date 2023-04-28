@@ -1,7 +1,5 @@
-export build_tspan
-
-function build_tspan(ti::Float32, dt::Float32, steps::Int)::Vector{Float32}
-    return range(ti, ti + steps*dt, steps + 1)
+function build_tspan(ti::Float32, dt::Float32, steps::Int)
+    return collect(range(ti, ti + steps * dt, steps + 1))
 end
 
 #=
@@ -16,10 +14,6 @@ function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32,
     return du * dt
 end
 
-function euler(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32, dt::Float32)
-    return f(u, t) * dt
-end
-
 struct Integrator
     integration_function::Function
     dynamics::AbstractDynamics
@@ -29,7 +23,14 @@ struct Integrator
 end
 
 Flux.@functor Integrator
-Flux.trainable(iter::Integrator) = ()
+Flux.trainable(iter::Integrator) = (;iter.dynamics,)
+
+build_tspan(iter::Integrator) = build_tspan(iter.ti, iter.dt, iter.steps)
+
+function Base.reverse(iter::Integrator)
+    tf = iter.ti + iter.steps * iter.dt
+    return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
+end
 
 function (iter::Integrator)(u::AbstractArray{Float32}, t::Float32)
     return iter.integration_function(iter.dynamics, u, t, iter.dt)
@@ -41,69 +42,65 @@ function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
 end
 
 function (iter::Integrator)(ui::AbstractArray{Float32})
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps - 1)
+    tspan = build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
     recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
 end
 
-function Base.reverse(iter::Integrator)
-    tf = iter.ti + iter.steps * iter.dt
-    return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
-end
-
-function continuous_backprop(iter::Integrator, wave::AbstractMatrix{Float32}, adj::AbstractArray{Float32, 3})
+function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32, 3}
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
-    iter_reverse = reverse(iter)
 
-    wave = deepcopy(wave)
+    a = adj[:, :, end]
+    wave = u[:, :, end]
+    _, back = pullback(_iter -> _iter(wave, tspan[end]), iter)
 
-    gs = [adj[:, :, end]]
+    gs = back(a)[1]
+    tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...)
 
-    for i in reverse(axes(tspan, 1))
-        _, back = pullback(_wave -> iter(_wave, tspan[i]), wave)
-        a = adj[:, :, i] .+ back(adj[:, :, i])[1]
-        push!(gs, a)
-        wave = wave .+ iter_reverse(wave, tspan[i])
+    for i in reverse(1:size(u, 3))
+
+        wave = u[:, :, i]
+        adjoint_state = adj[:, :, i]
+        _, back = pullback((_iter, _wave) -> _iter(_wave, tspan[i]), iter, wave)
+        
+        dparams, dwave = back(adjoint_state)
+
+        a .+= adjoint_state .+ dwave
+        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
     end
 
-    return dropdims(sum(batch(gs), dims = 3), dims = 3)
+    return a, tangent
 end
 
-@adjoint function (iter::Integrator)(ui::AbstractMatrix{Float32})
-
+function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32})
     u = iter(ui)
-    uf = u[:, :, end]
 
-    back = function(adj::AbstractArray{Float32, 3}) 
-        return (nothing, continuous_backprop(iter, uf, adj))
+    function Integrator_back(adj::AbstractArray{Float32, 3})
+        a, tangent = adjoint_sensitivity(iter, u, adj)
+        iter_tangent = Tangent{Integrator}(;dynamics = tangent)
+        return iter_tangent, a
     end
 
-    return u, back
+    return u, Integrator_back
 end
 
-struct SplitWavePMLDynamics{D <: Union{DesignInterpolator, Nothing}} <: AbstractDynamics
-    design::D
+struct SplitWavePMLDynamics <: AbstractDynamics
+    design::DesignInterpolator
     dim::AbstractDim
-    g::AbstractArray{Float32}
+    grid::AbstractArray{Float32}
     ambient_speed::Float32
     grad::AbstractArray{Float32}
+    bc::AbstractArray{Float32}
     pml::AbstractArray{Float32}
 end
 
 Flux.@functor SplitWavePMLDynamics
+Flux.trainable(::SplitWavePMLDynamics) = ()
 
-function Waves.speed(dynamics::SplitWavePMLDynamics{Nothing}, t::Float32)
-    return dynamics.ambient_speed
-end
-
-function Waves.speed(dynamics::SplitWavePMLDynamics{DesignInterpolator}, t::Float32)
-    return speed(dynamics.design(t), dynamics.g, dynamics.ambient_speed)
-end
-
-function update_design(dynamics::SplitWavePMLDynamics{DesignInterpolator}, tspan::Vector{Float32}, action::AbstractDesign)::SplitWavePMLDynamics{DesignInterpolator}
+function update_design(dynamics::SplitWavePMLDynamics, tspan::Vector{Float32}, action::AbstractDesign)
     initial = dynamics.design(tspan[1])
     design = DesignInterpolator(initial, action, tspan[1], tspan[end])
-    return SplitWavePMLDynamics(design, dynamics.dim, dynamics.g, dynamics.ambient_speed, dynamics.grad, dynamics.pml)
+    return SplitWavePMLDynamics(design, dynamics.dim, dynamics.grid, dynamics.ambient_speed, dynamics.grad, dynamics.bc, dynamics.pml)
 end
 
 function (dyn::SplitWavePMLDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
@@ -114,10 +111,11 @@ function (dyn::SplitWavePMLDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     ∇ = dyn.grad
     σ = dyn.pml
 
-    du = C ^ 2 * (∇ * v) .- σ .* u
-    dv = ∇ * u .- σ .* v
 
-    return hcat(du, dv)
+    du = C ^ 2 * ∂x(∇, v) .- σ .* u
+    dv = ∂x(∇, u) .- σ .* v
+
+    return hcat(dyn.bc .* du, dv)
 end
 
 function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
@@ -129,16 +127,16 @@ function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32
     Ψy = wave[:, :, 5]
     Ω = wave[:, :, 6]
 
-    C = speed(dyn, t)
+    C = speed(dyn.design(t), dyn.grid, dyn.ambient_speed)
     b = C .^ 2
     ∇ = dyn.grad
     σx = dyn.pml
     σy = σx'
 
-    Vxx = ∇ * Vx
-    Vyy = (∇ * Vy')'
-    Ux = ∇ * U
-    Uy = (∇ * U')'
+    Vxx = ∂x(∇, Vx)
+    Vyy = ∂y(∇, Vy)
+    Ux = ∂x(∇, U)
+    Uy = ∂y(∇, U)
 
     dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
     dVx = Ux .- σx .* Vx
@@ -147,28 +145,100 @@ function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32
     dΨy = b .* σy .* Vxx
     dΩ = σx .* σy .* U
 
-    return cat(dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-function dirichlet(dim::OneDim)
-    bc = ones(Float32, size(dim)[1])
-    bc[[1, end]] .= 0.0f0
-    return bc
-end
-
-struct LinearWave <: AbstractDynamics
-    C::Float32
+struct WaveDynamics <: AbstractDynamics
+    ambient_speed::Float32
+    design::DesignInterpolator
+    source::AbstractSource
+    grid::AbstractArray{Float32}
     grad::AbstractMatrix{Float32}
+    pml::AbstractArray{Float32}
     bc::AbstractArray{Float32}
 end
 
-Flux.@functor LinearWave
+Flux.@functor WaveDynamics
+Flux.trainable(dyn::WaveDynamics) = (;)
 
-function (dyn::LinearWave)(wave::AbstractMatrix{Float32}, t::Float32)
+function WaveDynamics(dim::AbstractDim; 
+        ambient_speed::Float32,
+        pml_width::Float32,
+        pml_scale::Float32,
+        design::AbstractDesign = NoDesign(),
+        source::AbstractSource = NoSource()
+        )
+
+    design = DesignInterpolator(design)
+    grid = build_grid(dim)
+    grad = build_gradient(dim)
+    pml = build_pml(dim, pml_width, pml_scale)
+    bc = dirichlet(dim)
+
+    return WaveDynamics(ambient_speed, design, source, grid, grad, pml, bc)
+end
+
+function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
+    U = wave[:, :, 1]
+    Vx = wave[:, :, 2]
+    Vy = wave[:, :, 3]
+    Ψx = wave[:, :, 4]
+    Ψy = wave[:, :, 5]
+    Ω = wave[:, :, 6]
+
+    C = speed(dyn.design(t), dyn.grid, dyn.ambient_speed)
+    b = C .^ 2
+    ∇ = dyn.grad
+    σx = dyn.pml
+    σy = σx'
+    force = dyn.source(t)
+
+    Vxx = ∂x(∇, Vx)
+    Vyy = ∂y(∇, Vy)
+    Ux = ∂x(∇, U .+ force)
+    Uy = ∂y(∇, U .+ force)
+
+    dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
+    dVx = Ux .- σx .* Vx
+    dVy = Uy .- σy .* Vy
+    dΨx = b .* σx .* Vyy
+    dΨy = b .* σy .* Vxx
+    dΩ = σx .* σy .* U
+
+    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+end
+
+function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, action::AbstractDesign)
+    initial = dyn.design(tspan[1])
+    design = DesignInterpolator(initial, action, tspan[1], tspan[end])
+    return WaveDynamics(dyn.ambient_speed, design, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
+end
+
+struct ForceLatentDynamics <: AbstractDynamics
+    ambient_speed::Float32
+    pml_scale::Float32
+
+    grad::AbstractMatrix{Float32}
+    pml::AbstractVector{Float32}
+    bc::AbstractVector{Float32}
+end
+
+Flux.@functor ForceLatentDynamics
+Flux.trainable(dyn::ForceLatentDynamics) = (;)
+
+function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     u = wave[:, 1]
     v = wave[:, 2]
+    f = wave[:, 3]
+    c = wave[:, 4]
 
-    du =  (dyn.C ^ 2) .* (dyn.grad * v) .* dyn.bc
-    dv = dyn.grad * u
-    return hcat(du, dv)
+    b = dyn.ambient_speed .^ 2 .* c
+    σ = dyn.pml * dyn.pml_scale
+
+    du = b .* (dyn.grad * v) .- σ .* u
+    dv = dyn.grad * u .- σ .* v .+ f .* (u .+ v)
+    df = f * 0.0f0
+    dc = c * 0.0f0
+
+    return hcat(dyn.bc .* du, dv, df, dc)
 end

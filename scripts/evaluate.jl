@@ -32,7 +32,7 @@ function (policy::MPC)(env::WaveEnv)
     return a[1]
 end
 
-path = "results/h_channels=8_h_size=512_latent_elements=1024_n_mlp_layers=2_horizon=2_lr=0.0001"
+path = "results/h_channels=16_h_size=512_latent_elements=512_n_mlp_layers=2_horizon=2_lr=0.0001"
 model_path = joinpath(path, "model.bson")
 env_path = joinpath(path, "env.bson")
 

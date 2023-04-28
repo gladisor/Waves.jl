@@ -23,6 +23,7 @@ end
 Flux.@functor WaveEnvState
 
 mutable struct WaveEnv <: AbstractEnv
+    dim::AbstractDim
     reset_wave::AbstractInitialWave
     reset_design::AbstractInitialDesign
     action_space::ClosedInterval
@@ -32,8 +33,8 @@ mutable struct WaveEnv <: AbstractEnv
     wave_total::AbstractArray{Float32}
     wave_incident::AbstractArray{Float32}
 
-    total_dynamics::SplitWavePMLDynamics
-    incident_dynamics::SplitWavePMLDynamics
+    total_dynamics::WaveDynamics
+    incident_dynamics::WaveDynamics
 
     σ::Vector{Float32}
     time_step::Int
@@ -59,44 +60,20 @@ function WaveEnv(
         actions::Int = 10
         )
 
-    # design = DesignInterpolator(reset_design())
-
-    # grid = build_grid(dim)
-    # grad = build_gradient(dim)
-    # bc = dirichlet(dim)
-    # pml = build_pml(dim, pml_width, pml_scale)
     wave = reset_wave(build_wave(dim, fields = 6))
 
-    # total_dynamics = SplitWavePMLDynamics(
-    #     design, dim, grid, ambient_speed, grad, bc, pml)
-        
-    # incident_dynamics = SplitWavePMLDynamics(
-    #     DesignInterpolator(NoDesign()), 
-    #     dim, grid, ambient_speed, grad, bc, pml)
+    total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = reset_design(), source = source)
+    incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
 
-    total_dynamics = WaveDynamics(
-        dim,
-        ambient_speed = ambient_speed,
-        pml_width = pml_width, pml_scale = pml_scale, 
-        design = reset_design(), source = source)
-
-    incident_dynamics = WaveDynamics(
-        dim,
-        ambient_speed = ambient_speed,
-        pml_width = pml_width, pml_scale = pml_scale,
-        design = NoDesign(), source = source)
-
-    sigma = zeros(Float32, steps + 1)
-
-    return WaveEnv(
-        reset_wave, reset_design, action_space, sensor,
-        wave, wave, total_dynamics, incident_dynamics, 
-        sigma, 0, dt, integration_steps, actions)
+    sigma = zeros(Float32, integration_steps + 1)
+    return WaveEnv(dim, reset_wave, reset_design, action_space, sensor, wave, wave, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
 end
 
 function Base.time(env::WaveEnv)
     return env.time_step * env.dt
 end
+
+build_tspan(env::WaveEnv) = build_tspan(time(env), env.dt, env.integration_steps)
 
 function RLBase.is_terminated(env::WaveEnv)
     return env.time_step >= env.actions * env.integration_steps
@@ -107,14 +84,15 @@ function RLBase.reset!(env::WaveEnv)
     env.wave_total = gpu(env.reset_wave(env.wave_total))
     env.wave_incident = gpu(env.reset_wave(env.wave_incident))
     design = gpu(DesignInterpolator(env.reset_design()))
-    env.total_dynamics = SplitWavePMLDynamics(
-        design,
-        env.total_dynamics.dim,
-        env.total_dynamics.grid,
-        env.total_dynamics.ambient_speed,
-        env.total_dynamics.grad,
-        env.total_dynamics.bc,
-        env.total_dynamics.pml)
+
+    env.total_dynamics = WaveDynamics(
+        env.total_dynamics.ambient_speed, 
+        design, 
+        env.total_dynamics.source, 
+        env.total_dynamics.grid, 
+        env.total_dynamics.grad, 
+        env.total_dynamics.pml, 
+        env.total_dynamics.bc)
 
     env.σ = zeros(Float32, env.integration_steps + 1)
     return nothing
@@ -137,14 +115,13 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.σ = sum.(energy.(displacement.(u_scattered)))
 
     env.time_step += env.integration_steps
-
-    return tspan, u_total
+    return (tspan, u_total)
 end
 
 function RLBase.state(env::WaveEnv)
     return env.sensor(WaveEnvState(
-        env.total_dynamics.dim,
-        build_tspan(time(env), env.dt, env.integration_steps),
+        env.dim,
+        build_tspan(env),
         env.wave_total,
         env.wave_incident,
         env.total_dynamics.design(time(env))))

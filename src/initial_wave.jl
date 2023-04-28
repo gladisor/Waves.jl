@@ -4,15 +4,9 @@ function reset!(::AbstractInitialWave)
     return nothing
 end
 
-struct Silence{D <: AbstractDim} <: AbstractInitialWave
-    grid::AbstractArray{Float32}
-end
+struct Silence <: AbstractInitialWave end
 
 Flux.@functor Silence
-
-function Silence(dim::D) where D <: AbstractDim
-    return Silence{D}(build_grid(dim))
-end
 
 function (silence::Silence)(wave::AbstractArray{Float32})
     return wave * 0.0f0

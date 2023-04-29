@@ -129,13 +129,13 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 
     reset!(env)
 
-    tspan0, u0 = env(policy(env))
+    tspan0, u0 = cpu(env(policy(env)))
 
     tspans = [tspan0]
     us = [u0]
 
     while !is_terminated(env)
-        tspan, u = env(policy(env))
+        tspan, u = cpu(env(policy(env)))
 
         push!(tspans, tspan[2:end])
         push!(us, u[2:end])
@@ -146,7 +146,7 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 
     sol = linear_interpolation(tspans, us)
 
-    render!(env.dim, tspans, sol; kwargs...)
+    render!(cpu(env.dim), tspans, sol; kwargs...)
 end
 
 function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)

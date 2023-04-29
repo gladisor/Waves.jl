@@ -5,8 +5,8 @@ export Scatterers, pos_design_space, radii_design_space, random_pos
 export DesignInterpolator
 export ALUMINIUM, COPPER, BRASS, AIR
 
-const MIN_RADII = 0.5f0
-const MAX_RADII = 2.0f0
+const MIN_RADII = 0.2f0
+const MAX_RADII = 1.0f0
 const MIN_SPEED = 0.0f0
 
 # https://www.rshydro.co.uk/sound-speeds/

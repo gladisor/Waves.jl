@@ -84,70 +84,6 @@ function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32}
     return u, Integrator_back
 end
 
-struct SplitWavePMLDynamics <: AbstractDynamics
-    design::DesignInterpolator
-    dim::AbstractDim
-    grid::AbstractArray{Float32}
-    ambient_speed::Float32
-    grad::AbstractArray{Float32}
-    bc::AbstractArray{Float32}
-    pml::AbstractArray{Float32}
-end
-
-Flux.@functor SplitWavePMLDynamics
-Flux.trainable(::SplitWavePMLDynamics) = ()
-
-function update_design(dynamics::SplitWavePMLDynamics, tspan::Vector{Float32}, action::AbstractDesign)
-    initial = dynamics.design(tspan[1])
-    design = DesignInterpolator(initial, action, tspan[1], tspan[end])
-    return SplitWavePMLDynamics(design, dynamics.dim, dynamics.grid, dynamics.ambient_speed, dynamics.grad, dynamics.bc, dynamics.pml)
-end
-
-function (dyn::SplitWavePMLDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u = wave[:, 1]
-    v = wave[:, 2]
-
-    C = dyn.ambient_speed
-    ∇ = dyn.grad
-    σ = dyn.pml
-
-
-    du = C ^ 2 * ∂x(∇, v) .- σ .* u
-    dv = ∂x(∇, u) .- σ .* v
-
-    return hcat(dyn.bc .* du, dv)
-end
-
-function (dyn::SplitWavePMLDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
-
-    U = wave[:, :, 1]
-    Vx = wave[:, :, 2]
-    Vy = wave[:, :, 3]
-    Ψx = wave[:, :, 4]
-    Ψy = wave[:, :, 5]
-    Ω = wave[:, :, 6]
-
-    C = speed(dyn.design(t), dyn.grid, dyn.ambient_speed)
-    b = C .^ 2
-    ∇ = dyn.grad
-    σx = dyn.pml
-    σy = σx'
-
-    Vxx = ∂x(∇, Vx)
-    Vyy = ∂y(∇, Vy)
-    Ux = ∂x(∇, U)
-    Uy = ∂y(∇, U)
-
-    dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
-    dVx = Ux .- σx .* Vx
-    dVy = Uy .- σy .* Vy
-    dΨx = b .* σx .* Vyy
-    dΨy = b .* σy .* Vxx
-    dΩ = σx .* σy .* U
-
-    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
-end
-
 struct WaveDynamics <: AbstractDynamics
     ambient_speed::Float32
     design::DesignInterpolator
@@ -195,8 +131,8 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
 
     Vxx = ∂x(∇, Vx)
     Vyy = ∂y(∇, Vy)
-    Ux = ∂x(∇, U .+ force)
-    Uy = ∂y(∇, U .+ force)
+    Ux = ∂x(∇, U .+ force) #.* mask ## Gradient at boundary of design is 0
+    Uy = ∂y(∇, U .+ force) #.* mask ##
 
     dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
     dVx = Ux .- σx .* Vx

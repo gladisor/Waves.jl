@@ -25,7 +25,7 @@ Flux.@functor WaveEnvState
 mutable struct WaveEnv <: AbstractEnv
     dim::AbstractDim
     reset_wave::AbstractInitialWave
-    reset_design::AbstractInitialDesign
+    reset_design::Union{AbstractInitialDesign, Function}
     action_space::ClosedInterval
 
     sensor::AbstractSensor
@@ -48,7 +48,7 @@ Flux.@functor WaveEnv
 function WaveEnv(
         dim::TwoDim;
         reset_wave::AbstractInitialWave,
-        reset_design::AbstractInitialDesign,
+        reset_design::Union{AbstractInitialDesign, Function},
         action_space::ClosedInterval,
         source::AbstractSource = NoSource(),
         sensor::AbstractSensor = WaveImage(),

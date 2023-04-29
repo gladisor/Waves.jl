@@ -1,5 +1,9 @@
 include("dependencies.jl")
 
+function Base.getindex(config::Scatterers, inds)
+    return Scatterers(config.pos[[inds...], :], config.r[[inds...]], config.c[[inds...]])
+end
+
 struct RandomRadiiScattererRing <: AbstractInitialDesign
     core::Scatterers
     ring_radius::Float32
@@ -36,6 +40,7 @@ function (reset_design::RandomRadiiScattererRing)()
 end
 
 function design_space(reset_design::RandomRadiiScattererRing, scale::Float32)
+    
     ds = radii_design_space(reset_design(), scale)
 end
 
@@ -44,6 +49,8 @@ dim = TwoDim(15.0f0, 512)
 core = Scatterers([0.0 0.0], [1.0], [BRASS])
 reset_design = RandomRadiiScattererRing(core, 5.0f0, 1.0f0, 4, BRASS, [0.0f0, 0.0f0])
 ds = design_space(reset_design, 1.0f0)
+
+config = reset_design()
 
 # pulse = build_pulse(build_grid(dim), -12.0f0, 0.0f0, 10.0f0)
 

@@ -1,0 +1,4 @@
+Average total episode costs. Averaged over 10 episodes.
+
+MPC: 95573.70782672589
+RANDOM: 315508.0461856539

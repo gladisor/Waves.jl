@@ -129,8 +129,10 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 
     reset!(env)
 
-    tspan0, u0 = cpu(env(policy(env)))
+    design_times = [time(env)]
+    designs = [cpu(env.total_dynamics.design(time(env)))]
 
+    tspan0, u0 = cpu(env(policy(env)))
     tspans = [tspan0]
     us = [u0]
 
@@ -139,14 +141,21 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 
         push!(tspans, tspan[2:end])
         push!(us, u[2:end])
+
+        push!(design_times, time(env))
+        push!(designs, cpu(env.total_dynamics.design(time(env))))
     end
 
     tspans = vcat(tspans...)
     us = vcat(us...)
 
-    sol = linear_interpolation(tspans, us)
+    design_times = vcat(design_times...)
+    designs = vcat(designs...)
 
-    render!(cpu(env.dim), tspans, sol; kwargs...)
+    sol = linear_interpolation(tspans, us)
+    d = linear_interpolation(design_times, designs, extrapolation_bc = Flat())
+
+    render!(cpu(env.dim), tspans, sol, d; kwargs...)
 end
 
 function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)

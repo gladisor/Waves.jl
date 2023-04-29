@@ -1,7 +1,7 @@
 include("dependencies.jl")
 
 dim = TwoDim(20.0f0, 512)
-pulse = build_pulse(build_grid(dim), -10.0f0, 0.0f0, 10.0f0)
+pulse = build_pulse(build_grid(dim), -15.0f0, 0.0f0, 10.0f0)
 
 
 random_radii = RandomRadiiScattererGrid(
@@ -16,7 +16,7 @@ env = WaveEnv(
     reset_design = random_radii,
     action_space = ds,
     source = Source(pulse, freq = 300.0f0),
-    actions = 10) |> gpu
+    actions = 20) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
 

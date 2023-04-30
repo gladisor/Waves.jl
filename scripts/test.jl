@@ -40,37 +40,64 @@ function design_space(reset_design::RandomRadiiScattererRing, scale::Float32)
     return radii_design_space(reset_design(), scale)
 end
 
-struct ScattererCloak <: AbstractInitialDesign
-    ring::RandomRadiiScattererRing
+# struct ScattererCloak <: AbstractInitialDesign
+#     ring::RandomRadiiScattererRing
+#     core::Scatterers
+# end
+
+# function (cloak::ScattererCloak)()
+#     return stack(cloak.ring(), cloak.core)
+# end
+
+# function design_space(cloak::ScattererCloak, scale::Float32)
+#     ds = design_space(cloak.ring, scale)
+
+#     left = stack(ds.left, zero(cloak.core))
+#     right = stack(ds.right, zero(cloak.core))
+
+#     return left..right
+# end
+
+struct Cloak <: AbstractDesign
+    config::Scatterers
     core::Scatterers
 end
 
-function (cloak::ScattererCloak)()
-    return stack(cloak.ring(), cloak.core)
+Flux.@functor Cloak
+Base.:+(cloak::Cloak, action::Scatterers) = Cloak(cloak.config + action, cloak.core)
+
+Base.:+(cloak1::Cloak, cloak2::Cloak) = Cloak(cloak1.config + cloak2.config, cloak1.core)
+Base.:*(n::AbstractFloat, cloak::Cloak) = Cloak(n * cloak.config, cloak.core)
+Base.:*(cloak::Cloak, n::AbstractFloat) = n * cloak
+Base.zero(cloak::Cloak) = zero(cloak.config)
+
+function Waves.speed(cloak::Cloak, g::AbstractArray{Float32, 3}, ambient_speed::Float32)
+    return speed(stack(cloak.config, cloak.core), g, ambient_speed)
 end
 
-function design_space(cloak::ScattererCloak, scale::Float32)
-    ds = design_space(cloak.ring, scale)
+function design_space(cloak::Cloak, scale::Float32)
+    return radii_design_space(cloak.config, scale)
+end
 
-    left = stack(ds.left, zero(cloak.core))
-    right = stack(ds.right, zero(cloak.core))
-
-    return left..right
+function CairoMakie.mesh!(ax::Axis, cloak::Cloak)
+    mesh!(ax, cloak.config)
+    mesh!(ax, cloak.core)
+    return nothing
 end
 
 dim = TwoDim(15.0f0, 512)
-ring = RandomRadiiScattererRing(5.0f0, 1.0f0, 4, BRASS, [0.0f0, 0.0f0])
-core = Scatterers([0.0f0 0.0f0], [1.0f0], [BRASS])
-cloak = ScattererCloak(ring, core)
+ring = RandomRadiiScattererRing(5.0f0, 0.1f0, 4, BRASS, [0.0f0, 0.0f0])
+core = Scatterers([0.0f0 0.0f0], [2.0f0], [BRASS])
+reset_design = () -> Cloak(ring(), core)
 pulse = build_pulse(build_grid(dim), -12.0f0, 0.0f0, 10.0f0)
 
 env = WaveEnv(
     dim, 
     reset_wave = Silence(),
-    reset_design = cloak,
-    action_space = design_space(cloak, 1.0f0),
+    reset_design = reset_design,
+    action_space = design_space(ring, 1.0f0),
     source = Source(pulse, freq = 300.0f0),
-    actions = 10) |> gpu
+    actions = 20) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
 @time render!(policy, env, path = "vid.mp4", seconds = env.actions * 1.0f0)

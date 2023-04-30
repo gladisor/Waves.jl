@@ -44,12 +44,12 @@ function plot_wave(dim::TwoDim, wave::AbstractArray{Float32, 3})
     return plot_wave(dim, wave[:, :, 1])
 end
 
-
-
 function CairoMakie.mesh!(ax::Axis, config::Scatterers)
     for i ∈ axes(config.pos, 1)
         mesh!(ax, Circle(Point(config.pos[i, :]...), config.r[i]), color = :gray)
     end
+
+    return nothing
 end
 
 function plot_sigma!(episode_data::EpisodeData; path::String)

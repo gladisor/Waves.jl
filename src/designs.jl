@@ -79,6 +79,10 @@ function Base.zero(config::Scatterers)
     return Scatterers(config.pos * 0.0f0, config.r * 0.0f0, config.c * 0.0f0)
 end
 
+function Base.length(config::Scatterers)
+    return size(config.pos, 1)
+end
+
 function location_mask(config::Scatterers, grid::AbstractArray{Float32, 3})
     pos = config.pos'
     pos = reshape(pos, 1, 1, size(pos)...)
@@ -114,6 +118,14 @@ function radii_design_space(config::Scatterers, scale::Float32)
     return Scatterers(pos, radii_low, c)..Scatterers(pos, radii_high, c)
 end
 
+function uniform_scalar_sample(l::Float32, r::Float32)
+    if l < r
+        return rand(Uniform(l, r))
+    else
+        return 0.0f0
+    end
+end
+
 function Base.rand(config::ClosedInterval{Scatterers})
     if all(config.left.pos .< config.right.pos)
         pos = rand.(Uniform.(config.left.pos, config.right.pos))
@@ -121,12 +133,8 @@ function Base.rand(config::ClosedInterval{Scatterers})
         pos = config.left.pos
     end
 
-    if all(config.left.r .< config.right.r)
-        r = rand.(Uniform.(config.left.r, config.right.r))
-    else
-        r = zeros(Float32, size(config.left.r))
-    end
-
+    r = uniform_scalar_sample.(config.left.r, config.right.r)
+    
     if all(config.left.c .< config.right.c)
         c = rand.(Uniform.(config.left.c, config.right.c))
     else

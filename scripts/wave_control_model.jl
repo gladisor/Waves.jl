@@ -63,7 +63,25 @@ function prepare_data(episode::EpisodeData, horizon::Int)
 end
 
 function prepare_data(data::Vector{EpisodeData}, horizon::Int)
-    vcat.(prepare_data.(data, horizon)...)
+    return vcat.(prepare_data.(data, horizon)...)
+end
+
+function FileIO.save(episode::EpisodeData, path::String)
+    BSON.bson(path, 
+        states = episode.states,
+        actions = episode.actions,
+        sigmas = episode.sigmas,
+        tspans = episode.tspans
+    )
+end
+
+function EpisodeData(;path::String)
+    file = BSON.load(path)
+    states = identity.(file[:states])
+    actions = identity.(file[:actions])
+    tspans = file[:tspans]
+    sigmas = file[:sigmas]
+    return EpisodeData(states, actions, tspans, sigmas)
 end
 
 struct WaveControlModel <: AbstractWaveControlModel
@@ -126,6 +144,7 @@ function build_wave_control_model(;
         in_channels,
         h_channels,
         design_size,
+        action_size,
         h_size, 
         latent_grid_size,
         latent_elements,
@@ -139,12 +158,12 @@ function build_wave_control_model(;
 
     wave_encoder = Chain(
         WaveEncoder(in_channels, h_channels, 2, tanh),
-        Dense(1024, latent_elements, tanh),
+        Dense(4096, latent_elements, tanh),
         z -> hcat(z[:, 1], z[:, 2] * 0.0f0)
         )
 
     design_encoder = Chain(
-        Dense(2 * design_size, h_size, relu),
+        Dense(design_size + action_size, h_size, relu),
         Dense(h_size, 2 * latent_elements),
         z -> reshape(z, latent_elements, :),
         z -> hcat(tanh.(z[:, 1]), sigmoid.(z[:, 2]))

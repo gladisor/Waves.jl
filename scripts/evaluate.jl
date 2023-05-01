@@ -32,16 +32,16 @@ function (policy::MPC)(env::WaveEnv)
     return a[1]
 end
 
-path = "results/h_channels=16_h_size=512_latent_elements=512_n_mlp_layers=2_horizon=2_lr=0.0001"
+path = "results/cloak_h_channels=16_h_size=512_latent_elements=1024_n_mlp_layers=2_horizon=3_lr=0.0001"
 model_path = joinpath(path, "model.bson")
-env_path = joinpath(path, "env.bson")
+env_path = "data/env.bson"
 
 model = BSON.load(model_path)[:model] |> gpu
 env = BSON.load(env_path)[:env] |> gpu
 reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 
-horizon = 2
+horizon = 3
 opt_steps = 3
 episodes = 10
 lr = 1e-3

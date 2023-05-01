@@ -31,11 +31,11 @@ include("dims.jl")                         ## Core structures for defining dimen
 include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                          ## Perfectly Matched Layer
-include("initial_wave.jl")           ## Pulses, waves, etc...
-include("initial_design.jl")
 
 include("designs.jl")
-# include("dynamics.jl")                     ## Defines the dynamics of the wave simulation
+include("initial_wave.jl")                 ## Pulses, waves, etc...
+include("initial_design.jl")
+# include("dynamics.jl")                   ## Defines the dynamics of the wave simulation
 
 ## modeling
 # include("data.jl")
@@ -44,5 +44,5 @@ include("models/wave_encoder.jl")
 include("models/wave_decoder.jl")
 include("models/design_encoder.jl")
 
-# include("plot.jl")                         ## Plotting
+# include("plot.jl")                       ## Plotting
 end

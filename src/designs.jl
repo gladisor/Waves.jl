@@ -2,6 +2,7 @@ export speed
 
 export NoDesign
 export Scatterers, pos_design_space, radii_design_space, random_pos
+export Cloak
 export DesignInterpolator
 export ALUMINIUM, COPPER, BRASS, AIR
 
@@ -181,3 +182,34 @@ function scatterer_formation(;width::Int, height::Int, spacing::Float32, r::Floa
 end
 
 ########
+
+function stack(config1::Scatterers, config2::Scatterers)
+    pos = vcat(config1.pos, config2.pos)
+    r = vcat(config1.r, config2.r)
+    c = vcat(config1.c, config2.c)
+    return Scatterers(pos, r, c)
+end
+
+struct Cloak <: AbstractDesign
+    config::Scatterers
+    core::Scatterers
+end
+
+Flux.@functor Cloak
+Base.:+(cloak::Cloak, action::Scatterers) = Cloak(cloak.config + action, cloak.core)
+Base.:+(cloak1::Cloak, cloak2::Cloak) = Cloak(cloak1.config + cloak2.config, cloak1.core)
+Base.:*(n::AbstractFloat, cloak::Cloak) = Cloak(n * cloak.config, cloak.core)
+Base.:*(cloak::Cloak, n::AbstractFloat) = n * cloak
+Base.zero(cloak::Cloak) = zero(cloak.config)
+Base.vec(cloak::Cloak) = vcat(vec(cloak.config), vec(cloak.core))
+
+function Waves.speed(cloak::Cloak, g::AbstractArray{Float32, 3}, ambient_speed::Float32)
+    return speed(stack(cloak.config, cloak.core), g, ambient_speed)
+end
+
+function CairoMakie.mesh!(ax::Axis, cloak::Cloak)
+    mesh!(ax, cloak.config)
+    mesh!(ax, cloak.core)
+    return nothing
+end
+

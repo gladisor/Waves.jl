@@ -11,7 +11,7 @@ horizon = 3
 lr = 1e-5
 epochs = 10
 
-data_path = "data/M=3"
+data_path = "data/M=2"
 println("Loading Env")
 env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
 
@@ -24,7 +24,7 @@ policy = RandomDesignPolicy(action_space(env))
 s = gpu(state(env))
 a = gpu(policy(env))
 
-latent_grid_size = 15.0f0
+latent_grid_size = cpu(env.dim.x)[end]
 println("Building WaveControlModel")
 model = gpu(build_wave_control_model(
     in_channels = 1,
@@ -69,7 +69,7 @@ val_data = Vector{EpisodeData}([
     EpisodeData(path = joinpath(data_path, "episode20/episode.bson")),
     ])
 
-model_path = mkpath("results/M=3/double_ring_cloak_h_channels=$(h_channels)_h_size=$(h_size)_latent_elements=$(latent_elements)_n_mlp_layers=$(n_mlp_layers)_lr=$(lr)_horizon=$(horizon)_epochs=$(epochs)")
+model_path = mkpath("results/M=2/double_ring_cloak_h_channels=$(h_channels)_h_size=$(h_size)_latent_elements=$(latent_elements)_n_mlp_layers=$(n_mlp_layers)_lr=$(lr)_horizon=$(horizon)_epochs=$(epochs)")
 latent_dim = OneDim(latent_grid_size, latent_elements)
 render_latent_wave!(latent_dim, model, s, a, path = joinpath(model_path, "latent_wave_original.mp4"))
 
@@ -81,8 +81,8 @@ train_loader = Flux.DataLoader((train_states, train_actions, train_sigmas), shuf
 val_loader = Flux.DataLoader((val_states, val_actions, val_sigmas), shuffle = true)
 
 println("Training Model")
-model = train(model, train_loader, val_loader, epochs, lr)
-BSON.bson(joinpath(model_path, "model.bson"), model = cpu(model))
+model = train(model, train_loader, val_loader, epochs, lr, path = model_path)
+
 render_latent_wave!(latent_dim, model, s, a, path = joinpath(model_path, "latent_wave_opt.mp4"))
 
 println("Generating Validation Episodes")

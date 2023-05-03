@@ -1,5 +1,8 @@
-function train(model::WaveControlModel, train_loader::DataLoader, val_loader::DataLoader, epochs::Int, lr)
+function train(model::WaveControlModel, train_loader::DataLoader, val_loader::DataLoader, epochs::Int, lr; path::String)
     opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
+
+    train_loss_history = Float32[]
+    val_loss_history = Float32[]
 
     for i in 1:epochs
 
@@ -20,10 +23,19 @@ function train(model::WaveControlModel, train_loader::DataLoader, val_loader::Da
             val_loss += mse(model(s, a), σ)
         end
 
+        BSON.bson(joinpath(path, "model$i.bson"), model = cpu(model))
+
         train_loss = train_loss / length(train_loader)
         val_loss = val_loss / length(val_loader)
-
+        push!(train_loss_history, train_loss)
+        push!(val_loss_history, val_loss)
         println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
+
+        fig = Figure()
+        ax = Axis(fig[1, 1], xlabel = "Epoch", ylabel = "Loss")
+        lines!(ax, train_loss_history, color = :blue, label = "Train")
+        lines!(ax, val_loss_history, color = :orange, label = "Val")
+        save(joinpath(path, "loss.png"), fig)
     end
 
     return model

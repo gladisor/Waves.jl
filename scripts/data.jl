@@ -1,11 +1,13 @@
 include("dependencies.jl")
 
-dim = TwoDim(10.0f0, 256)
+dim = TwoDim(8.0f0, 256)
 grid = build_grid(dim)
 
-config = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 0.1f0, c = BRASS, center = [0.0f0, 0.0f0])
-core = Scatterers([5.0f0 0.0f0], [1.6f0], [BRASS])
-cloak = RandomCloak(config, core)
+# config = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 0.1f0, c = BRASS, center = [0.0f0, 0.0f0])
+cloak = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 0.1f0, c = BRASS, center = [0.0f0, 0.0f0])
+
+# core = Scatterers([5.0f0 0.0f0], [1.6f0], [BRASS])
+# cloak = RandomCloak(config, core)
 pulse = build_pulse(grid, -6.0f0, 0.0f0, 10.0f0)
 
 action_scale = 1.0f0
@@ -24,7 +26,9 @@ env = gpu(WaveEnv(
     integration_steps = integration_steps))
 
 policy = RandomDesignPolicy(action_space(env))
-data_path = mkpath("data/M=3")
+data_path = mkpath("data/M=2")
+
+@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
 
 for i in 1:20
     path = mkpath(joinpath(data_path, "episode$i"))
@@ -33,6 +37,5 @@ for i in 1:20
     plot_sigma!(episode, path = joinpath(path, "sigma.png"))
 end
 
-@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
 env = cpu(env)
 BSON.bson(joinpath(data_path, "env.bson"), env = env)

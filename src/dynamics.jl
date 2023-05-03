@@ -1,10 +1,12 @@
+export build_tspan, runge_kutta
+export Integrator
+export WaveDynamics
+export ForceLatentDynamics
+
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
     return collect(range(ti, ti + steps * dt, steps + 1))
 end
 
-#=
-Defines the runge_kutta integration function
-=#
 function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32, dt::Float32)
     k1 = f(u, t)
     k2 = f(u .+ 0.5f0 * dt * k1, t + 0.5f0 * dt)

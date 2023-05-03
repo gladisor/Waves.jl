@@ -16,10 +16,6 @@ using Waves
 using Waves: speed
 
 abstract type AbstractWaveControlModel end
-abstract type AbstractSource end
 
-include("../src/sources.jl")
-include("../src/dynamics.jl")
-include("env.jl")
 include("wave_control_model.jl")
 include("plot.jl")

@@ -58,6 +58,14 @@ end
 Flux.@functor Scatterers
 Flux.trainable(config::Scatterers) = (;config.r)
 
+function CairoMakie.mesh!(ax::Axis, config::Scatterers)
+    for i ∈ axes(config.pos, 1)
+        mesh!(ax, Circle(Point(config.pos[i, :]...), config.r[i]), color = :gray)
+    end
+
+    return nothing
+end
+
 function Base.:*(config::Scatterers, n::AbstractFloat)
     return Scatterers(config.pos * n, config.r * n, config.c * n)
 end
@@ -135,13 +143,8 @@ function Base.rand(config::ClosedInterval{Scatterers})
     end
 
     r = uniform_scalar_sample.(config.left.r, config.right.r)
+    c = uniform_scalar_sample.(config.left.c, config.right.c)
     
-    if all(config.left.c .< config.right.c)
-        c = rand.(Uniform.(config.left.c, config.right.c))
-    else
-        c = zeros(Float32, size(config.left.c))
-    end
-
     return Scatterers(pos, r, c)
 end
 

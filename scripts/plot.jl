@@ -1,24 +1,6 @@
+export plot_episode_data!, plot_sigma!, render!
+
 const FRAMES_PER_SECOND = 24
-
-function plot_solution!(nrows::Int, ncols::Int, dim::TwoDim, u::AbstractArray{Float32, 4}; path::String, field::Int = 1)
-    
-    fig = Figure()
-    layout = fig[1, 1] = GridLayout(nrows, ncols)
-
-    steps = size(u, ndims(u))
-    n = nrows * ncols
-    idx = Int.(round.(LinRange(1, steps, n)))
-
-    for i in 1:nrows
-        for j in 1:ncols
-            k = (i-1) * ncols + j
-            ax = Axis(layout[i, j], aspect = 1.0f0)
-            heatmap!(ax, dim.x, dim.y, u[:, :, field, idx[k]], colormap = :ice)
-        end
-    end
-
-    save(path, fig)
-end
 
 function plot_wave(dim::OneDim, wave::AbstractVector{Float32}; ylims::Tuple = (-1.0f0, 1.0f0))
     fig = Figure()
@@ -44,22 +26,6 @@ function plot_wave(dim::TwoDim, wave::AbstractArray{Float32, 3})
     return plot_wave(dim, wave[:, :, 1])
 end
 
-function CairoMakie.mesh!(ax::Axis, config::Scatterers)
-    for i ∈ axes(config.pos, 1)
-        mesh!(ax, Circle(Point(config.pos[i, :]...), config.r[i]), color = :gray)
-    end
-
-    return nothing
-end
-
-function plot_sigma!(episode_data::EpisodeData; path::String)
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, vcat(episode_data.tspans...), vcat(episode_data.sigmas...))
-    save(path, fig)
-    return nothing
-end
-
 function plot_episode_data!(episode_data::EpisodeData; cols::Int, path::String)
 
     fig = Figure(resolution = (1920, 1080))
@@ -81,15 +47,54 @@ function plot_episode_data!(episode_data::EpisodeData; cols::Int, path::String)
     return nothing
 end
 
-function plot_sigma!(model::AbstractWaveControlModel, episode::EpisodeData; path::String)
+function plot_sigma!(episode::EpisodeData; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
+
+    for i in 1:length(episode)
+        lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
+    end
+
+    save(path, fig)
+    return nothing
+end
+
+function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String)
     pred_sigmas = cpu([model(gpu(s), gpu(a)) for (s, a) in zip(episode.states, episode.actions)])
 
     fig = Figure()
     ax = Axis(fig[1, 1])
-    lines!(ax, vcat(episode.tspans...), vcat(episode.sigmas...), color = :blue)
-    lines!(ax, vcat(episode.tspans...), vcat(pred_sigmas...), color = :orange)
+
+    for i in 1:length(episode)
+        lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
+        lines!(ax, episode.tspans[i], pred_sigmas[i], color = :orange)
+    end
+
+    # lines!(ax, vcat(episode.tspans...), vcat(episode.sigmas...), color = :blue)
+    # lines!(ax, vcat(episode.tspans...), vcat(pred_sigmas...), color = :orange)
     save(path, fig)
     return nothing
+end
+
+function plot_sigma!(
+        model::WaveControlModel, 
+        s::WaveEnvState, 
+        a::Vector{<: AbstractDesign}, 
+        tspan::AbstractMatrix{Float32},
+        sigma::AbstractMatrix{Float32};
+        path::String)
+
+    sigma_pred = model(s, a)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+
+    for i in axes(sigma, 2)
+        lines!(ax, cpu(tspan[:, i]), cpu(sigma[:, i]), color = :blue)
+        lines!(ax, cpu(tspan[:, i]), cpu(sigma_pred[:, i]), color = :orange)
+    end
+
+    save(path, fig)
 end
 
 function plot_action_distribution!(

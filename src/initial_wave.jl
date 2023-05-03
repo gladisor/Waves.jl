@@ -1,9 +1,5 @@
 export Silence, build_pulse, Pulse
 
-function reset!(::AbstractInitialWave)
-    return nothing
-end
-
 struct Silence <: AbstractInitialWave end
 
 Flux.@functor Silence

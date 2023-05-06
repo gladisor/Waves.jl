@@ -1,82 +1,56 @@
-using Waves
+include("dependencies.jl")
 
-using Interpolations: Extrapolation
-using ReinforcementLearning
-using CairoMakie
+# function hexagon(::Type{Scatterers}, r::Float32, c::Float32)
+#     @assert r >= 2.0 * Waves.MAX_RADII
+#     pos = Vector{Vector{Float32}}()
+#     for i in 1:6
+#         push!(pos, [r * cos((i-1) * 2pi/6.0f0), r * sin((i-1) * 2pi/6.0f0)])
+#     end
 
-include("plot.jl")
+#     pos = hcat(pos...)'
+#     M = size(pos, 1)
+#     r = rand(Float32, M) * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
+#     # r = ones(Float32, M)
+#     return Scatterers(pos, r, fill(c, M))
+# end
 
-using ProgressMeter: @showprogress
-using Flux
-using Flux: DataLoader, flatten, mse, pullback
-using Optimisers
-include("wave_control_model.jl")
+function hexagon(r::Float32)
+    @assert r >= 2.0 * Waves.MAX_RADII
 
-episode = EpisodeData(path = "data/double_ring_cloak/episode1/episode.bson")
-# states, actions, tspans, sigmas = prepare_data(episode, 1)
+    pos = Vector{Vector{Float32}}()
+    for i in 1:6
+        push!(pos, [r * cos((i-1) * 2pi/6.0f0), r * sin((i-1) * 2pi/6.0f0)])
+    end
 
-# idx = 10
-# s = gpu(states[idx])
-# a = gpu(actions[idx])
-# tspan = gpu(tspans[idx])
-# sigma = gpu(sigmas[idx])
-
-# model = gpu(build_wave_control_model(
-#     in_channels = 1,
-#     h_channels = 16,
-#     design_size = length(vec(s.design)),
-#     action_size = length(vec(a[1])),
-#     h_size = 256,
-#     latent_grid_size = 15.0f0,
-#     latent_elements = 512,
-#     latent_pml_width = 1.0f0,
-#     latent_pml_scale = 20000.0f0,
-#     ambient_speed = AIR,
-#     dt = 5e-5,
-#     steps = 100,
-#     n_mlp_layers = 3))
-
-function (pulse::Pulse)()
-    return build_pulse(pulse.grid, pulse.pos..., pulse.intensity)
+    return Matrix{Float32}(hcat(pos...)')
 end
 
-struct LatentDynamics <: AbstractDynamics
-    ambient_speed::Float32
-    source::Source
-    grad::AbstractMatrix{Float32}
-    bc::AbstractArray{Float32}
+struct Radii <: AbstractInitialDesign
+    pos::AbstractMatrix{Float32}
+    c::Float32
 end
 
-Flux.@functor LatentDynamics
-Flux.trainable(dyn::LatentDynamics) = (;)
-
-function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    U = wave[:, 1]
-    V = wave[:, 2]
-
-    dU = dyn.grad * V
-    dV = dyn.grad * U
-
-    return hcat(dU .* dyn.bc, dV)
+function (radii::Radii)()
+    M = size(radii.pos, 1)
+    r = rand(Float32, M) * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
+    return Scatterers(radii.pos, r, fill(radii.c, M))
 end
 
-dim = OneDim(15.0f0, 100000)
-# pulse = Pulse(dim, intensity = 5.0f0)
-# source = Source(pulse(), freq = 200.0f0)
-grad = build_gradient(dim)# |> gpu
-# bc = dirichlet(dim)
+function Waves.design_space(radii::Radii, scale::Float32)
+    return radii_design_space(radii(), scale)
+end
 
-# dyn = LatentDynamics(AIR, source, grad, bc)
-# iter = Integrator(runge_kutta, dyn, 0.0f0, 5e-5, 1000) |> gpu
-wave = build_wave(dim, fields = 2)# |> gpu
+radii = Radii(hexagon(3.0f0), BRASS)
 
-@time grad * wave[:, 1]
-@time grad * wave[:, 1]
-@time grad * wave[:, 1]
+cloak = RandomCloak(
+    radii,
+    Scatterers([0.0f0 0.0f0], [1.0f0], [BRASS]))
 
+config = cloak()
 
-# @time u = iter(wave)
-# @time u = iter(wave)
-# @time u = iter(wave)
-;
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+mesh!(ax, config)
+save("config.png", fig)
+
 

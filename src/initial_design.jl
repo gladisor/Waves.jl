@@ -1,6 +1,6 @@
-export RandomRadiiScattererGrid, RandomCloak
-export RandomRadiiRings, AnnularCloak
 export design_space
+export RandomRadiiScattererGrid, RandomCloak
+export RandomRadiiRings, AnnularCloak, Radii, hexagon
 
 ## Grid
 Base.@kwdef struct RandomRadiiScattererGrid <: AbstractInitialDesign
@@ -64,7 +64,8 @@ function design_space(reset_design::RandomRadiiScattererRing, scale::Float32)
 end
 
 struct RandomCloak <: AbstractInitialDesign
-    config::Union{RandomRadiiScattererRing, RandomRadiiScattererGrid}
+    # config::Union{RandomRadiiScattererRing, RandomRadiiScattererGrid}
+    config::AbstractInitialDesign
     core::Scatterers
 end
 
@@ -121,4 +122,30 @@ end
 
 function design_space(cloak::AnnularCloak, scale::Float32)
     return design_space(cloak.rings, scale)
+end
+
+function hexagon(r::Float32)
+    @assert r >= 2.0 * Waves.MAX_RADII
+
+    pos = Vector{Vector{Float32}}()
+    for i in 1:6
+        push!(pos, [r * cos((i-1) * 2pi/6.0f0), r * sin((i-1) * 2pi/6.0f0)])
+    end
+
+    return Matrix{Float32}(hcat(pos...)')
+end
+
+struct Radii <: AbstractInitialDesign
+    pos::AbstractMatrix{Float32}
+    c::Float32
+end
+
+function (radii::Radii)()
+    M = size(radii.pos, 1)
+    r = rand(Float32, M) * (Waves.MAX_RADII - Waves.MIN_RADII) .+ Waves.MIN_RADII
+    return Scatterers(radii.pos, r, fill(radii.c, M))
+end
+
+function Waves.design_space(radii::Radii, scale::Float32)
+    return radii_design_space(radii(), scale)
 end

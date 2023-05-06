@@ -60,7 +60,7 @@ function build_wave_control_model(;
     wave_encoder = Chain(
         WaveEncoder(in_channels, h_channels, 2, tanh),
         Dense(1024, latent_elements, tanh),
-        z -> hcat(z[:, 1], z[:, 2] * 0.0f0)
+        z -> hcat(z[:, 1], z[:, 2] / ambient_speed)
         )
 
     design_encoder = Chain(

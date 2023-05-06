@@ -1,17 +1,17 @@
 include("dependencies.jl")
 
 ambient_speed = AIR
-h_channels = 16
-h_size = 512
+h_channels = 32
+h_size = 1024
 latent_elements = 512
 latent_pml_width = 2.0f0
 latent_pml_scale = 20000.0f0
-n_mlp_layers = 5
-horizon = 3
-lr = 1e-5
+n_mlp_layers = 3
+horizon = 10
+lr = 1e-4
 epochs = 10
 
-data_path = "data/M=2"
+data_path = "data/M=6"
 println("Loading Env")
 env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
 
@@ -43,33 +43,17 @@ model = gpu(build_wave_control_model(
 
 println("Load Train Data")
 train_data = Vector{EpisodeData}([
-    EpisodeData(path = joinpath(data_path, "episode1/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode2/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode3/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode4/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode5/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode6/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode7/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode8/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode9/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode10/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode11/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode12/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode13/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode14/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode15/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode16/episode.bson")),
+    EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:47
     ])
 
 println("Load Val Data")
 val_data = Vector{EpisodeData}([
-    EpisodeData(path = joinpath(data_path, "episode17/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode18/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode19/episode.bson")),
-    EpisodeData(path = joinpath(data_path, "episode20/episode.bson")),
+    EpisodeData(path = joinpath(data_path, "episode48/episode.bson")),
+    EpisodeData(path = joinpath(data_path, "episode49/episode.bson")),
+    EpisodeData(path = joinpath(data_path, "episode50/episode.bson")),
     ])
 
-model_path = mkpath("results/M=2/double_ring_cloak_h_channels=$(h_channels)_h_size=$(h_size)_latent_elements=$(latent_elements)_n_mlp_layers=$(n_mlp_layers)_lr=$(lr)_horizon=$(horizon)_epochs=$(epochs)")
+model_path = mkpath("results/M=6_core=1.0/h_channels=$(h_channels)_h_size=$(h_size)_latent_elements=$(latent_elements)_n_mlp_layers=$(n_mlp_layers)_lr=$(lr)_horizon=$(horizon)_epochs=$(epochs)")
 latent_dim = OneDim(latent_grid_size, latent_elements)
 render_latent_wave!(latent_dim, model, s, a, path = joinpath(model_path, "latent_wave_original.mp4"))
 

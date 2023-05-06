@@ -3,11 +3,11 @@ include("dependencies.jl")
 dim = TwoDim(8.0f0, 256)
 grid = build_grid(dim)
 
-# config = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 0.1f0, c = BRASS, center = [0.0f0, 0.0f0])
-cloak = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 0.1f0, c = BRASS, center = [0.0f0, 0.0f0])
+# config = RandomRadiiScattererGrid(width = 1, height = 2, spacing = 1.0f0, c = BRASS, center = [3.0f0, 0.0f0])
+config = Radii(hexagon(3.0f0) .+ [2.0f0 0.0f0], BRASS)
+core = Scatterers([2.0f0 0.0f0], [1.0f0], [BRASS])
+cloak = RandomCloak(config, core)
 
-# core = Scatterers([5.0f0 0.0f0], [1.6f0], [BRASS])
-# cloak = RandomCloak(config, core)
 pulse = build_pulse(grid, -6.0f0, 0.0f0, 10.0f0)
 
 action_scale = 1.0f0
@@ -26,11 +26,11 @@ env = gpu(WaveEnv(
     integration_steps = integration_steps))
 
 policy = RandomDesignPolicy(action_space(env))
-data_path = mkpath("data/M=2")
+data_path = mkpath("data/M=6")
 
-@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
+# @time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
 
-for i in 1:20
+for i in 1:50
     path = mkpath(joinpath(data_path, "episode$i"))
     @time episode = generate_episode_data(policy, env)
     save(episode, joinpath(path, "episode.bson"))

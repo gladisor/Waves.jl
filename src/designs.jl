@@ -16,6 +16,7 @@ const COPPER = 2260.0f0
 const BRASS = 2120.0f0
 # https://www.sfu.ca/sonic-studio-webdav/handbook/Speed__Of_Sound.html
 const AIR = 344.0f0
+const WATER = 1531.0f0
 
 struct DesignInterpolator
     initial::AbstractDesign

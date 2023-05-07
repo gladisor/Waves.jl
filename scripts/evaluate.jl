@@ -34,66 +34,35 @@ function (policy::MPC)(env::WaveEnv)
     return a[1]
 end
 
-path = "results/M=2_scaling_velocity_long/double_ring_cloak_h_channels=32_h_size=1024_latent_elements=512_n_mlp_layers=3_lr=0.0001_horizon=3_epochs=10"
+
+path = "results/M=6_core=1.0/h_channels=32_h_size=1024_latent_elements=512_n_mlp_layers=3_lr=0.0001_horizon=3_epochs=10"
 model_path = joinpath(path, "model10.bson")
-env_path = "data/M=2/env.bson"
+env_path = "data/M=6_as=1.0/env.bson"
 
 model = BSON.load(model_path)[:model] |> gpu
 env = BSON.load(env_path)[:env] |> gpu
 policy = RandomDesignPolicy(action_space(env))
 reset!(env)
 
-[env(policy(env)) for i in 1:5]
+horizon = 3
+opt_steps = 3
+episodes = 5
+lr = 1e-3
 
-s = cpu(state(env))
+opt = Optimisers.Descent(lr)
+mpc = gpu(MPC(policy, model, opt, horizon, opt_steps))
 
-dim = cpu(env.dim)
-fig = Figure(backgroundcolor = :transparent)
-ax = Axis(fig[1, 1], aspect = 1.0f0, xlabel = "x (m)", ylabel = "y (m)", backgroundcolor = :transparent)
-xlims!(ax, dim.x[1], dim.x[end])
-ylims!(ax, dim.y[1], dim.y[end])
-heatmap!(ax, dim.x, dim.y, s.wave_total[:, :, 1], colormap = :ice)
-mesh!(ax, s.design)
-save("u.png", fig)
+mpc_hook = TotalRewardPerEpisode()
+run(mpc, env, StopAfterEpisode(episodes), mpc_hook)
 
-# horizon = 3
-# opt_steps = 3
-# episodes = 5
-# lr = 1e-3
+random_hook = TotalRewardPerEpisode()
+run(policy, env, StopAfterEpisode(episodes), random_hook)
 
+avg_mpc = mean(mpc_hook.rewards)
+avg_random = mean(random_hook.rewards)
 
-# # s = state(env)
-# # a = [policy(env)] |> gpu
+println("MPC: $avg_mpc")
+println("RANDOM: $avg_random")
 
-# # model.wave_encoder(s.wave_total)
-
-# opt = Optimisers.Descent(lr)
-# mpc = gpu(MPC(policy, model, opt, horizon, opt_steps))
-# # @time a = mpc(env)
-# # @time a = mpc(env)
-# # @time a = mpc(env)
-# # @time a = mpc(env)
-
-
-# # @time for i in 1:20
-# #     a = gpu([policy(env) for i in 1:3])
-# #     model(s, a)
-# # end
-
-# # as = gpu([[policy(env) for i in 1:3] for i in 1:20])
-
-
-# mpc_hook = TotalRewardPerEpisode()
-# run(mpc, env, StopAfterEpisode(episodes), mpc_hook)
-
-# random_hook = TotalRewardPerEpisode()
-# run(policy, env, StopAfterEpisode(episodes), random_hook)
-
-# avg_mpc = mean(mpc_hook.rewards)
-# avg_random = mean(random_hook.rewards)
-
-# println("MPC: $avg_mpc")
-# println("RANDOM: $avg_random")
-
-# @time render!(mpc, env, path = "mpc_M=3.mp4", seconds = 50.0f0)
-# @time render!(policy, env, path = "random_M=3.mp4", seconds = 50.0f0)
+@time render!(mpc, env, path = joinpath(path, "mpc.mp4"), seconds = 50.0f0)
+@time render!(policy, env, path = joinpath(path, "random.mp4"), seconds = 50.0f0)

@@ -26,7 +26,7 @@ env = gpu(WaveEnv(
     dt = Float32(5e-5)))
 
 policy = RandomDesignPolicy(action_space(env))
-data_path = mkpath("data/M=6_as=$(action_scale)_additional_data")
+data_path = mkpath("data/M=6_as=$(action_scale)_normalized")
 
 @time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
 

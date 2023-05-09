@@ -166,6 +166,8 @@ end
 function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
     fig, ax = plot_wave(dim, u[:, :, 1])
 
+    ylims!(ax, minimum(u[:, 1, :]), maximum(u[:, 1, :]))
+
     record(fig, path, axes(u, 3), framerate = 60) do i
         empty!(ax)
         lines!(ax, dim.x, u[:, 1, i], color = :blue)

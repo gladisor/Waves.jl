@@ -1,17 +1,5 @@
-function visualize_latent!(dim::OneDim, tspan::AbstractMatrix, model, s::WaveEnvState, a::Vector{<: AbstractDesign}; path::String)
-    zi = encode(model, s, a[1])
-    @time z = model.iter(zi)
+function visualize_predictions!(model::WaveControlModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], aspect = 1.0f0, title = "Displacement", ylabel = "Time (s)", xlabel = "Space (m)")
-    heatmap!(ax1, dim.x, tspan[:, 1], cpu(z[:, 1, :]), colormap = :ice)
-
-    ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Velocity", xlabel = "Space (m)")
-    heatmap!(ax2, dim.x, tspan[:, 1], cpu(z[:, 2, :]), colormap = :ice)
-    save(path, fig)
-end
-
-function visualize_predictions!(tspan::AbstractMatrix, sigma::AbstractMatrix, model, s::WaveEnvState, a::Vector{<: AbstractDesign}; path::String)
     fig = Figure()
     ax = Axis(fig[1, 1], aspect = 1.0f0, title = "Prediction of Scattered Energy Versus Ground Truth")
 
@@ -25,7 +13,62 @@ function visualize_predictions!(tspan::AbstractMatrix, sigma::AbstractMatrix, mo
     save(path, fig)
 end
 
-function train(model::WaveControlModel, train_loader::DataLoader, val_loader::DataLoader, epochs::Int, lr; path::String, checkpoint_every::Int = 3, evaluation_samples = 3)
+function visualize_latent_wave!(model::WaveControlModel, latent_dim::OneDim, s::WaveEnvState, actions::Vector{<: AbstractDesign}, tspan::AbstractMatrix; path::String)
+
+    path = mkpath(path)
+
+    tspan = cpu(tspan)
+    tspan = vcat(tspan[1], vec(tspan[2:end, :]))
+
+    z_wave = model.wave_encoder(s.wave_total)
+    h = (z_wave, s.design)
+
+    zs = []
+
+    for (i, a) in enumerate(actions)
+        z_wave, design = h
+
+        z_design = encode_design(model, design, a)
+        z = model.iter(hcat(z_wave, z_design))
+        h = (z[:, [1, 2, 3], end], design + a)
+
+        if i == 1
+            push!(zs, z)
+        else
+            push!(zs, z[:, :, 2:end])
+        end
+    end
+
+    z = cpu(cat(zs..., dims = ndims(zs[1])))
+
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], aspect = 1.0f0, ylabel = "Time (t)", title = "Displacement")
+
+    if !(maximum(z[:, 1, :]) > minimum(z[:, 1, :]))
+        ylims!(ax1, -1.0f0, 1.0f0)
+    end
+
+    heatmap!(ax1, latent_dim.x, tspan, z[:, 1, :], colormap = :ice)
+
+    ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Velocity")
+    heatmap!(ax2, latent_dim.x, tspan, z[:, 2, :], colormap = :ice)
+
+    if !(maximum(z[:, 2, :]) > minimum(z[:, 2, :]))
+        ylims!(ax2, -1.0f0, 1.0f0)
+    end
+
+    ax3 = Axis(fig[2, 1], aspect = 1.0f0, xlabel = "Space (m)", ylabel = "Time (t)", title = "Force")
+    heatmap!(ax3, latent_dim.x, tspan, z[:, 3, :], colormap = :ice)
+
+    ax4 = Axis(fig[2, 2], aspect = 1.0f0, xlabel = "Space (m)", title = "Wave Speed")
+    heatmap!(ax4, latent_dim.x, tspan, z[:, 4, :], colormap = :ice)
+    save(joinpath(path, "latent.png"), fig)
+
+    render!(latent_dim, z, path = joinpath(path, "latent.mp4"))
+    return nothing
+end
+
+function train(model::WaveControlModel, train_loader::DataLoader, val_loader::DataLoader, epochs::Int, lr; latent_dim::OneDim, path::String, checkpoint_every::Int = 3, evaluation_samples::Int = 3, decay::Float32 = 1.0f0)
     opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
 
     train_loss_history = Float32[]
@@ -45,6 +88,8 @@ function train(model::WaveControlModel, train_loader::DataLoader, val_loader::Da
             train_loss += loss
         end
 
+        opt_state = Optimisers.adjust(opt_state, lr * decay ^ i)
+
         println("Validating")
         val_loss = 0.0f0
         @showprogress for (s, a, _, σ) in val_loader
@@ -63,9 +108,10 @@ function train(model::WaveControlModel, train_loader::DataLoader, val_loader::Da
         ax = Axis(fig[1, 1], xlabel = "Epoch", ylabel = "Loss")
         lines!(ax, train_loss_history, color = :blue, label = "Train")
         lines!(ax, val_loss_history, color = :orange, label = "Val")
+        axislegend(ax)
         save(joinpath(path, "loss.png"), fig)
 
-        if i % checkpoint_every == 0 || (i == 1 || i == epochs)
+        if i % checkpoint_every == 0
             checkpoint_path = mkpath(joinpath(path, "model$i"))
             println("Checkpointing")
             save(model, checkpoint_path)
@@ -73,61 +119,13 @@ function train(model::WaveControlModel, train_loader::DataLoader, val_loader::Da
             println("Rendering Images")
             @showprogress for (j, (s, a, t, σ)) in enumerate(val_loader)
                 s, a, t, σ = gpu(s[1]), gpu(a[1]), t[1], gpu(σ[1])
-                visualize_latent!(latent_dim, t, model, s, a, path = joinpath(checkpoint_path, "latent$j.png"))
                 visualize_predictions!(t, σ, model, s, a, path = joinpath(checkpoint_path, "predictions$j.png"))
+                visualize_latent_wave!(latent_dim, model, s, a, t, path = joinpath(checkpoint_path, "latent$j"))
                 j == evaluation_samples && break
             end
         end
     end
 
-    return model
-end
-
-function build_wave_control_model(;
-        in_channels,
-        h_channels,
-        design_size,
-        action_size,
-        h_size, 
-        latent_grid_size,
-        latent_elements,
-        latent_pml_width, 
-        latent_pml_scale, 
-        ambient_speed,
-        dt,
-        steps,
-        n_mlp_layers,
-        )
-
-    wave_encoder = Chain(
-        WaveEncoder(in_channels, h_channels, 2, tanh),
-        Dense(1024, latent_elements, tanh),
-        z -> hcat(z[:, 1], z[:, 2] / ambient_speed)
-        )
-
-    design_encoder = Chain(
-        Dense(design_size + action_size, h_size, relu),
-        Dense(h_size, 2 * latent_elements),
-        z -> reshape(z, latent_elements, :),
-        z -> hcat(tanh.(z[:, 1]), sigmoid.(z[:, 2]))
-        )
-
-    latent_dim = OneDim(latent_grid_size, latent_elements)
-    grad = build_gradient(latent_dim)
-    pml = build_pml(latent_dim, latent_pml_width, latent_pml_scale)
-    bc = dirichlet(latent_dim)
-
-    latent_dynamics = ForceLatentDynamics(ambient_speed, 1.0f0, grad, pml, bc)
-    iter = Integrator(runge_kutta, latent_dynamics, 0.0f0, dt, steps)
-
-    mlp = Chain(
-        flatten,
-        Dense(latent_elements * 4, h_size, relu), 
-        [Dense(h_size, h_size, relu) for _ in 1:n_mlp_layers]...,
-        Dense(h_size, 1), 
-        vec)
-
-    model = WaveControlModel(wave_encoder, design_encoder, iter, mlp)
     return model
 end
 
@@ -141,7 +139,8 @@ Flux.trainable(::LatentWaveActivation) = (;)
 function (act::LatentWaveActivation)(wave::AbstractMatrix{Float32})
     u = tanh.(wave[1, :])
     v = tanh.(wave[2, :]) / act.C
-    return hcat(u, v)
+    f = tanh.(wave[3, :])
+    return hcat(u, v, f)
 end
 
 struct LatentDesignActivation end
@@ -161,83 +160,321 @@ Flux.@functor Field
 Flux.trainable(field::Field) = (;)
 
 function (field::Field)(m)
-    return m(field.dim.x')
+    return permutedims(m(field.dim.x'), (2, 1))
 end
 
-function build_hypernet_model(;
-        grid_size,
-        elements,
-        pml_width,
-        pml_scale,
-        ambient_speed,
-        dt,
-        steps,
-        h_channels,
-        design_input_size,
-        h_size,
-        act
-        )
+struct SingleImageInput end
+Flux.@functor SingleImageInput
+(input::SingleImageInput)(img::AbstractArray{Float32, 3}) = img[:, :, :, :]
 
-    ## Defining integrator
-    latent_dim = OneDim(grid_size, elements)
-    grad = build_gradient(latent_dim)
-    pml = build_pml(latent_dim, pml_width, pml_scale)
-    bc = dirichlet(latent_dim)
-    latent_dynamics = ForceLatentDynamics(ambient_speed, 1.0f0, grad, pml, bc)
-    iter = Integrator(runge_kutta, latent_dynamics, 0.0f0, dt, steps)
 
-    ## Model for producing fields over the latent dim
-    wave_emb = Chain(
-        Dense(1, h_size, act), 
-        Dense(h_size, h_size, act), 
-        Dense(h_size, h_size, act), 
-        Dense(h_size, h_size, act),
-        Dense(h_size, 2, identity))
+struct LatentDynamics <: AbstractDynamics
+    C0::Float32
+    freq::Float32
+    pml::AbstractVector{Float32}
+    grad::AbstractMatrix{Float32}
+    bc::AbstractVector{Float32}
+end
 
-    ps, re = destructure(wave_emb)
+Flux.@functor LatentDynamics
+Flux.trainable(::LatentDynamics) = (;)
 
-    wave_encoder = Chain(
-        WaveEncoder(1, h_channels, 1, tanh),
-        Dense(1024, h_size, act),
-        Dense(h_size, length(ps), bias = false), ## sometimes the weight matrix is too big and bson fails
-        vec, 
-        re,
-        Field(latent_dim),
-        LatentWaveActivation(ambient_speed))
+function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
+    u = wave[:, 1]
+    v = wave[:, 2]
+    f = wave[:, 3]
+    c = wave[:, 4]
+
+    force = f * sin(2.0f0 * pi * dyn.freq * t)
+
+    du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
+    dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
+    df = f * 0.0f0
+    dc = c * 0.0f0
+
+    return hcat(du .* dyn.bc, dv, df, dc)
+end
+
+# function build_wave_control_model(;
+#         in_channels,
+#         h_channels,
+#         design_size,
+#         action_size,
+#         h_size, 
+#         latent_grid_size,
+#         latent_elements,
+#         latent_pml_width, 
+#         latent_pml_scale, 
+#         ambient_speed,
+#         dt,
+#         steps,
+#         n_mlp_layers,
+#         )
+
+#     wave_encoder = Chain(
+#         WaveEncoder(in_channels, h_channels, 2, tanh),
+#         Dense(1024, latent_elements, tanh),
+#         z -> hcat(z[:, 1], z[:, 2] / ambient_speed)
+#         )
+
+#     design_encoder = Chain(
+#         Dense(design_size + action_size, h_size, relu),
+#         Dense(h_size, 2 * latent_elements),
+#         z -> reshape(z, latent_elements, :),
+#         z -> hcat(tanh.(z[:, 1]), sigmoid.(z[:, 2]))
+#         )
+
+#     latent_dim = OneDim(latent_grid_size, latent_elements)
+#     grad = build_gradient(latent_dim)
+#     pml = build_pml(latent_dim, latent_pml_width, latent_pml_scale)
+#     bc = dirichlet(latent_dim)
+
+#     latent_dynamics = ForceLatentDynamics(ambient_speed, 1.0f0, grad, pml, bc)
+#     iter = Integrator(runge_kutta, latent_dynamics, 0.0f0, dt, steps)
+
+#     mlp = Chain(
+#         flatten,
+#         Dense(latent_elements * 4, h_size, relu), 
+#         [Dense(h_size, h_size, relu) for _ in 1:n_mlp_layers]...,
+#         Dense(h_size, 1), 
+#         vec)
+
+#     model = WaveControlModel(wave_encoder, design_encoder, iter, mlp)
+#     return model
+# end
+
+# function build_hypernet_model(;
+#         grid_size,
+#         elements,
+#         pml_width,
+#         pml_scale,
+#         ambient_speed,
+#         dt,
+#         steps,
+#         h_channels,
+#         design_input_size,
+#         h_size,
+#         act
+#         )
+
+#     ## Defining integrator
+#     latent_dim = OneDim(grid_size, elements)
+#     grad = build_gradient(latent_dim)
+#     pml = build_pml(latent_dim, pml_width, pml_scale)
+#     bc = dirichlet(latent_dim)
+#     latent_dynamics = ForceLatentDynamics(ambient_speed, 1.0f0, grad, pml, bc)
+#     iter = Integrator(runge_kutta, latent_dynamics, 0.0f0, dt, steps)
+
+#     ## Model for producing fields over the latent dim
+#     wave_emb = Chain(
+#         Dense(1, h_size, act), 
+#         Dense(h_size, h_size, act), 
+#         Dense(h_size, h_size, act), 
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 2, identity))
+
+#     ps, re = destructure(wave_emb)
+
+#     wave_encoder = Chain(
+#         WaveEncoder(1, h_channels, 1, tanh),
+#         Dense(1024, h_size, act),
+#         Dense(h_size, length(ps), bias = false), ## sometimes the weight matrix is too big and bson fails
+#         vec, 
+#         re,
+#         Field(latent_dim),
+#         LatentWaveActivation(ambient_speed))
         
-    design_encoder = Chain(
-        Dense(design_input_size, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, length(ps), bias = false),
-        vec,
-        re,
-        Field(latent_dim),
-        LatentDesignActivation())
+#     design_encoder = Chain(
+#         Dense(design_input_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, length(ps), bias = false),
+#         vec,
+#         re,
+#         Field(latent_dim),
+#         LatentDesignActivation())
 
-    mlp = Chain(
-        flatten,
-        Dense(4 * elements, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, 1),
-        vec
-        )
+#     mlp = Chain(
+#         flatten,
+#         Dense(4 * elements, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 1),
+#         vec
+#         )
 
-    return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
-end
+#     return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
+# end
 
-function FileIO.save(model::WaveControlModel, path::String)
-    BSON.bson(joinpath(path, "wave_encoder.bson"), wave_encoder = cpu(model.wave_encoder))
-    BSON.bson(joinpath(path, "design_encoder.bson"), design_encoder = cpu(model.design_encoder))
-    BSON.bson(joinpath(path, "iter.bson"), iter = cpu(model.iter))
-    BSON.bson(joinpath(path, "mlp.bson"), mlp = cpu(model.mlp))
-end
 
-function WaveControlModel(;path::String)
-    wave_encoder = BSON.load(joinpath(path, "wave_encoder.bson"))[:wave_encoder]
-    design_encoder = BSON.load(joinpath(path, "design_encoder.bson"))[:design_encoder]
-    iter = BSON.load(joinpath(path, "iter.bson"))[:iter]
-    mlp = BSON.load(joinpath(path, "mlp.bson"))[:mlp]
-    return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
-end
+# function build_hypernet_control_model(;
+#         h_size::Int, 
+#         act::Function, 
+#         latent_dim::OneDim, 
+#         ambient_speed::Float32,
+#         design_action_size::Int,
+#         dt::Float32,
+#         steps::Int,
+#         pml_width::Float32,
+#         pml_scale::Float32
+#         )
+
+#     wave_embedder = Chain(
+#         Dense(1, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 3),
+#         LatentWaveActivation(ambient_speed)
+#     )
+
+#     wave_embedder_ps, wave_embedder_restructure = destructure(wave_embedder)
+
+#     wave_embedder_restructure(wave_embedder_ps)
+
+#     wave_encoder = Chain(
+#         SingleImageInput(),
+#         MeanPool((2, 2)), ## Initial dimentionality reduction
+#         DownBlock(2, 1, 16, act),
+#         InstanceNorm(16),
+#         DownBlock(2, 16, 32, act),
+#         InstanceNorm(32),
+#         DownBlock(2, 32, 64, act),
+#         InstanceNorm(64),
+#         DownBlock(2, 64, 128, act),
+#         GlobalMeanPool(),
+#         flatten,
+#         Dense(128, 256, act),
+#         Dense(256, length(wave_embedder_ps), bias = false),
+#         vec,
+#         wave_embedder_restructure,
+#         Field(latent_dim))
+
+#     design_embedder = Chain(
+#         Dense(1, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 2),
+#         LatentDesignActivation()
+#     )
+
+#     design_embedder_ps, design_embedder_restructure = destructure(design_embedder)
+
+#     design_encoder = Chain(
+#         Dense(design_action_size, h_size, act),
+#         LayerNorm(h_size),
+#         Dense(h_size, h_size, act),
+#         LayerNorm(h_size),
+#         Dense(h_size, length(design_embedder_ps), bias = false),
+#         vec,
+#         design_embedder_restructure,
+#         Field(latent_dim)
+#     )
+
+#     grad = build_gradient(latent_dim)
+#     pml = build_pml(latent_dim, pml_width, 1.0f0)
+#     bc = dirichlet(latent_dim)
+#     dynamics = ForceLatentDynamics(AIR, pml_scale, grad, pml, bc)
+#     iter = Integrator(runge_kutta, dynamics, 0.0f0, dt, steps)
+
+#     mlp = Chain(
+#         flatten,
+#         Dense(4 * size(latent_dim, 1), h_size, gelu),
+#         Dense(h_size, h_size, gelu),
+#         Dense(h_size, 1),
+#         vec
+#     )
+
+#     return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
+# end
+
+
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################
+######################################################################################
+
+# function build_hypernet_speed_model(;
+#         h_size::Int, 
+#         act::Function, 
+#         latent_dim::OneDim, 
+#         ambient_speed::Float32,
+#         freq::Float32,
+#         design_action_size::Int,
+#         dt::Float32,
+#         steps::Int,
+#         pml_width::Float32,
+#         pml_scale::Float32
+#         )
+
+#     wave_embedder = Chain(
+#         Dense(1, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 3),
+#         LatentWaveActivation(ambient_speed)
+#     )
+
+#     wave_embedder_ps, wave_embedder_restructure = destructure(wave_embedder)
+
+#     wave_embedder_restructure(wave_embedder_ps)
+
+#     wave_encoder = Chain(
+#         SingleImageInput(),
+#         MeanPool((2, 2)), ## Initial dimentionality reduction
+#         DownBlock(2, 1, 16, act),
+#         InstanceNorm(16),
+#         DownBlock(2, 16, 32, act),
+#         InstanceNorm(32),
+#         DownBlock(2, 32, 64, act),
+#         InstanceNorm(64),
+#         DownBlock(2, 64, 128, act),
+#         GlobalMeanPool(),
+#         flatten,
+#         Dense(128, 512, act),
+#         Dense(512, length(wave_embedder_ps), bias = false),
+#         vec,
+#         wave_embedder_restructure,
+#         Field(latent_dim))
+
+#     design_embedder = Chain(
+#         Dense(1, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 1),
+#         vec,
+#         # c -> 0.5 .+ softplus.(c)
+#         # c -> 1.0f0 .+ elu.(c)
+#         c -> 5.0f0 * sigmoid.(c)
+#     )
+
+#     design_embedder_ps, design_embedder_restructure = destructure(design_embedder)
+
+#     design_encoder = Chain(
+#         Dense(design_action_size, h_size, act),
+#         LayerNorm(h_size),
+#         Dense(h_size, h_size, act),
+#         LayerNorm(h_size),
+#         Dense(h_size, length(design_embedder_ps), bias = false),
+#         vec,
+#         design_embedder_restructure,
+#         Field(latent_dim)
+#     )
+
+#     pml = build_pml(latent_dim, pml_width, pml_scale)
+#     grad = build_gradient(latent_dim)
+#     bc = dirichlet(latent_dim)
+#     dynamics = LatentDynamics(ambient_speed, freq, pml, grad, bc)
+
+#     iter = Integrator(runge_kutta, dynamics, 0.0f0, dt, steps)
+
+#     mlp = Chain(
+#         flatten,
+#         Dense(4 * size(latent_dim, 1), h_size, act),
+#         Dense(h_size, h_size, act),
+#         Dense(h_size, 1),
+#         vec
+#     )
+
+#     return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
+# end

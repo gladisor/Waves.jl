@@ -1,7 +1,7 @@
 export DownBlock, UpBlock
 export DesignEncoder
 export WaveEncoder, WaveDecoder
-export WaveControlModel, encode
+export WaveControlModel, encode_design, encode
 
 struct DownBlock
     conv1::Conv
@@ -132,12 +132,16 @@ end
 
 Flux.@functor WaveControlModel
 
+function encode_design(model::WaveControlModel, design::AbstractDesign, a::AbstractDesign, scale::Float32 = 0.25f0)
+    return model.design_encoder(vcat(vec(design), vec(a) / scale))
+end
+
 function (model::WaveControlModel)(h::Tuple{AbstractMatrix{Float32}, AbstractDesign}, action::AbstractDesign)
     z_wave, design = h
-    z_design = model.design_encoder(vcat(vec(design), vec(action)))
+    z_design = encode_design(model, design, action)
     z = model.iter(hcat(z_wave, z_design))
     sigma = model.mlp(z)
-    return (z[:, [1, 2], end], design + action), sigma
+    return (z[:, [1, 2, 3], end], design + action), sigma
 end
 
 function (model::WaveControlModel)(s::WaveEnvState, actions::Vector{<:AbstractDesign})
@@ -152,6 +156,21 @@ end
 
 function encode(model::WaveControlModel, s::WaveEnvState, action::AbstractDesign)
     z_wave = model.wave_encoder(s.wave_total)
-    z_design = model.design_encoder(vcat(vec(s.design), vec(action)))
+    z_design = encode_design(model, s.design, action)
     return hcat(z_wave, z_design)
+end
+
+function FileIO.save(model::WaveControlModel, path::String)
+    BSON.bson(joinpath(path, "wave_encoder.bson"), wave_encoder = cpu(model.wave_encoder))
+    BSON.bson(joinpath(path, "design_encoder.bson"), design_encoder = cpu(model.design_encoder))
+    BSON.bson(joinpath(path, "iter.bson"), iter = cpu(model.iter))
+    BSON.bson(joinpath(path, "mlp.bson"), mlp = cpu(model.mlp))
+end
+
+function WaveControlModel(;path::String)
+    wave_encoder = BSON.load(joinpath(path, "wave_encoder.bson"))[:wave_encoder]
+    design_encoder = BSON.load(joinpath(path, "design_encoder.bson"))[:design_encoder]
+    iter = BSON.load(joinpath(path, "iter.bson"))[:iter]
+    mlp = BSON.load(joinpath(path, "mlp.bson"))[:mlp]
+    return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
 end

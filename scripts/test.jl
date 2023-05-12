@@ -1,201 +1,169 @@
 include("dependencies.jl")
 
-struct SingleImageInput end
-Flux.@functor SingleImageInput
-(input::SingleImageInput)(img::AbstractArray{Float32, 3}) = img[:, :, :, :]
+struct NormalizedDense
+    dense::Dense
+    norm::LayerNorm
+    act::Function
+end
 
-function build_hypernet_control_model(;
-        h_size::Int, 
+function NormalizedDense(in_size::Int, out_size::Int, act::Function)
+    return NormalizedDense(Dense(in_size, out_size), LayerNorm(out_size), act)
+end
+
+Flux.@functor NormalizedDense
+
+function (dense::NormalizedDense)(x)
+    return x |> dense.dense |> dense.norm |> dense.act
+end
+
+function build_mlp(in_size, h_size, n_h, out_size, act)
+
+    return Chain(
+        NormalizedDense(in_size, h_size, act),
+        [NormalizedDense(h_size, h_size, act) for _ in 1:n_h]...,
+        Dense(h_size, out_size)
+        )
+end
+
+function build_hypernet_wave_encoder(;h_size::Int, n_h::Int, act::Function, ambient_speed::Float32, dim::OneDim)
+
+    embedder = build_mlp(1, h_size, n_h, 3, act)
+
+    ps, re = destructure(embedder)
+
+    return Chain(
+        SingleImageInput(),
+        MaxPool((2, 2)),
+        DownBlock(3, 1, 16, act),
+        InstanceNorm(16),
+        DownBlock(3, 16, 64, act),
+        InstanceNorm(64),
+        DownBlock(3, 64, 128, act),
+        InstanceNorm(128),
+        DownBlock(3, 128, 256, act),
+        GlobalMeanPool(),
+        flatten,
+        NormalizedDense(256, 512, act),
+        Dense(512, length(ps), bias = false),
+        vec,
+        re,
+        Field(dim),
+        z -> hcat(tanh.(z[:, 1]), tanh.(z[:, 2]) / ambient_speed, tanh.(z[:, 3]))
+    )
+end
+
+function build_hypernet_design_encoder(;in_size, h_size, n_h, act, dim, speed_activation::Function)
+
+    embedder = build_mlp(1, h_size, n_h, 1, act)
+
+    ps, re = destructure(embedder)
+
+    encoder = Chain(
+        build_mlp(in_size, h_size, n_h, h_size, act),
+        LayerNorm(h_size),
+        act,
+        Dense(h_size, length(ps), bias = false),
+        re,
+        Field(dim),
+        vec,
+        speed_activation,
+        softplus
+        )
+end
+
+function LatentDynamics(dim::OneDim; ambient_speed, freq, pml_width, pml_scale)
+    pml = build_pml(dim, pml_width, pml_scale)
+    grad = build_gradient(dim)
+    bc = dirichlet(dim)
+    return LatentDynamics(ambient_speed, freq, pml, grad, bc)
+end
+
+function build_hypernet_wave_control_model(
+        dim::OneDim; 
+        design_input_size::Int,
+        h_size::Int,
+        n_h::Int, 
         act::Function, 
-        latent_dim::OneDim, 
+        speed_activation::Function,
         ambient_speed::Float32,
-        design_action_size::Int,
-        dt::Float32,
+        freq::Float32,
+        pml_width::Float32,
+        pml_scale::Float32,
+        dt::AbstractFloat,
         steps::Int
         )
 
-    wave_embedder = Chain(
-        Dense(1, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, 2),
-        LatentWaveActivation(ambient_speed)
-    )
+    wave_encoder = build_hypernet_wave_encoder(
+        h_size = h_size, 
+        n_h = n_h, 
+        act = act,
+        ambient_speed = ambient_speed,
+        dim = dim)
 
-    wave_embedder_ps, wave_embedder_restructure = destructure(wave_embedder)
+    design_encoder = build_hypernet_design_encoder(
+        in_size = design_input_size,
+        h_size = h_size,
+        n_h = n_h,
+        act = act,
+        dim = dim,
+        speed_activation = speed_activation)
 
-    wave_embedder_restructure(wave_embedder_ps)
+    dynamics = LatentDynamics(dim, 
+        ambient_speed = ambient_speed, 
+        freq = freq, 
+        pml_width = pml_width,
+        pml_scale = pml_scale)
 
-    wave_encoder = Chain(
-        SingleImageInput(),
-        MeanPool((2, 2)), ## Initial dimentionality reduction
-        DownBlock(2, 1, 32, act),
-        InstanceNorm(32),
-        DownBlock(2, 32, 32, act),
-        InstanceNorm(32),
-        DownBlock(2, 32, 64, act),
-        InstanceNorm(64),
-        DownBlock(2, 64, 128, act),
-        GlobalMaxPool(),
-        flatten,
-        Dense(128, 256, act),
-        Dense(256, length(wave_embedder_ps), bias = false),
-        vec,
-        wave_embedder_restructure,
-        Field(latent_dim))
-
-    design_embedder = Chain(
-        Dense(1, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, h_size, act),
-        Dense(h_size, 2),
-        LatentDesignActivation()
-    )
-
-    design_embedder_ps, design_embedder_restructure = destructure(design_embedder)
-
-    design_encoder = Chain(
-        Dense(design_action_size, h_size, act),
-        LayerNorm(h_size),
-        Dense(h_size, h_size, act),
-        LayerNorm(h_size),
-        Dense(h_size, length(design_embedder_ps), bias = false),
-        vec,
-        design_embedder_restructure,
-        Field(latent_dim)
-    )
-
-    grad = build_gradient(latent_dim)
-    pml = build_pml(latent_dim, 2.0f0, 1.0f0)
-    bc = dirichlet(latent_dim)
-    dynamics = ForceLatentDynamics(AIR, 5000.0f0, grad, pml, bc)
     iter = Integrator(runge_kutta, dynamics, 0.0f0, dt, steps)
-
-    mlp = Chain(
-        flatten,
-        Dense(4 * size(latent_dim, 1), h_size, gelu),
-        Dense(h_size, h_size, gelu),
-        Dense(h_size, 1),
-        vec
-    )
+    mlp = Chain(flatten, build_mlp(4 * size(dim, 1), h_size, n_h, 1, act), vec)
 
     return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
 end
 
-function visualize_latent_wave!(latent_dim::OneDim, model::WaveControlModel, s::WaveEnvState, actions::Vector{<: AbstractDesign}, tspan::AbstractMatrix; path::String)
-
-    tspan = cpu(tspan)
-    tspan = vcat(tspan[1], vec(tspan[2:end, :]))
-
-    z_wave = model.wave_encoder(s.wave_total)
-    h = (z_wave, s.design)
-
-    zs = []
-
-    for (i, a) in enumerate(actions)
-        z_wave, design = h
-        z_design = model.design_encoder(vcat(vec(design), vec(a)))
-        z = model.iter(hcat(z_wave, z_design))
-        h = (z[:, [1, 2], end], design + a)
-
-        if i == 1
-            push!(zs, z)
-        else
-            push!(zs, z[:, :, 2:end])
-        end
-    end
-
-    z = cat(zs..., dims = ndims(zs[1]))
-
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], aspect = 1.0f0)
-    heatmap!(ax1, latent_dim.x, tspan, cpu(z[:, 1, :]), colormap = :ice)
-
-    ax2 = Axis(fig[1, 2], aspect = 1.0f0)
-    heatmap!(ax2, latent_dim.x, tspan, cpu(z[:, 2, :]), colormap = :ice)
-
-    ax3 = Axis(fig[2, 1], aspect = 1.0f0)
-    heatmap!(ax3, latent_dim.x, tspan, cpu(z[:, 3, :]), colormap = :ice)
-
-    ax4 = Axis(fig[2, 2], aspect = 1.0f0)
-    heatmap!(ax4, latent_dim.x, tspan, cpu(z[:, 4, :]), colormap = :ice)
-    save(path, fig)
-end
-
-
-Flux.device!(1)
+elu_speed(c) = 1.0f0 .+ elu.(c)
+sigmoid_speed(c, scale = 5.0f0) = 5.0f0 * sigmoid.(c)
 
 data_path = "data/hexagon_large_grid"
-env = BSON.load(joinpath(data_path, "env.bson"))[:env]
-reset!(env)
+@time states, actions, tspans, sigmas = prepare_data(
+    EpisodeData(path = joinpath(data_path, "episode1/episode.bson")), 3)
+;
 
-data = EpisodeData(path = joinpath(data_path, "episode1/episode.bson"))
-s = data.states[end]
-a = data.actions[end]
-
-design_action = vcat(vec(s.design), vec(a))
-
-latent_elements = 256
-latent_dim = OneDim(s.dim.x[end], latent_elements)
-
-model = build_hypernet_control_model(
-    h_size = 256, 
-    act = gelu, 
-    latent_dim = latent_dim,
-    ambient_speed = AIR,
-    design_action_size = length(design_action),
-    dt = env.dt,
-    steps = env.integration_steps
-    ) |> gpu
-
-states, actions, tspans, sigmas = prepare_data(data, 3)
-
-idx = 10
+idx = 50
 
 s = gpu(states[idx])
 a = gpu(actions[idx])
-t = tspans[idx]
+tspan = gpu(tspans[idx])
 sigma = gpu(sigmas[idx])
+design_input = vcat(vec(s.design), vec(a[1])) |> gpu
 
-z = visualize_latent_wave!(latent_dim, model, s, a, t, path = "latent.png")
+dim = OneDim(15.0f0, 512)
 
-# render!(latent_dim, cpu(z), path = "vid.mp4")
+@time model = build_hypernet_wave_control_model(
+    dim,
+    design_input_size = length(design_input),
+    h_size = 512,
+    n_h = 2,
+    act = leakyrelu,
+    # speed_activation = elu_speed,
+    speed_activation = sigmoid_speed,
+    # speed_activation = softplus,
+    ambient_speed = AIR,
+    freq = 200.0f0,
+    pml_width = 5.0f0,
+    pml_scale = 5000.0f0,
+    dt = 5e-5,
+    steps = 100) |> gpu
 
-# z_wave = model(design_action)
-# # z_wave = model(s.wave_total)
+@time visualize_latent_wave!(model, dim, s, a, tspan, path = "latent")
 
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], aspect = 1.0f0)
-# lines!(ax1, latent_dim.x, z_wave[:, 1])
-
-# ax2 = Axis(fig[1, 2], aspect = 1.0f0)
-# lines!(ax2, latent_dim.x, z_wave[:, 2])
-
-# save("z_wave.png", fig)
-
-
-
-
-
-
-
-
-
-
-
-
-
-# model = Chain(
-#     SingleImageInput(),
-#     MeanPool((2, 2)),
-# )
-
-# sc = s.wave_total .- s.wave_incident
-
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], aspect = 1.0f0)
-# heatmap!(ax1, model(s.wave_total)[:, :, 1], colormap = :ice)
-
-# ax2 = Axis(fig[1, 2], aspect = 1.0f0)
-# heatmap!(ax2, model(sc)[:, :, 1], colormap = :ice)
-# save("wave.png", fig)
+# function train_loop(;
+#         model::WaveControlModel;
+#         train_steps::Int, ## only really effects validation
+#         val_steps::Int,
+#         epochs::Int
+#         decay_rate::Float32,
+#         decay_steps::Float32,
+#         opt,
+#         lr::Float32,
+#         )     
+# end

@@ -166,6 +166,10 @@ end
 function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
     fig, ax = plot_wave(dim, u[:, :, 1])
 
+    ax.title = "Latent Wave Displacement Animation"
+    ax.xlabel = "Space (m)"
+    ax.ylabel = "Displacement (m)"
+
     min_u = minimum(u[:, 1, :])
     max_u = maximum(u[:, 1, :])
 
@@ -174,7 +178,6 @@ function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
     else
         ylims!(ax, min_u, max_u)
     end
-    # ylims!(ax, -0.01, 0.01)
 
     record(fig, path, axes(u, 3), framerate = 60) do i
         empty!(ax)

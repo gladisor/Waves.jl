@@ -25,9 +25,9 @@ function build_mlp(in_size, h_size, n_h, out_size, act)
         )
 end
 
-function build_hypernet_wave_encoder(;h_size::Int, n_h::Int, act::Function, ambient_speed::Float32, dim::OneDim)
+function build_hypernet_wave_encoder(;nfreq::Int, h_size::Int, n_h::Int, act::Function, ambient_speed::Float32, dim::OneDim)
 
-    embedder = build_mlp(1, h_size, n_h, 3, act)
+    embedder = build_mlp(2 * nfreq, h_size, n_h, 3, act)
 
     ps, re = destructure(embedder)
 
@@ -47,14 +47,14 @@ function build_hypernet_wave_encoder(;h_size::Int, n_h::Int, act::Function, ambi
         Dense(512, length(ps), bias = false),
         vec,
         re,
-        Field(dim),
+        FrequencyDomain(dim, nfreq),
         z -> hcat(tanh.(z[:, 1]), tanh.(z[:, 2]) / ambient_speed, tanh.(z[:, 3]))
     )
 end
 
-function build_hypernet_design_encoder(;in_size, h_size, n_h, act, dim, speed_activation::Function)
+function build_hypernet_design_encoder(;nfreq, in_size, h_size, n_h, act, dim, speed_activation::Function)
 
-    embedder = build_mlp(1, h_size, n_h, 1, act)
+    embedder = build_mlp(2 * nfreq, h_size, n_h, 1, act)
 
     ps, re = destructure(embedder)
 
@@ -64,10 +64,9 @@ function build_hypernet_design_encoder(;in_size, h_size, n_h, act, dim, speed_ac
         act,
         Dense(h_size, length(ps), bias = false),
         re,
-        Field(dim),
+        FrequencyDomain(dim, nfreq),
         vec,
         speed_activation,
-        softplus
         )
 end
 
@@ -81,6 +80,7 @@ end
 function build_hypernet_wave_control_model(
         dim::OneDim; 
         design_input_size::Int,
+        nfreq::Int,
         h_size::Int,
         n_h::Int, 
         act::Function, 
@@ -94,6 +94,7 @@ function build_hypernet_wave_control_model(
         )
 
     wave_encoder = build_hypernet_wave_encoder(
+        nfreq = nfreq,
         h_size = h_size, 
         n_h = n_h, 
         act = act,
@@ -101,6 +102,7 @@ function build_hypernet_wave_control_model(
         dim = dim)
 
     design_encoder = build_hypernet_design_encoder(
+        nfreq = nfreq,
         in_size = design_input_size,
         h_size = h_size,
         n_h = n_h,
@@ -128,34 +130,30 @@ data_path = "data/hexagon_large_grid"
     EpisodeData(path = joinpath(data_path, "episode1/episode.bson")), 3)
 ;
 
-idx = 50
-
+idx = 35
 s = gpu(states[idx])
 a = gpu(actions[idx])
 tspan = gpu(tspans[idx])
 sigma = gpu(sigmas[idx])
 design_input = vcat(vec(s.design), vec(a[1])) |> gpu
 
-dim = OneDim(15.0f0, 512)
+# dim = OneDim(15.0f0, 512)
+# @time model = build_hypernet_wave_control_model(
+#     dim,
+#     design_input_size = length(design_input),
+#     nfreq = 2,
+#     h_size = 512,
+#     n_h = 2,
+#     act = leakyrelu,
+#     speed_activation = softplus,
+#     ambient_speed = AIR,
+#     freq = 200.0f0,
+#     pml_width = 5.0f0,
+#     pml_scale = 5000.0f0,
+#     dt = 5e-5,
+#     steps = 100) |> gpu
 
-@time model = build_hypernet_wave_control_model(
-    dim,
-    design_input_size = length(design_input),
-    h_size = 512,
-    n_h = 2,
-    act = leakyrelu,
-    # speed_activation = elu_speed,
-    speed_activation = sigmoid_speed,
-    # speed_activation = softplus,
-    ambient_speed = AIR,
-    freq = 200.0f0,
-    pml_width = 5.0f0,
-    pml_scale = 5000.0f0,
-    dt = 5e-5,
-    steps = 100) |> gpu
-
-@time visualize_latent_wave!(model, dim, s, a, tspan, path = "latent")
-
+@time visualize!(model, dim, s, a, tspan, sigma, path = "latent")
 # function train_loop(;
 #         model::WaveControlModel;
 #         train_steps::Int, ## only really effects validation

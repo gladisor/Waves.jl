@@ -1,7 +1,7 @@
 export DownBlock, UpBlock
 export DesignEncoder
 export WaveEncoder, WaveDecoder
-export WaveControlModel, encode_design, encode
+export WaveControlModel, propagate, encode_design, encode
 
 struct DownBlock
     conv1::Conv
@@ -136,12 +136,17 @@ function encode_design(model::WaveControlModel, design::AbstractDesign, a::Abstr
     return model.design_encoder(vcat(vec(design), vec(a) / scale))
 end
 
-function (model::WaveControlModel)(h::Tuple{AbstractMatrix{Float32}, AbstractDesign}, action::AbstractDesign)
-    z_wave, design = h
+function propagate(model::WaveControlModel, z_wave::AbstractMatrix{Float32}, design::AbstractDesign, action::AbstractDesign)
     z_design = encode_design(model, design, action)
     z = model.iter(hcat(z_wave, z_design))
+    return (z, z[:, [1, 2, 3], end], design + action)
+end
+
+function (model::WaveControlModel)(h::Tuple{AbstractMatrix{Float32}, AbstractDesign}, action::AbstractDesign)
+    z_wave, design = h
+    z, z_wave, design = propagate(model, z_wave, design, action)
     sigma = model.mlp(z)
-    return (z[:, [1, 2, 3], end], design + action), sigma
+    return (z_wave, design), sigma
 end
 
 function (model::WaveControlModel)(s::WaveEnvState, actions::Vector{<:AbstractDesign})

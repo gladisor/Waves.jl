@@ -6,65 +6,78 @@ function visualize_predictions!(model::WaveControlModel, s::WaveEnvState, a::Vec
     sigma_pred = model(s, a)
 
     for i in axes(tspan, 2)
-        lines!(ax, tspan[:, i], cpu(sigma[:, i]), color = :blue, label = "True")
-        lines!(ax, tspan[:, i], cpu(sigma_pred[:, i]), color = :orange, label = "Predicted")
+        lines!(ax, cpu(tspan[:, i]), cpu(sigma[:, i]), color = :blue, label = "True")
+        lines!(ax, cpu(tspan[:, i]), cpu(sigma_pred[:, i]), color = :orange, label = "Predicted")
     end
 
     save(path, fig)
 end
 
-function visualize_latent_wave!(model::WaveControlModel, latent_dim::OneDim, s::WaveEnvState, actions::Vector{<: AbstractDesign}, tspan::AbstractMatrix; path::String)
+function visualize!(model::WaveControlModel, dim::OneDim, s::WaveEnvState, actions::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
     path = mkpath(path)
 
     tspan = cpu(tspan)
-    tspan = vcat(tspan[1], vec(tspan[2:end, :]))
+    tspan_flat = vcat(tspan[1], vec(tspan[2:end, :]))
 
     z_wave = model.wave_encoder(s.wave_total)
-    h = (z_wave, s.design)
+    design = s.design
 
     zs = []
-
     for (i, a) in enumerate(actions)
-        z_wave, design = h
-
-        z_design = encode_design(model, design, a)
-        z = model.iter(hcat(z_wave, z_design))
-        h = (z[:, [1, 2, 3], end], design + a)
+        z, z_wave, design = propagate(model, z_wave, design, a)
 
         if i == 1
-            push!(zs, z)
+            push!(zs, cpu(z))
         else
-            push!(zs, z[:, :, 2:end])
+            push!(zs, cpu(z[:, :, 2:end]))
         end
     end
 
-    z = cpu(cat(zs..., dims = ndims(zs[1])))
+    z = cat(zs..., dims = ndims(zs[1]))
+    pred_sigma = cpu(model(s, a))
 
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], aspect = 1.0f0, ylabel = "Time (t)", title = "Displacement")
+    fig = Figure(resolution = (1920, 1080), fontsize = 30)
+    z_grid = fig[1, 1] = GridLayout()
 
-    if !(maximum(z[:, 1, :]) > minimum(z[:, 1, :]))
-        ylims!(ax1, -1.0f0, 1.0f0)
+    ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan_flat, z[:, 1, :], colormap = :ice)
+    Colorbar(z_grid[1, 2], hm1)
+    ax1.title = "Displacement"
+    ax1.ylabel = "Time (s)"
+    ax1.xticklabelsvisible = false
+    ax1.xticksvisible = false
+
+    ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan_flat, z[:, 2, :], colormap = :ice)
+    Colorbar(z_grid[1, 4], hm2)
+    ax2.title = "Velocity"
+    ax2.xticklabelsvisible = false
+    ax2.xticksvisible = false
+    ax2.yticklabelsvisible = false
+    ax2.yticksvisible = false
+
+    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan_flat, z[:, 3, :], colormap = :ice)
+    Colorbar(z_grid[2, 2], hm3)
+    ax3.title = "Force"
+    ax3.xlabel = "Distance (m)"
+    ax3.ylabel = "Time (s)"
+
+    ax4, hm4 = heatmap(z_grid[2, 3], dim.x, tspan_flat, z[:, 4, :], colormap = :ice)
+    Colorbar(z_grid[2, 4], hm4)
+    ax4.title = "Wave Speed"
+    ax4.xlabel = "Distance (m)"
+    ax4.yticklabelsvisible = false
+    ax4.yticksvisible = false
+
+    p_grid = fig[1, 2] = GridLayout()
+    p_axis = Axis(p_grid[1, 1], title = "Prediction of Scattered Energy Versus Ground Truth", xlabel = "Time (s)", ylabel = "Scattered Energy (σ)")
+
+    for i in axes(tspan, 2)
+        lines!(p_axis, tspan[:, i], cpu(sigma[:, i]), color = :blue, label = "True", linewidth = 3)
+        lines!(p_axis, tspan[:, i], pred_sigma[:, i], color = :orange, label = "Predicted", linewidth = 3)
     end
 
-    heatmap!(ax1, latent_dim.x, tspan, z[:, 1, :], colormap = :ice)
-
-    ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Velocity")
-    heatmap!(ax2, latent_dim.x, tspan, z[:, 2, :], colormap = :ice)
-
-    if !(maximum(z[:, 2, :]) > minimum(z[:, 2, :]))
-        ylims!(ax2, -1.0f0, 1.0f0)
-    end
-
-    ax3 = Axis(fig[2, 1], aspect = 1.0f0, xlabel = "Space (m)", ylabel = "Time (t)", title = "Force")
-    heatmap!(ax3, latent_dim.x, tspan, z[:, 3, :], colormap = :ice)
-
-    ax4 = Axis(fig[2, 2], aspect = 1.0f0, xlabel = "Space (m)", title = "Wave Speed")
-    heatmap!(ax4, latent_dim.x, tspan, z[:, 4, :], colormap = :ice)
     save(joinpath(path, "latent.png"), fig)
-
-    render!(latent_dim, z, path = joinpath(path, "latent.mp4"))
+    render!(dim, z, path = joinpath(path, "latent.mp4"))
     return nothing
 end
 
@@ -161,6 +174,25 @@ Flux.trainable(field::Field) = (;)
 
 function (field::Field)(m)
     return permutedims(m(field.dim.x'), (2, 1))
+end
+
+struct FrequencyDomain
+    domain::AbstractMatrix{Float32}
+end
+
+Flux.@functor FrequencyDomain
+Flux.trainable(::FrequencyDomain) = (;)
+
+function FrequencyDomain(dim::OneDim, nfreq::Int)
+    dim = cpu(dim)
+    L = dim.x[end] - dim.x[1]
+    frequencies = Float32.(collect(1:nfreq)) .* dim.x'
+    domain = vcat(sin.(frequencies), cos.(frequencies)) 
+    return FrequencyDomain(domain)
+end
+
+function (freq::FrequencyDomain)(m)
+    return permutedims(m(freq.domain), (2, 1))
 end
 
 struct SingleImageInput end

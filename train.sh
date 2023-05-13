@@ -12,4 +12,4 @@
 #SBATCH --mail-user=tristan.shah@sjsu.edu
 
 module load julia
-srun julia --project scripts/train.jl ## your run command
+srun julia --project scripts/test.jl ## your run command

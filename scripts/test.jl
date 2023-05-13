@@ -117,51 +117,165 @@ function build_hypernet_wave_control_model(
         pml_scale = pml_scale)
 
     iter = Integrator(runge_kutta, dynamics, 0.0f0, dt, steps)
-    mlp = Chain(flatten, build_mlp(4 * size(dim, 1), h_size, n_h, 1, act), vec)
+    mlp = Chain(
+        flatten, 
+        build_mlp(4 * size(dim, 1), h_size, n_h, 1, act), 
+        # act,
+        # Dense(h_size, 1)
+        vec)
 
     return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
 end
 
+function compute_gradient(model::WaveControlModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, sigma::AbstractMatrix{Float32}, loss_func::Function)
+    loss, back = pullback(_model -> loss_func(_model(s, a), sigma), model)
+    return (loss, back(one(loss))[1])
+end
+
+function train_loop(
+        model::WaveControlModel;
+        loss_func::Function,
+        train_steps::Int, ## only really effects validation frequency
+        train_loader::DataLoader,
+        val_steps::Int,
+        val_loader::DataLoader,
+        epochs::Int,
+        lr::AbstractFloat,
+        decay_rate::Float32,
+        latent_dim::OneDim,
+        evaluation_samples::Int,
+        checkpoint_every::Int,
+        path::String
+        )
+
+    opt = Optimisers.Adam(lr)
+    opt_state = Optimisers.setup(opt, model)
+
+    metrics = Dict(
+        :train_loss => Vector{Float32}(),
+        :val_loss => Vector{Float32}(),
+    )
+
+    for i in 1:epochs
+
+        epoch_loss = Vector{Float32}()
+
+        @showprogress for (j, (s, a, tspan, sigma)) in enumerate(train_loader)
+            loss, gs = compute_gradient(model, gpu(s[1]), gpu(a[1]), gpu(sigma[1]), loss_func)
+            opt_state, model = Optimisers.update(opt_state, model, gs)
+
+            push!(epoch_loss, loss)
+            if j == train_steps
+                break
+            end
+        end
+
+        opt_state = Optimisers.adjust(opt_state, lr * decay_rate ^ i)
+
+        push!(metrics[:train_loss], sum(epoch_loss) / train_steps)
+
+        epoch_loss = Vector{Float32}()
+        epoch_path = mkpath(joinpath(path, "epoch_$i"))
+
+        @showprogress for (j, (s, a, tspan, sigma)) in enumerate(val_loader)
+            s = gpu(s[1])
+            a = gpu(a[1])
+            tspan = tspan[1]
+            sigma = gpu(sigma[1])
+            
+            loss = loss_func(model(s, a), sigma)
+            push!(epoch_loss, loss)
+
+            if j <= evaluation_samples
+                latent_path = mkpath(joinpath(epoch_path, "latent_$j"))
+                visualize!(model, latent_dim, s, a, tspan, sigma, path = latent_path)
+            end
+
+            if j == val_steps
+                break
+            end
+        end
+
+        push!(metrics[:val_loss], sum(epoch_loss) / val_steps)
+
+
+        fig = Figure()
+        ax = Axis(fig[1,1], title = "Loss History", xlabel = "Epoch", ylabel = "Loss Value")
+        lines!(ax, metrics[:train_loss], color = :blue, label = "Train")
+        lines!(ax, metrics[:val_loss], color = :orange, label = "Val")
+        axislegend(ax)
+        save(joinpath(epoch_path, "loss.png"), fig)
+
+        train_loss = metrics[:train_loss][end]
+        val_loss = metrics[:val_loss][end]
+        println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
+
+        if i % checkpoint_every == 0 || i == epochs
+            checkpoint_path = mkpath(joinpath(epoch_path, "model"))
+            println("Checkpointing")
+            save(model, checkpoint_path)
+        end
+    end
+end
+
+Flux.device!(3)
+
 elu_speed(c) = 1.0f0 .+ elu.(c)
 sigmoid_speed(c, scale = 5.0f0) = 5.0f0 * sigmoid.(c)
+exp_speed(c) = exp.(c)
+
+nfreq = 2
+lr = 1e-5
+act = leakyrelu
+speed_activation = exp_speed
+pml_scale = 5000.0f0
+horizon = 5
+decay_rate = 0.98f0
 
 data_path = "data/hexagon_large_grid"
-@time states, actions, tspans, sigmas = prepare_data(
-    EpisodeData(path = joinpath(data_path, "episode1/episode.bson")), 3)
-;
-
+@time states, actions, tspans, sigmas = prepare_data(EpisodeData(path = joinpath(data_path, "episode1/episode.bson")), horizon)
 idx = 35
 s = gpu(states[idx])
 a = gpu(actions[idx])
-tspan = gpu(tspans[idx])
-sigma = gpu(sigmas[idx])
 design_input = vcat(vec(s.design), vec(a[1])) |> gpu
 
-# dim = OneDim(15.0f0, 512)
-# @time model = build_hypernet_wave_control_model(
-#     dim,
-#     design_input_size = length(design_input),
-#     nfreq = 2,
-#     h_size = 512,
-#     n_h = 2,
-#     act = leakyrelu,
-#     speed_activation = softplus,
-#     ambient_speed = AIR,
-#     freq = 200.0f0,
-#     pml_width = 5.0f0,
-#     pml_scale = 5000.0f0,
-#     dt = 5e-5,
-#     steps = 100) |> gpu
+grid_size = 20.0f0
+dim = OneDim(grid_size, 512)
+@time model = build_hypernet_wave_control_model(
+    dim,
+    design_input_size = length(design_input),
+    nfreq = nfreq,
+    h_size = 512,
+    n_h = nfreq,
+    act = act,
+    speed_activation = speed_activation,
+    ambient_speed = AIR,
+    freq = 200.0f0,
+    pml_width = 5.0f0,
+    pml_scale = pml_scale,
+    dt = 5e-5,
+    steps = 100) |> gpu
 
-@time visualize!(model, dim, s, a, tspan, sigma, path = "latent")
-# function train_loop(;
-#         model::WaveControlModel;
-#         train_steps::Int, ## only really effects validation
-#         val_steps::Int,
-#         epochs::Int
-#         decay_rate::Float32,
-#         decay_steps::Float32,
-#         opt,
-#         lr::Float32,
-#         )     
-# end
+## Loading data into memory
+println("Load Train Data")
+@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:150])
+println("Load Val Data")
+@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 151:200])
+
+## Establishing model path
+model_path = mkpath(joinpath(data_path, "models/freq_model_fixed_long/lr=$(lr)_decay_rate=$(decay_rate)_nfreq=$(nfreq)_act=$(act)_speedact=$(speed_activation)_pml_scale=$(pml_scale)_grid_size=$(grid_size)_horizon=$(horizon)"))
+
+train_loop(model,
+    loss_func = mse,
+    train_steps = 200,
+    train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true),
+    val_steps = 200,
+    val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true),
+    epochs = 1000,
+    lr = lr,
+    decay_rate = decay_rate,
+    evaluation_samples = 10,
+    checkpoint_every = 10,
+    latent_dim = dim,
+    path = model_path
+    )

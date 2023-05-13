@@ -15,8 +15,6 @@ end
 
 function visualize!(model::WaveControlModel, dim::OneDim, s::WaveEnvState, actions::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
-    path = mkpath(path)
-
     tspan = cpu(tspan)
     tspan_flat = vcat(tspan[1], vec(tspan[2:end, :]))
 
@@ -186,8 +184,8 @@ Flux.trainable(::FrequencyDomain) = (;)
 function FrequencyDomain(dim::OneDim, nfreq::Int)
     dim = cpu(dim)
     L = dim.x[end] - dim.x[1]
-    frequencies = Float32.(collect(1:nfreq)) .* dim.x'
-    domain = vcat(sin.(frequencies), cos.(frequencies)) 
+    frequencies = (Float32.(collect(1:nfreq)) .* dim.x') / L
+    domain = vcat(sin.(2.0f0 * pi * frequencies), cos.(2.0f0 * pi * frequencies))
     return FrequencyDomain(domain)
 end
 

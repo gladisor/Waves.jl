@@ -1,4 +1,0 @@
-Averaged over 5 episodes
-
-MPC: 364532.00188609335
-RANDOM: 913208.9265066175

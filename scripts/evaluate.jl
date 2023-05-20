@@ -42,25 +42,25 @@ function (mpc::MPC)(env::WaveEnv)
     return a[1]
 end
 
-Flux.device!(1)
+Flux.device!(0)
 
-data_path = "data/hexagon_large_grid"
+data_path = "data/old_configurations/hexagon_large_grid"
 model_path = joinpath(
     data_path, 
-    "models/speed_force_hypernet/h_size=512_elements=512_pml_width=5.0_pml_scale=5000.0_horizon=3_lr=1.0e-5_epochs=20_act=leakyrelu_num_train_episodes=50_decay=0.95/model9"
+    "models/freq_model_fixed_long/lr=5.0e-6_decay_rate=0.98_nfreq=2_act=leakyrelu_speedact=exp_speed_pml_scale=5000.0_grid_size=15.0/epoch_110/model"
     )
 
-# model = WaveControlModel(;path = model_path) |> gpu
+model = WaveControlModel(;path = model_path) |> gpu
 # env = BSON.load(joinpath(data_path, "env.bson"))[:env] |> gpu
-policy = RandomDesignPolicy(action_space(env))
-reset!(env)
+# policy = RandomDesignPolicy(action_space(env))
+# reset!(env)
 
-horizon = 3
-opt_steps = 2
-episodes = 5
-lr = 1e-3
-opt = Optimisers.Descent(lr)
-mpc = gpu(MPC(policy, model, opt, horizon, opt_steps))
+# horizon = 3
+# opt_steps = 2
+# episodes = 5
+# lr = 1e-3
+# opt = Optimisers.Descent(lr)
+# mpc = gpu(MPC(policy, model, opt, horizon, opt_steps))
 # @time episode = generate_episode_data(policy, env)
 # plot_sigma!(model, episode, path = "sigma.png")
 # states, actions, tspans, sigmas = prepare_data(episode, 3)

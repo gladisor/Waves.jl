@@ -4,7 +4,7 @@ export NoDesign
 export Scatterers, pos_design_space, radii_design_space, random_pos
 export Cloak
 export DesignInterpolator
-export ALUMINIUM, COPPER, BRASS, AIR
+export ALUMINIUM, COPPER, BRASS, AIR, WATER
 
 const MIN_RADII = 0.2f0
 const MAX_RADII = 1.0f0

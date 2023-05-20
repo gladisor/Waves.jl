@@ -64,7 +64,6 @@ function design_space(reset_design::RandomRadiiScattererRing, scale::Float32)
 end
 
 struct RandomCloak <: AbstractInitialDesign
-    # config::Union{RandomRadiiScattererRing, RandomRadiiScattererGrid}
     config::AbstractInitialDesign
     core::Scatterers
 end

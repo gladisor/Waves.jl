@@ -4,9 +4,9 @@ export WaveEncoder, WaveDecoder
 export WaveControlModel, propagate, encode_design, encode
 
 struct DownBlock
-    conv1::Conv
-    conv2::Conv
-    conv3::Conv
+    conv1::Chain#Conv
+    conv2::Chain#Conv
+    conv3::Chain#Conv
     pool::MaxPool
 end
 
@@ -14,9 +14,24 @@ Flux.@functor DownBlock
 
 function DownBlock(k::Int, in_channels::Int, out_channels::Int, activation::Function)
 
-    conv1 = Conv((k, k), in_channels => out_channels, activation, pad = SamePad())
-    conv2 = Conv((k, k), out_channels => out_channels, activation, pad = SamePad())
-    conv3 = Conv((k, k), out_channels => out_channels, activation, pad = SamePad())
+    conv1 = Chain(
+        Conv((k, k), in_channels => out_channels, pad = SamePad()),
+        # InstanceNorm(out_channels),
+        activation
+        )
+
+    conv2 = Chain(
+        Conv((k, k), out_channels => out_channels, pad = SamePad()),
+        # InstanceNorm(out_channels),
+        activation
+        )
+
+    conv3 = Chain(
+        Conv((k, k), out_channels => out_channels, pad = SamePad()),
+        # InstanceNorm(out_channels),
+        activation
+        )
+
     pool = MaxPool((2, 2))
 
     return DownBlock(conv1, conv2, conv3, pool)
@@ -132,8 +147,12 @@ end
 
 Flux.@functor WaveControlModel
 
-function encode_design(model::WaveControlModel, design::AbstractDesign, a::AbstractDesign, scale::Float32 = 0.25f0)
+function encode_design(model::WaveControlModel, design::AbstractDesign, a::AbstractDesign, scale::Float32 = 1.0f0)
     return model.design_encoder(vcat(vec(design), vec(a) / scale))
+end
+
+function encode_wave(model::WaveControlModel, s::WaveEnvState)
+    return model.wave_encoder(s.wave_total .- s.wave_incident)
 end
 
 function propagate(model::WaveControlModel, z_wave::AbstractMatrix{Float32}, design::AbstractDesign, action::AbstractDesign)

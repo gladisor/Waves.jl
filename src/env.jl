@@ -114,7 +114,13 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.wave_incident = u_incident[end]
 
     u_scattered = u_total .- u_incident
-    env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
+
+    cpudim = cpu(env.dim)
+
+    W = cpudim.x[end] - cpudim.x[1]
+    H = cpudim.y[end] - cpudim.y[1]
+    
+    env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0 #/ (W * H)
 
     env.time_step += env.integration_steps
     return (tspan, u_total)

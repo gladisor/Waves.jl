@@ -112,18 +112,37 @@ function plot_action_distribution!(
     save(path, fig)
 end
 
-function render!(dim::TwoDim, tspan::Vector{Float32}, u::Extrapolation, design::Union{Extrapolation, Nothing} = nothing; seconds::Float32 = 1.0f0, path::String)
+function render!(;
+        dim::TwoDim, 
+        tspan::Vector{Float32}, 
+        u_scattered::Extrapolation, 
+        u_incident::Union{Extrapolation, Nothing} = nothing, 
+        design::Union{Extrapolation, Nothing} = nothing, 
+        seconds::Float32 = 1.0f0, 
+        path::String)
+
     fig = Figure()
-    ax = Axis(fig[1, 1], aspect = 1.0f0)
+
+    ax1 = Axis(fig[1, 1], aspect = 1.0f0, title = "Scattered Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
+
+    if !isnothing(u_incident)
+        ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Incident Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
+    end
 
     frames = Int(round(FRAMES_PER_SECOND * seconds))
     tspan = range(tspan[1], tspan[end], frames)
 
     record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
-        empty!(ax)
-        heatmap!(ax, dim.x, dim.y, u(t)[:, :, 1], colormap = :ice)
+        empty!(ax1)
+        heatmap!(ax1, dim.x, dim.y, u_scattered(t)[:, :, 1], colormap = :ice)
+
+        if !isnothing(u_incident)
+            empty!(ax2)
+            heatmap!(ax2, dim.x, dim.y, u_incident(t)[:, :, 1], colormap = :ice)
+        end
+        
         if !isnothing(design)
-            mesh!(ax, design(t))
+            mesh!(ax1, design(t))
         end
     end
 
@@ -137,30 +156,42 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     design_times = [time(env)]
     designs = [cpu(env.total_dynamics.design(time(env)))]
 
-    tspan0, u0 = cpu(env(policy(env)))
-    tspans = [tspan0]
-    us = [u0]
+    tspan0, u_total_0, u_scattered_0 = cpu(env(policy(env)))
+
+    sol = Dict(
+        :tspan => [tspan0],
+        :total => [u_total_0],
+        :scattered => [u_scattered_0]
+    )
 
     while !is_terminated(env)
-        tspan, u = cpu(env(policy(env)))
+        tspan, u_total, u_scattered = cpu(env(policy(env)))
 
-        push!(tspans, tspan[2:end])
-        push!(us, u[2:end])
+        push!(sol[:tspan], tspan[2:end])
+        push!(sol[:total], u_total[2:end])
+        push!(sol[:scattered], u_scattered[2:end])
 
         push!(design_times, time(env))
         push!(designs, cpu(env.total_dynamics.design(time(env))))
     end
 
-    tspans = vcat(tspans...)
-    us = vcat(us...)
+    tspans = vcat(sol[:tspan]...)
+    u_total = vcat(sol[:total]...)
+    u_scattered = vcat(sol[:scattered]...)
 
     design_times = vcat(design_times...)
     designs = vcat(designs...)
 
-    sol = linear_interpolation(tspans, us)
+    u_total = linear_interpolation(tspans, u_total)
+    u_scattered = linear_interpolation(tspans, u_scattered)
     d = linear_interpolation(design_times, designs, extrapolation_bc = Flat())
 
-    render!(cpu(env.dim), tspans, sol, d; kwargs...)
+    render!(
+        dim = cpu(env.dim), 
+        tspan = tspans, 
+        u_scattered = u_scattered, 
+        design = d; 
+        kwargs...)
 end
 
 function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)

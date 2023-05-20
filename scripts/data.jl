@@ -38,7 +38,7 @@ function double_ring_cloak(x_offset::Float32)
     return RandomCloak(config, core)
 end
 
-Flux.device!(1)
+Flux.device!(0)
 
 grid_size = 15.0f0
 elements = 512
@@ -56,7 +56,7 @@ pulse = build_pulse(grid, -10.0f0, 0.0f0, 10.0f0)
 action_scale = 1.0f0
 pml_width = 5.0f0
 pml_scale = 10000.0f0
-actions = 200
+actions = 100
 integration_steps = 100
 
 println("Building WaveEnv")
@@ -72,14 +72,15 @@ env = gpu(WaveEnv(
     pml_scale = pml_scale,
     actions = actions,
     integration_steps = integration_steps,
-    dt = Float32(dt)))
+    dt = Float32(dt))
+    )
 
 policy = RandomDesignPolicy(action_space(env))
 
-data_path = mkpath("data/ambient_speed=water/dt=$dt/$design_func/episodes")
+data_path = mkpath("data/testing/dt=$dt/$design_func/episodes")
 
-# println("Rendering Example")
-# @time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
+println("Rendering Example")
+@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0)
 
 # println("Generating Data")
 # for i in 1:100

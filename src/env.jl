@@ -115,15 +115,14 @@ function (env::WaveEnv)(action::AbstractDesign)
 
     u_scattered = u_total .- u_incident
 
-    cpudim = cpu(env.dim)
-
-    W = cpudim.x[end] - cpudim.x[1]
-    H = cpudim.y[end] - cpudim.y[1]
+    # cpudim = cpu(env.dim)
+    # W = cpudim.x[end] - cpudim.x[1]
+    # H = cpudim.y[end] - cpudim.y[1]
     
     env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0 #/ (W * H)
 
     env.time_step += env.integration_steps
-    return (tspan, u_total)
+    return (tspan, u_incident, u_scattered)
 end
 
 function RLBase.state(env::WaveEnv)

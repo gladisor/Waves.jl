@@ -1,5 +1,6 @@
-abstract type AbstractDesignSpace end
+include("dependencies.jl")
 
-struct RandomRadiiCloak <: AbstractDesignSpace
-    
+struct DesignSpace{D <: AbstractDesign}
+    low::D
+    high::D
 end

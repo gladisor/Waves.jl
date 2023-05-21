@@ -7,8 +7,7 @@ export
     AbstractInitialWave, 
     AbstractInitialDesign, 
     AbstractDynamics,
-    AbstractSensor,
-    AbstractWaveControlModel
+    AbstractSensor
 
 using SparseArrays
 using IntervalSets
@@ -38,20 +37,18 @@ abstract type AbstractInitialDesign end
 abstract type AbstractDynamics end
 abstract type AbstractSensor end
 
-abstract type AbstractWaveControlModel end
-
 include("dims.jl")                          ## Core structures for defining dimensional spaces
 include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                           ## Perfectly Matched Layer
 
-include("designs.jl")
-include("sources.jl")
-include("initial_wave.jl")                  ## Pulses, waves, etc...
-include("initial_design.jl")
-include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
-include("env.jl")
+# include("designs.jl")
+# include("sources.jl")
+# include("initial_wave.jl")                  ## Pulses, waves, etc...
+# include("initial_design.jl")
+# include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
+# include("env.jl")
 
-include("data.jl")
-include("models.jl")                        ## modeling
+# include("data.jl")
+# include("models.jl")                        ## modeling
 end

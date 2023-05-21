@@ -12,9 +12,10 @@ using Optimisers
 using ChainRulesCore
 using ProgressMeter
 using FileIO
+
+using Distributions: Uniform
 using Waves
 
-abstract type AbstractWaveControlModel end
-
-include("wave_control_model.jl")
-include("plot.jl")
+include("../src/designs.jl")
+# include("wave_control_model.jl")
+# include("plot.jl")

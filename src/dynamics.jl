@@ -146,10 +146,16 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, action::AbstractDesign)
-    initial = dyn.design(tspan[1])
-    design = DesignInterpolator(initial, action, tspan[1], tspan[end])
-    return WaveDynamics(dyn.ambient_speed, design, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
+# function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, action::AbstractDesign)
+#     initial = dyn.design(tspan[1])
+#     design = DesignInterpolator(initial, action, tspan[1], tspan[end])
+#     return WaveDynamics(dyn.ambient_speed, design, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
+# end
+
+function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, design_space::DesignSpace, action::AbstractDesign)
+    design = dyn.design(tspan[1])
+    interp = DesignInterpolator(design, design_space(design, action), tspan[1], tspan[end])
+    return WaveDynamics(dyn.ambient_speed, interp, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
 end
 
 struct ForceLatentDynamics <: AbstractDynamics

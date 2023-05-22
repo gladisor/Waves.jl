@@ -15,7 +15,5 @@ using FileIO
 
 using Distributions: Uniform
 using Waves
-
-include("../src/designs.jl")
+# include("../src/designs.jl")
 # include("wave_control_model.jl")
-# include("plot.jl")

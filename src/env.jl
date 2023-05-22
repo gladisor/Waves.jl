@@ -27,8 +27,9 @@ end
 mutable struct WaveEnv <: AbstractEnv
     dim::AbstractDim
     reset_wave::AbstractInitialWave
-    reset_design::Union{AbstractInitialDesign, Function}
-    action_space::ClosedInterval
+
+    design_space::DesignSpace
+    action_speed::Float32 ## speed that action is applied over m/s
 
     sensor::AbstractSensor
 
@@ -50,32 +51,32 @@ Flux.@functor WaveEnv
 function WaveEnv(
         dim::TwoDim;
         reset_wave::AbstractInitialWave,
-        reset_design::Union{AbstractInitialDesign, Function},
-        action_space::ClosedInterval,
+        design_space::DesignSpace,
+        action_speed::Float32 = 500.0f0,
         source::AbstractSource = NoSource(),
         sensor::AbstractSensor = WaveImage(),
         ambient_speed::Float32 = AIR,
         pml_width::Float32 = 2.0f0,
         pml_scale::Float32 = 20000.0f0,
-        dt::Float32 = Float32(5e-5),
+        dt::Float32 = Float32(1e-5),
         integration_steps::Int = 100,
         actions::Int = 10
         )
 
     wave = reset_wave(build_wave(dim, fields = 6))
-
-    total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = reset_design(), source = source)
+    total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = rand(design_space), source = source)
     incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
-
     sigma = zeros(Float32, integration_steps + 1)
-    return WaveEnv(dim, reset_wave, reset_design, action_space, sensor, wave, wave, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
+    return WaveEnv(dim, reset_wave, design_space, action_speed, sensor, wave, wave, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
 end
 
 function Base.time(env::WaveEnv)
     return env.time_step * env.dt
 end
 
-build_tspan(env::WaveEnv) = build_tspan(time(env), env.dt, env.integration_steps)
+function build_tspan(env::WaveEnv) 
+    return build_tspan(time(env), env.dt, env.integration_steps)
+end
 
 function RLBase.is_terminated(env::WaveEnv)
     return env.time_step >= env.actions * env.integration_steps
@@ -85,7 +86,7 @@ function RLBase.reset!(env::WaveEnv)
     env.time_step = 0
     env.wave_total = gpu(env.reset_wave(env.wave_total))
     env.wave_incident = gpu(env.reset_wave(env.wave_incident))
-    design = gpu(DesignInterpolator(env.reset_design()))
+    design = gpu(DesignInterpolator(rand(env.design_space)))
 
     env.total_dynamics = WaveDynamics(
         env.total_dynamics.ambient_speed, 
@@ -103,7 +104,7 @@ end
 function (env::WaveEnv)(action::AbstractDesign)
     ti = time(env)
     tspan = build_tspan(ti, env.dt, env.integration_steps)
-    env.total_dynamics = update_design(env.total_dynamics, tspan, gpu(action))
+    env.total_dynamics = update_design(env.total_dynamics, tspan, env.design_space, gpu(action))
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
     u_total = unbatch(total_iter(env.wave_total))
@@ -114,12 +115,8 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.wave_incident = u_incident[end]
 
     u_scattered = u_total .- u_incident
-
-    # cpudim = cpu(env.dim)
-    # W = cpudim.x[end] - cpudim.x[1]
-    # H = cpudim.y[end] - cpudim.y[1]
     
-    env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0 #/ (W * H)
+    env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
 
     env.time_step += env.integration_steps
     return (tspan, u_incident, u_scattered)
@@ -139,7 +136,7 @@ function RLBase.state_space(env::WaveEnv)
 end
 
 function RLBase.action_space(env::WaveEnv)
-    return env.action_space
+    return build_action_space(rand(env.design_space), env.action_speed * env.dt * env.integration_steps)
 end
 
 function RLBase.reward(env::WaveEnv)
@@ -156,9 +153,10 @@ function episode_trajectory(env::WaveEnv)
 end
 
 mutable struct RandomDesignPolicy <: AbstractPolicy
-    action::ClosedInterval{<: AbstractDesign}
+    # action::ClosedInterval{<: AbstractDesign}
+    a_space::DesignSpace
 end
 
 function (policy::RandomDesignPolicy)(::WaveEnv)
-    return rand(policy.action)
+    return rand(policy.a_space)
 end

@@ -1,116 +1,116 @@
-export plot_episode_data!, plot_sigma!, render!
+# export plot_episode_data!, plot_sigma!, render!
 
 const FRAMES_PER_SECOND = 24
 
-function plot_wave(dim::OneDim, wave::AbstractVector{Float32}; ylims::Tuple = (-1.0f0, 1.0f0))
-    fig = Figure()
-    ax = Axis(fig[1, 1], aspect = 1.0f0)
-    xlims!(ax, dim.x[1], dim.x[end])
-    ylims!(ax, ylims...)
-    lines!(ax, dim.x, wave)
-    return fig, ax
-end
+# function plot_wave(dim::OneDim, wave::AbstractVector{Float32}; ylims::Tuple = (-1.0f0, 1.0f0))
+#     fig = Figure()
+#     ax = Axis(fig[1, 1], aspect = 1.0f0)
+#     xlims!(ax, dim.x[1], dim.x[end])
+#     ylims!(ax, ylims...)
+#     lines!(ax, dim.x, wave)
+#     return fig, ax
+# end
 
-function plot_wave(dim::OneDim, wave::AbstractMatrix{Float32}; kwargs...)
-    return plot_wave(dim, wave[:, 1]; kwargs...)
-end
+# function plot_wave(dim::OneDim, wave::AbstractMatrix{Float32}; kwargs...)
+#     return plot_wave(dim, wave[:, 1]; kwargs...)
+# end
 
-function plot_wave(dim::TwoDim, wave::AbstractMatrix{Float32})
-    fig = Figure()
-    ax = Axis(fig[1, 1], aspect = 1.0)
-    heatmap!(ax, dim.x, dim.y, wave, colormap = :ice)
-    return fig, ax
-end
+# function plot_wave(dim::TwoDim, wave::AbstractMatrix{Float32})
+#     fig = Figure()
+#     ax = Axis(fig[1, 1], aspect = 1.0)
+#     heatmap!(ax, dim.x, dim.y, wave, colormap = :ice)
+#     return fig, ax
+# end
 
-function plot_wave(dim::TwoDim, wave::AbstractArray{Float32, 3})
-    return plot_wave(dim, wave[:, :, 1])
-end
+# function plot_wave(dim::TwoDim, wave::AbstractArray{Float32, 3})
+#     return plot_wave(dim, wave[:, :, 1])
+# end
 
-function plot_episode_data!(episode_data::EpisodeData; cols::Int, path::String)
+# function plot_episode_data!(episode_data::EpisodeData; cols::Int, path::String)
 
-    fig = Figure(resolution = (1920, 1080))
+#     fig = Figure(resolution = (1920, 1080))
 
-    for i in axes(episode_data.states, 1)
-        dim = episode_data.states[i].dim
-        wave = episode_data.states[i].wave_total
-        design = episode_data.states[i].design
+#     for i in axes(episode_data.states, 1)
+#         dim = episode_data.states[i].dim
+#         wave = episode_data.states[i].wave_total
+#         design = episode_data.states[i].design
 
-        row = (i - 1) ÷ cols
-        col = (i - 1) % cols + 1
+#         row = (i - 1) ÷ cols
+#         col = (i - 1) % cols + 1
 
-        ax = Axis(fig[row, col], aspect = 1.0f0)
-        heatmap!(ax, dim.x, dim.y, wave[:, :, 1], colormap = :ice)
-        mesh!(ax, design)
-    end
+#         ax = Axis(fig[row, col], aspect = 1.0f0)
+#         heatmap!(ax, dim.x, dim.y, wave[:, :, 1], colormap = :ice)
+#         mesh!(ax, design)
+#     end
 
-    save(path, fig)
-    return nothing
-end
+#     save(path, fig)
+#     return nothing
+# end
 
-function plot_sigma!(episode::EpisodeData; path::String)
-    fig = Figure()
-    ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
+# function plot_sigma!(episode::EpisodeData; path::String)
+#     fig = Figure()
+#     ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
 
-    for i in 1:length(episode)
-        lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
-    end
+#     for i in 1:length(episode)
+#         lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
+#     end
 
-    save(path, fig)
-    return nothing
-end
+#     save(path, fig)
+#     return nothing
+# end
 
-function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String)
-    pred_sigmas = cpu([model(gpu(s), gpu(a)) for (s, a) in zip(episode.states, episode.actions)])
+# function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String)
+#     pred_sigmas = cpu([model(gpu(s), gpu(a)) for (s, a) in zip(episode.states, episode.actions)])
 
-    fig = Figure()
-    ax = Axis(fig[1, 1])
+#     fig = Figure()
+#     ax = Axis(fig[1, 1])
 
-    for i in 1:length(episode)
-        lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
-        lines!(ax, episode.tspans[i], pred_sigmas[i], color = :orange)
-    end
+#     for i in 1:length(episode)
+#         lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
+#         lines!(ax, episode.tspans[i], pred_sigmas[i], color = :orange)
+#     end
 
-    # lines!(ax, vcat(episode.tspans...), vcat(episode.sigmas...), color = :blue)
-    # lines!(ax, vcat(episode.tspans...), vcat(pred_sigmas...), color = :orange)
-    save(path, fig)
-    return nothing
-end
+#     # lines!(ax, vcat(episode.tspans...), vcat(episode.sigmas...), color = :blue)
+#     # lines!(ax, vcat(episode.tspans...), vcat(pred_sigmas...), color = :orange)
+#     save(path, fig)
+#     return nothing
+# end
 
-function plot_sigma!(
-        model::WaveControlModel, 
-        s::WaveEnvState, 
-        a::Vector{<: AbstractDesign}, 
-        tspan::AbstractMatrix{Float32},
-        sigma::AbstractMatrix{Float32};
-        path::String)
+# function plot_sigma!(
+#         model::WaveControlModel, 
+#         s::WaveEnvState, 
+#         a::Vector{<: AbstractDesign}, 
+#         tspan::AbstractMatrix{Float32},
+#         sigma::AbstractMatrix{Float32};
+#         path::String)
 
-    sigma_pred = model(s, a)
+#     sigma_pred = model(s, a)
 
-    fig = Figure()
-    ax = Axis(fig[1, 1])
+#     fig = Figure()
+#     ax = Axis(fig[1, 1])
 
-    for i in axes(sigma, 2)
-        lines!(ax, cpu(tspan[:, i]), cpu(sigma[:, i]), color = :blue)
-        lines!(ax, cpu(tspan[:, i]), cpu(sigma_pred[:, i]), color = :orange)
-    end
+#     for i in axes(sigma, 2)
+#         lines!(ax, cpu(tspan[:, i]), cpu(sigma[:, i]), color = :blue)
+#         lines!(ax, cpu(tspan[:, i]), cpu(sigma_pred[:, i]), color = :orange)
+#     end
 
-    save(path, fig)
-end
+#     save(path, fig)
+# end
 
-function plot_action_distribution!(
-    model::WaveControlModel,
-    policy::RandomDesignPolicy, 
-    env::WaveEnv; path::String)
+# function plot_action_distribution!(
+#     model::WaveControlModel,
+#     policy::RandomDesignPolicy, 
+#     env::WaveEnv; path::String)
 
-    fig = Figure()
-    ax = Axis(fig[1, 1])
+#     fig = Figure()
+#     ax = Axis(fig[1, 1])
 
-    for _ in 1:10
-        lines!(ax, cpu(model(state(env), gpu(policy(env)))))
-    end
+#     for _ in 1:10
+#         lines!(ax, cpu(model(state(env), gpu(policy(env)))))
+#     end
 
-    save(path, fig)
-end
+#     save(path, fig)
+# end
 
 function render!(;
         dim::TwoDim, 
@@ -189,7 +189,7 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     render!(
         dim = cpu(env.dim), 
         tspan = tspans, 
-        u_scattered = u_scattered, 
+        u_scattered = u_total, 
         design = d; 
         kwargs...)
 end
@@ -216,7 +216,7 @@ function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
     end
 end
 
-function render_latent_wave!(dim::OneDim, model::WaveControlModel, s::WaveEnvState, action::AbstractDesign; path::String)
-    z = cpu(model.iter(encode(model, s, action)))
-    render!(dim, z, path = path)
-end
+# function render_latent_wave!(dim::OneDim, model::WaveControlModel, s::WaveEnvState, action::AbstractDesign; path::String)
+#     z = cpu(model.iter(encode(model, s, action)))
+#     render!(dim, z, path = path)
+# end

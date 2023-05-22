@@ -29,10 +29,11 @@ using FileIO
 abstract type AbstractDim end
 
 abstract type AbstractDesign end
+abstract type AbstractScatterers <: AbstractDesign end
+
 abstract type AbstractSource end
 
 abstract type AbstractInitialWave end
-abstract type AbstractInitialDesign end
 
 abstract type AbstractDynamics end
 abstract type AbstractSensor end
@@ -42,10 +43,9 @@ include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                           ## Perfectly Matched Layer
 
-# include("designs.jl")
+include("designs.jl")
 # include("sources.jl")
 # include("initial_wave.jl")                  ## Pulses, waves, etc...
-# include("initial_design.jl")
 # include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
 # include("env.jl")
 

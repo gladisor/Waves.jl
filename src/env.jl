@@ -104,7 +104,10 @@ end
 function (env::WaveEnv)(action::AbstractDesign)
     ti = time(env)
     tspan = build_tspan(ti, env.dt, env.integration_steps)
-    env.total_dynamics = update_design(env.total_dynamics, tspan, env.design_space, gpu(action))
+
+    design = cpu(env.total_dynamics.design(ti))
+    interp = gpu(DesignInterpolator(design, env.design_space(design, action), ti, tspan[end]))
+    env.total_dynamics = update_design(env.total_dynamics, interp)
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
     u_total = unbatch(total_iter(env.wave_total))
@@ -119,16 +122,16 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
 
     env.time_step += env.integration_steps
-    return (tspan, u_incident, u_scattered)
+    return (tspan, cpu(u_incident), cpu(u_scattered))
 end
 
 function RLBase.state(env::WaveEnv)
     return env.sensor(WaveEnvState(
-        env.dim,
+        cpu(env.dim),
         build_tspan(env),
-        env.wave_total,
-        env.wave_incident,
-        env.total_dynamics.design(time(env))))
+        cpu(env.wave_total),
+        cpu(env.wave_incident),
+        cpu(env.total_dynamics.design(time(env)))))
 end
 
 function RLBase.state_space(env::WaveEnv)
@@ -153,7 +156,6 @@ function episode_trajectory(env::WaveEnv)
 end
 
 mutable struct RandomDesignPolicy <: AbstractPolicy
-    # action::ClosedInterval{<: AbstractDesign}
     a_space::DesignSpace
 end
 

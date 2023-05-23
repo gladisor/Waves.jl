@@ -47,17 +47,17 @@ const FRAMES_PER_SECOND = 24
 #     return nothing
 # end
 
-# function plot_sigma!(episode::EpisodeData; path::String)
-#     fig = Figure()
-#     ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
+function plot_sigma!(episode::EpisodeData; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
 
-#     for i in 1:length(episode)
-#         lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
-#     end
+    for i in 1:length(episode)
+        lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
+    end
 
-#     save(path, fig)
-#     return nothing
-# end
+    save(path, fig)
+    return nothing
+end
 
 # function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String)
 #     pred_sigmas = cpu([model(gpu(s), gpu(a)) for (s, a) in zip(episode.states, episode.actions)])
@@ -156,19 +156,19 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     design_times = [time(env)]
     designs = [cpu(env.total_dynamics.design(time(env)))]
 
-    tspan0, u_total_0, u_scattered_0 = cpu(env(policy(env)))
+    tspan0, u_incident_0, u_scattered_0 = cpu(env(policy(env)))
 
     sol = Dict(
         :tspan => [tspan0],
-        :total => [u_total_0],
+        :incident => [u_incident_0],
         :scattered => [u_scattered_0]
     )
 
     while !is_terminated(env)
-        tspan, u_total, u_scattered = cpu(env(policy(env)))
+        tspan, u_incident, u_scattered = cpu(env(policy(env)))
 
         push!(sol[:tspan], tspan[2:end])
-        push!(sol[:total], u_total[2:end])
+        push!(sol[:incident], u_incident[2:end])
         push!(sol[:scattered], u_scattered[2:end])
 
         push!(design_times, time(env))
@@ -176,20 +176,21 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     end
 
     tspans = vcat(sol[:tspan]...)
-    u_total = vcat(sol[:total]...)
+    u_incident = vcat(sol[:incident]...)
     u_scattered = vcat(sol[:scattered]...)
 
     design_times = vcat(design_times...)
     designs = vcat(designs...)
 
-    u_total = linear_interpolation(tspans, u_total)
+    u_incident = linear_interpolation(tspans, u_incident)
     u_scattered = linear_interpolation(tspans, u_scattered)
     d = linear_interpolation(design_times, designs, extrapolation_bc = Flat())
 
     render!(
         dim = cpu(env.dim), 
         tspan = tspans, 
-        u_scattered = u_total, 
+        u_scattered = u_scattered, 
+        u_incident = u_incident,
         design = d; 
         kwargs...)
 end

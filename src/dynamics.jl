@@ -152,9 +152,7 @@ end
 #     return WaveDynamics(dyn.ambient_speed, design, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
 # end
 
-function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, design_space::DesignSpace, action::AbstractDesign)
-    design = dyn.design(tspan[1])
-    interp = DesignInterpolator(design, design_space(design, action), tspan[1], tspan[end])
+function update_design(dyn::WaveDynamics, interp::DesignInterpolator)
     return WaveDynamics(dyn.ambient_speed, interp, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
 end
 

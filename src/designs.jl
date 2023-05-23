@@ -22,8 +22,6 @@ struct DesignSpace{D <: AbstractDesign}
     high::D
 end
 
-Flux.@functor DesignSpace
-
 function (space::DesignSpace)(design::AbstractDesign, action::AbstractDesign)
     return clamp(design + action, space.low, space.high)
 end

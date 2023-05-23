@@ -20,7 +20,7 @@ function generate_episode_data(policy::AbstractPolicy, env::WaveEnv)
     reset!(env)
 
     while !is_terminated(env)
-        action = gpu(policy(env))
+        action = policy(env)
         tspan = build_tspan(time(env), env.dt, env.integration_steps)
 
         push!(states, cpu(state(env)))

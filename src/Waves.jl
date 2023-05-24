@@ -44,11 +44,11 @@ include("operators.jl")
 include("pml.jl")                           ## Perfectly Matched Layer
 
 include("designs.jl")
-# include("sources.jl")
-# include("initial_wave.jl")                  ## Pulses, waves, etc...
-# include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
-# include("env.jl")
+include("sources.jl")
+include("initial_wave.jl")                  ## Pulses, waves, etc...
+include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
+include("env.jl")
 
-# include("data.jl")
+include("data.jl")
 # include("models.jl")                        ## modeling
 end

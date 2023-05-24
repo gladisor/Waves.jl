@@ -183,7 +183,6 @@ Flux.@functor Cloak
 Base.vec(cloak::Cloak) = vec(cloak.config) ## assumes core is static
 Base.:+(cloak::Cloak, action::AbstractScatterers) = Cloak(cloak.config + action, cloak.core)
 Base.:+(c1::Cloak, c2::Cloak) = Cloak(c1.config + c2.config, c1.core + c2.core)
-# Base.:*(n::Float32, cloak::Cloak) = Cloak(n * cloak.config, n * cloak.core)
 Base.:*(cloak::Cloak, n::AbstractFloat) = Cloak(cloak.config * n, cloak.core * n)
 
 Base.zero(cloak::Cloak) = Cloak(zero(cloak.config), zero(cloak.core))

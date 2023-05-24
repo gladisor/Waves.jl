@@ -50,5 +50,5 @@ include("dynamics.jl")                      ## Defines the dynamics of the wave 
 include("env.jl")
 
 include("data.jl")
-# include("models.jl")                        ## modeling
+include("models.jl")                        ## modeling
 end

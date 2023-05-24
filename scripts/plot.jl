@@ -1,4 +1,7 @@
 # export plot_episode_data!, plot_sigma!, render!
+using Interpolations
+using Interpolations: Extrapolation
+using CairoMakie
 
 const FRAMES_PER_SECOND = 24
 
@@ -190,7 +193,7 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
         dim = cpu(env.dim), 
         tspan = tspans, 
         u_scattered = u_scattered, 
-        u_incident = u_incident,
+        # u_incident = u_incident,
         design = d; 
         kwargs...)
 end

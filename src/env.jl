@@ -86,7 +86,8 @@ function RLBase.reset!(env::WaveEnv)
     env.time_step = 0
     env.wave_total = gpu(env.reset_wave(env.wave_total))
     env.wave_incident = gpu(env.reset_wave(env.wave_incident))
-    design = gpu(DesignInterpolator(rand(env.design_space)))
+    # design = gpu(DesignInterpolator(rand(env.design_space)))
+    design = DesignInterpolator(rand(env.design_space))
 
     env.total_dynamics = WaveDynamics(
         env.total_dynamics.ambient_speed, 
@@ -105,8 +106,11 @@ function (env::WaveEnv)(action::AbstractDesign)
     ti = time(env)
     tspan = build_tspan(ti, env.dt, env.integration_steps)
 
-    design = cpu(env.total_dynamics.design(ti))
-    interp = gpu(DesignInterpolator(design, env.design_space(design, action), ti, tspan[end]))
+    # design = cpu(env.total_dynamics.design(ti))
+    # interp = gpu(DesignInterpolator(design, env.design_space(design, action), ti, tspan[end]))
+    design = env.total_dynamics.design(ti)
+    interp = DesignInterpolator(design, env.design_space(design, gpu(action)), ti, tspan[end])
+
     env.total_dynamics = update_design(env.total_dynamics, interp)
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)

@@ -46,17 +46,16 @@ end
 function build_hypernet_wave_encoder(;nfreq::Int, h_size::Int, act::Function, ambient_speed::Float32, dim::OneDim)
     
     ## parameterizes three functions: displacement, velocity, and force
-    embedder = build_mlp(2 * nfreq, h_size, 2, 3, act)
+    embedder = Chain(
+        build_mlp(2 * nfreq, h_size, 2, activation), 
+        Dense(h_size, 3), Flux.Scale([1.0f0, 1.0f0/WATER, 1.0f0], bias = false)
+        )
 
     ps, re = destructure(embedder)
 
     return Chain(
         SingleImageInput(),
         MeanPool((4, 4)),
-        # DownBlock(3, 1, 32, act),
-        # DownBlock(3, 32, 64, act),
-        # DownBlock(2, 64, 128, act),
-        # DownBlock(2, 128, 256, act),
         build_residual_block(3, 1, 32, act),
         build_residual_block(3, 32, 64, act),
         build_residual_block(2, 64, 128, act),

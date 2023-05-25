@@ -22,6 +22,8 @@ struct DesignSpace{D <: AbstractDesign}
     high::D
 end
 
+Flux.@functor DesignSpace
+
 function (space::DesignSpace)(design::AbstractDesign, action::AbstractDesign)
     return clamp(design + action, space.low, space.high)
 end
@@ -30,16 +32,25 @@ end
 Defining abstract interface of AbstractDesign
 Overriding a scalar multiplication will implement the other direction. Also division.
 Implementing addition will automatically implement subtraction
+
+NEED TO IMPLEMENT:
++(design, design)
+*(design, design)
+*(design, scalar)
+/(scalar, design)
 """
 Base.:*(design::AbstractDesign, n::AbstractFloat) = Float32(n) * design
 Base.:*(n::AbstractFloat, design::AbstractDesign) = design * Float32(n)
-Base.:/(design::AbstractDesign, n::AbstractFloat) = design * (1.0f0/Float32(n))
 Base.:-(d1::AbstractDesign, d2::AbstractDesign) = d1 + (-1.0f0 * d2)
+Base.:/(design::AbstractDesign, n::AbstractFloat) = design * (1.0f0/Float32(n))
+Base.:/(d1::AbstractDesign, d2::AbstractDesign) = d1 * (1.0f0/d2)
 
 struct NoDesign <: AbstractDesign end
 Flux.@functor NoDesign
 Base.:+(::NoDesign, ::NoDesign) = NoDesign()
 Base.:*(::NoDesign, ::Float32) = NoDesign()
+Base.:*(::NoDesign, ::NoDesign) = NoDesign()
+Base.:/(n::Float32, ::NoDesign) = NoDesign()
 Base.zero(d::NoDesign) = d
 speed(::NoDesign, ::AbstractArray{Float32}, ambient_speed::Float32) = ambient_speed
 
@@ -58,8 +69,10 @@ Flux.@functor Cylinders
 """
 Defining minimal set of functions to create a vector space of Cylinders
 """
-Base.:*(cylinders::Cylinders, n::Float32) = Cylinders(cylinders.pos * n, cylinders.r * n, cylinders.c * n)
 Base.:+(c1::Cylinders, c2::Cylinders) = Cylinders(c1.pos .+ c2.pos, c1.r .+ c2.r, c1.c .+ c2.c)
+Base.:*(cylinders::Cylinders, n::Float32) = Cylinders(cylinders.pos * n, cylinders.r * n, cylinders.c * n)
+Base.:*(c1::Cylinders, c2::Cylinders) = Cylinders(c1.pos .* c2.pos, c1.r .* c2.r, c1.c .* c2.c)
+Base.:/(n::Float32, cylinders::Cylinders) = Cylinders(n ./ cylinders.pos, n ./ cylinders.r, n ./ cylinders.c)
 Base.zero(cyls::Cylinders) = Cylinders(cyls.pos * 0.0f0, cyls.r * 0.0f0, cyls.c * 0.0f0)
 Base.length(cyls::Cylinders) = length(cyls.r)
 Base.clamp(cyls::Cylinders, low::Cylinders, high::Cylinders) = Cylinders(clamp.(cyls.pos, low.pos, high.pos), clamp.(cyls.r, low.r, high.r), clamp.(cyls.c, low.c, high.c))
@@ -123,12 +136,20 @@ AdjustablePositionScatterers have adjusable position and fixed radii.
 
 These designs share many methods so they are linked by an abstract type.
 """
+function Base.:+(d1::S, d2::S) where S <: AbstractScatterers
+    return S(d1.cylinders + d2.cylinders)
+end
+
 function Base.:*(design::S, n::Float32) where S <: AbstractScatterers
     return S(design.cylinders * n)
 end
 
-function Base.:+(d1::S, d2::S) where S <: AbstractScatterers
-    return S(d1.cylinders + d2.cylinders)
+function Base.:*(d1::S, d2::S) where S <: AbstractScatterers
+    return S(d1.cylinders * d2.cylinders)
+end
+
+function Base.:/(n::Float32, design::S) where S <: AbstractScatterers
+    return S(n / design.cylinders)
 end
 
 function Base.zero(design::S) where S <: AbstractScatterers
@@ -183,7 +204,9 @@ Flux.@functor Cloak
 Base.vec(cloak::Cloak) = vec(cloak.config) ## assumes core is static
 Base.:+(cloak::Cloak, action::AbstractScatterers) = Cloak(cloak.config + action, cloak.core)
 Base.:+(c1::Cloak, c2::Cloak) = Cloak(c1.config + c2.config, c1.core + c2.core)
-Base.:*(cloak::Cloak, n::AbstractFloat) = Cloak(cloak.config * n, cloak.core * n)
+Base.:*(cloak::Cloak, n::Float32) = Cloak(cloak.config * n, cloak.core * n)
+Base.:*(c1::Cloak, c2::Cloak) = Cloak(c1.config * c2.config, c1.core * c2.core)
+Base.:/(n::Float32, cloak::Cloak) = Cloak(n / cloak.config, n / cloak.core)
 
 Base.zero(cloak::Cloak) = Cloak(zero(cloak.config), zero(cloak.core))
 Base.clamp(cloak::Cloak, low::Cloak, high::Cloak) = Cloak(clamp(cloak.config, low.config, high.config), clamp(cloak.core, low.core, high.core))
@@ -203,10 +226,32 @@ function uniform_scalar_sample(l::Float32, r::Float32)
     end
 end
 
+function get_device(x::AbstractArray)
+    if x isa LinearAlgebra.Adjoint
+        return Flux.device(x.parent)
+    else
+        return Flux.device(x)
+    end
+end
+
+function uniform_array_sample(l::AbstractArray, r::AbstractArray)
+    x = rand(eltype(low.pos), size(l))
+
+    if get_device(l) != Val{:cpu}()
+        x = gpu(x)
+    end
+
+    return x .* (r .- l) .+ l
+end
+
 function Base.rand(space::DesignSpace{Cylinders})
-    pos = uniform_scalar_sample.(space.low.pos, space.high.pos)
-    r = uniform_scalar_sample.(space.low.r, space.high.r)
-    c = uniform_scalar_sample.(space.low.c, space.high.c)
+    # pos = uniform_scalar_sample.(space.low.pos, space.high.pos)
+    # r = uniform_scalar_sample.(space.low.r, space.high.r)
+    # c = uniform_scalar_sample.(space.low.c, space.high.c)
+
+    pos = uniform_array_sample(space.low.pos, space.high.pos)
+    r = uniform_array_sample(space.low.r, space.high.r)
+    c = uniform_array_sample(space.low.c, space.high.c)
     return Cylinders(pos, r, c)
 end
 

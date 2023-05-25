@@ -64,15 +64,91 @@ function FrequencyDomain(dim::OneDim, nfreq::Int)
 end
 
 function (freq::FrequencyDomain)(m)
-    return permutedims(m(freq.domain), (2, 1))
+    return m(freq.domain)
 end
 
-function build_mlp(in_size::Int, h_size::Int, n_h::Int, out_size::Int, activation::Function)
+function build_mlp(in_size::Int, h_size::Int, n_h::Int, activation::Function)
 
     return Chain(
         NormalizedDense(in_size, h_size, activation),
-        [NormalizedDense(h_size, h_size, activation) for _ in 1:n_h]...,
-        Dense(h_size, out_size)
-        )
+        [NormalizedDense(h_size, h_size, activation) for _ in 1:n_h]...)
 end
 
+
+function build_hypernet_wave_encoder(;
+        latent_dim::OneDim,
+        nfreq::Int,
+        h_size::Int,
+        activation::Function,
+        input_layer::WaveInputLayer,
+        )
+
+    embedder = Chain(
+        build_mlp(2 * nfreq, h_size, 2, activation), 
+        Dense(h_size, 3, tanh)
+        )
+
+    ps, re = destructure(embedder)
+
+    model = Chain(
+        input_layer,
+        MaxPool((4, 4)),
+        ResidualBlock((3, 3), 1, 32, activation),
+        ResidualBlock((3, 3), 32, 64, activation),
+        ResidualBlock((3, 3), 64, 128, activation),
+        GlobalMaxPool(),
+        flatten,
+        NormalizedDense(128, 512, activation),
+        Dense(512, length(ps), bias = false),
+        vec,
+        re,
+        FrequencyDomain(latent_dim, nfreq),
+        Scale([1.0f0, 1.0f0/WATER, 1.0f0], false),
+        z -> permutedims(z, (2, 1))
+        )
+
+    return model
+end
+
+struct HypernetDesignEncoder
+    design_space::DesignSpace
+    action_space::DesignSpace
+    layers::Chain
+end
+
+Flux.@functor HypernetDesignEncoder
+
+function HypernetDesignEncoder(
+        design_space::DesignSpace,
+        action_space::DesignSpace,
+        nfreq::Int,
+        h_size::Int,
+        n_h::Int,
+        activation::Function,
+        latent_dim::OneDim)
+
+    embedder = Chain(
+        build_mlp(2 * nfreq, h_size, 2, activation),
+        Dense(h_size, 1, sigmoid))
+
+    ps, re = destructure(embedder)
+
+    in_size = length(vec(design_space.low)) + length(vec(action_space.low))
+
+    layers = Chain(
+        build_mlp(in_size, h_size, n_h, activation),
+        Dense(h_size, length(ps), bias = false),
+        re,
+        FrequencyDomain(latent_dim, nfreq),
+        vec,
+        )
+
+    return HypernetDesignEncoder(design_space, action_space, layers)
+end
+
+function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
+    d = (d - model.design_space.low) / (model.design_space.high - model.design_space.low)
+    a = (a - model.action_space.low) / (model.action_space.high - model.action_space.low)
+    x = vcat(vec(d), vec(a))
+    return model.layers(x)
+end

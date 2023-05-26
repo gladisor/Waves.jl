@@ -10,17 +10,25 @@ using Waves
 include("improved_model.jl")
 include("plot.jl")
 
-function overfit!(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix, lr)
+function compute_gradient(model::ScatteredEnergyModel, states::Vector{WaveEnvState}, actions::Vector{Vector{AdjustableRadiiScatterers}}, sigma::Vector{<:AbstractArray}, loss_func::Function)
+    loss, back = Flux.pullback(_model -> sum(loss_func.(_model.(states, actions), sigmas)), model)
+    return loss, back(one(loss))[1]
+end
+
+function overfit!(model::ScatteredEnergyModel, states, actions, tspans, sigmas, lr)
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, model)
 
-    for i in 1:100
-        loss, gs = compute_gradient(model, s, a, sigma, Flux.mse)
-        opt_state, model = Optimisers.update(opt_state, model, gs)
+    for i in 1:200
+        loss, back = Flux.pullback(_model -> sum(Flux.mse.(_model.(states, actions), sigmas)), model)
+        gs = back(one(loss))[1]
         println(loss)
+        opt_state, model = Optimisers.update(opt_state, model, gs)
     end
 
-    @time visualize!(model, s, a, tspan, sigma, path = "")
+    for (i, (s, a, tspan, sigma)) in enumerate(zip(states, actions, tspans, sigmas))
+        @time visualize!(model, s, a, tspan, sigma, path = mkpath("$i"))
+    end
 end
 
 Flux.device!(0)
@@ -93,12 +101,19 @@ model = ScatteredEnergyModel(
     env.design_space,
     mlp) |> gpu
 
-s = gpu(s)
-a = gpu(a)
-sigma = gpu(sigma)
+train_data = Flux.DataLoader(prepare_data(episode, 2), shuffle = true, batchsize = 10)
 
-# overfit!(model, s, a, tspan, sigma, 5e-6)
-loss, gs = compute_gradient(model, s, a, sigma, Flux.mse)
+batch = gpu(first(train_data))
+states, actions, tspans, sigmas = batch
+overfit!(model, states, actions, tspans, sigmas, 5e-6)
+
+# loss, gs = compute_gradient(model, s, a, sigma, Flux.mse)
+
+# function recursive_add(t1::NamedTuple, t2::NamedTuple)
+#     return (k => recursive_add(t1[k], t2[k]) for k in keys(t1))
+# end
+
+# added_gs = recursive_add(gs, gs)
 
 # function recursive_print(d::NamedTuple)
 #     for f in keys(d)

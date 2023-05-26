@@ -25,6 +25,7 @@ using ReinforcementLearning
 using ProgressMeter: @showprogress
 using BSON
 using FileIO
+import LinearAlgebra
 
 abstract type AbstractDim end
 

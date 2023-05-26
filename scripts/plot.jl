@@ -199,11 +199,11 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 end
 
 function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
-    fig, ax = plot_wave(dim, u[:, :, 1])
+    
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Latent Wave Displacement Animation", xlabel = "Space (m)", ylabel = "Displacement (m)")
 
-    ax.title = "Latent Wave Displacement Animation"
-    ax.xlabel = "Space (m)"
-    ax.ylabel = "Displacement (m)"
+    xlims!(ax, dim.x[1], dim.x[end])
 
     min_u = minimum(u[:, 1, :])
     max_u = maximum(u[:, 1, :])

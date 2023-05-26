@@ -39,6 +39,9 @@ NEED TO IMPLEMENT:
 *(design, scalar)
 /(scalar, design)
 """
+
+Base.:+(n::AbstractFloat, design::AbstractDesign) = design + n
+Base.:+(design::AbstractDesign, n::AbstractFloat) = n + design
 Base.:*(design::AbstractDesign, n::AbstractFloat) = Float32(n) * design
 Base.:*(n::AbstractFloat, design::AbstractDesign) = design * Float32(n)
 Base.:-(d1::AbstractDesign, d2::AbstractDesign) = d1 + (-1.0f0 * d2)
@@ -48,6 +51,7 @@ Base.:/(d1::AbstractDesign, d2::AbstractDesign) = d1 * (1.0f0/d2)
 struct NoDesign <: AbstractDesign end
 Flux.@functor NoDesign
 Base.:+(::NoDesign, ::NoDesign) = NoDesign()
+Base.:+(::NoDesign, ::Float32) = NoDesign()
 Base.:*(::NoDesign, ::Float32) = NoDesign()
 Base.:*(::NoDesign, ::NoDesign) = NoDesign()
 Base.:/(n::Float32, ::NoDesign) = NoDesign()
@@ -70,6 +74,7 @@ Flux.@functor Cylinders
 Defining minimal set of functions to create a vector space of Cylinders
 """
 Base.:+(c1::Cylinders, c2::Cylinders) = Cylinders(c1.pos .+ c2.pos, c1.r .+ c2.r, c1.c .+ c2.c)
+Base.:+(cylinders::Cylinders, n::Float32) = Cylinders(cylinders.pos .+ n, cylinders.r .+ n, cylinders.c .+ n)
 Base.:*(cylinders::Cylinders, n::Float32) = Cylinders(cylinders.pos * n, cylinders.r * n, cylinders.c * n)
 Base.:*(c1::Cylinders, c2::Cylinders) = Cylinders(c1.pos .* c2.pos, c1.r .* c2.r, c1.c .* c2.c)
 Base.:/(n::Float32, cylinders::Cylinders) = Cylinders(n ./ cylinders.pos, n ./ cylinders.r, n ./ cylinders.c)
@@ -140,6 +145,10 @@ function Base.:+(d1::S, d2::S) where S <: AbstractScatterers
     return S(d1.cylinders + d2.cylinders)
 end
 
+function Base.:+(design::S, n::Float32) where S <: AbstractScatterers
+    return S(design.cylinders + n)
+end
+
 function Base.:*(design::S, n::Float32) where S <: AbstractScatterers
     return S(design.cylinders * n)
 end
@@ -204,6 +213,7 @@ Flux.@functor Cloak
 Base.vec(cloak::Cloak) = vec(cloak.config) ## assumes core is static
 Base.:+(cloak::Cloak, action::AbstractScatterers) = Cloak(cloak.config + action, cloak.core)
 Base.:+(c1::Cloak, c2::Cloak) = Cloak(c1.config + c2.config, c1.core + c2.core)
+Base.:+(cloak::Cloak, n::Float32) = Cloak(cloak.config + n, cloak.core + n)
 Base.:*(cloak::Cloak, n::Float32) = Cloak(cloak.config * n, cloak.core * n)
 Base.:*(c1::Cloak, c2::Cloak) = Cloak(c1.config * c2.config, c1.core * c2.core)
 Base.:/(n::Float32, cloak::Cloak) = Cloak(n / cloak.config, n / cloak.core)
@@ -218,14 +228,6 @@ function CairoMakie.mesh!(ax::Axis, design::Cloak)
     mesh!(ax, design.core)
 end
 
-function uniform_scalar_sample(l::Float32, r::Float32)
-    if l < r
-        return rand(Uniform(l, r))
-    else
-        return l
-    end
-end
-
 function get_device(x::AbstractArray)
     if x isa LinearAlgebra.Adjoint
         return Flux.device(x.parent)
@@ -235,7 +237,7 @@ function get_device(x::AbstractArray)
 end
 
 function uniform_array_sample(l::AbstractArray, r::AbstractArray)
-    x = rand(eltype(low.pos), size(l))
+    x = rand(eltype(l), size(l))
 
     if get_device(l) != Val{:cpu}()
         x = gpu(x)
@@ -245,10 +247,6 @@ function uniform_array_sample(l::AbstractArray, r::AbstractArray)
 end
 
 function Base.rand(space::DesignSpace{Cylinders})
-    # pos = uniform_scalar_sample.(space.low.pos, space.high.pos)
-    # r = uniform_scalar_sample.(space.low.r, space.high.r)
-    # c = uniform_scalar_sample.(space.low.c, space.high.c)
-
     pos = uniform_array_sample(space.low.pos, space.high.pos)
     r = uniform_array_sample(space.low.r, space.high.r)
     c = uniform_array_sample(space.low.c, space.high.c)

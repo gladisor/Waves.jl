@@ -130,7 +130,6 @@ function HypernetDesignEncoder(
         action_space::DesignSpace,
         nfreq::Int,
         h_size::Int,
-        n_h::Int,
         activation::Function,
         latent_dim::OneDim)
 
@@ -147,17 +146,6 @@ function HypernetDesignEncoder(
     in_size = length(vec(design_space.low)) + length(vec(action_space.low))
 
     layers = Chain(
-        # Dense(in_size, h_size, activation),
-        # LayerNorm(h_size),
-        # Dense(h_size, h_size, activation),
-        # LayerNorm(h_size),
-        # Dense(h_size, h_size, activation),
-        # LayerNorm(h_size),
-        # Dense(h_size, h_size, activation),
-        # LayerNorm(h_size),
-        # Dense(h_size, h_size, activation),
-        # LayerNorm(h_size),
-
         NormalizedDense(in_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
@@ -243,9 +231,9 @@ function (model::ScatteredEnergyModel)(s::WaveEnvState, a::Vector{<:AbstractDesi
     return hcat([recur(action) for action in a]...)
 end
 
-function compute_gradient(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, sigma::AbstractMatrix{Float32}, loss_func::Function)
-    loss, back = Flux.pullback(_model -> loss_func(_model(s, a), sigma), model)
-    return (loss, back(one(loss))[1])
+function compute_gradient(model::ScatteredEnergyModel, states, actions, sigmas, loss_func::Function)
+    loss, back = Flux.pullback(_model -> sum(loss_func.(_model.(states, actions), sigmas)), model)
+    return loss, back(one(loss))[1]
 end
 
 function visualize!(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
@@ -315,4 +303,106 @@ function visualize!(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: A
     save(joinpath(path, "latent.png"), fig)
     render!(dim, z, path = joinpath(path, "latent.mp4"))
     return nothing
+end
+
+function overfit!(model::ScatteredEnergyModel, states, actions, tspans, sigmas, lr)
+    opt = Optimisers.Adam(lr)
+    opt_state = Optimisers.setup(opt, model)
+
+    for i in 1:200
+        loss, gs = compute_gradient(model, states, actions, sigmas, Flux.mse)
+        println(loss)
+        opt_state, model = Optimisers.update(opt_state, model, gs)
+    end
+
+    for (i, (s, a, tspan, sigma)) in enumerate(zip(states, actions, tspans, sigmas))
+        @time visualize!(model, s, a, tspan, sigma, path = mkpath("$i"))
+    end
+end
+
+function train_loop(
+        model::ScatteredEnergyModel;
+        loss_func::Function,
+        train_steps::Int, ## only really effects validation frequency
+        train_loader::DataLoader,
+        val_steps::Int,
+        val_loader::DataLoader,
+        epochs::Int,
+        lr::AbstractFloat,
+        decay_rate::Float32,
+        latent_dim::OneDim,
+        evaluation_samples::Int,
+        checkpoint_every::Int,
+        path::String
+        )
+
+    opt = Optimisers.Adam(lr)
+    opt_state = Optimisers.setup(opt, model)
+
+    metrics = Dict(
+        :train_loss => Vector{Float32}(),
+        :val_loss => Vector{Float32}(),
+    )
+
+    for i in 1:epochs
+
+        epoch_loss = Vector{Float32}()
+
+        @showprogress for (j, batch) in enumerate(train_loader)
+            states, actions, tspans, sigmas = gpu(batch)
+
+            loss, gs = compute_gradient(model, states, actions, sigmas, loss_func)
+            push!(epoch_loss, loss)
+
+            opt_state, model = Optimisers.update(opt_state, model, gs)
+
+            if j == train_steps
+                break
+            end
+        end
+
+        opt_state = Optimisers.adjust(opt_state, lr * decay_rate ^ i)
+
+        push!(metrics[:train_loss], sum(epoch_loss) / train_steps)
+
+        epoch_loss = Vector{Float32}()
+        epoch_path = mkpath(joinpath(path, "epoch_$i"))
+
+        @showprogress for (j, batch) in enumerate(val_loader)
+            states, actions, tspans, sigmas = gpu(batch)
+
+            loss = sum(loss_func.(model(states, actions), sigmas))
+            push!(epoch_loss, loss)
+
+            if j <= evaluation_samples
+                latent_path = mkpath(joinpath(epoch_path, "latent_$j"))
+                for (i, (s, a, tspan, sigma)) in enumerate(zip(states, actions, tspans, sigmas))
+                    @time visualize!(model, s, a, tspan, sigma, path = mkpath(joinpath(latent_path, "$i")))
+                end
+            end
+
+            if j == val_steps
+                break
+            end
+        end
+
+        push!(metrics[:val_loss], sum(epoch_loss) / val_steps)
+
+        fig = Figure()
+        ax = Axis(fig[1,1], title = "Loss History", xlabel = "Epoch", ylabel = "Loss Value")
+        lines!(ax, metrics[:train_loss], color = :blue, label = "Train")
+        lines!(ax, metrics[:val_loss], color = :orange, label = "Val")
+        axislegend(ax)
+        save(joinpath(epoch_path, "loss.png"), fig)
+
+        train_loss = metrics[:train_loss][end]
+        val_loss = metrics[:val_loss][end]
+        println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
+
+        # if i % checkpoint_every == 0 || i == epochs
+        #     checkpoint_path = mkpath(joinpath(epoch_path, "model"))
+        #     println("Checkpointing")
+        #     save(model, checkpoint_path)
+        # end
+    end
 end

@@ -348,7 +348,7 @@ function train_loop(
 
         epoch_loss = Vector{Float32}()
 
-        @showprogress for (j, batch) in enumerate(train_loader)
+        for (j, batch) in enumerate(train_loader)
             states, actions, tspans, sigmas = gpu(batch)
 
             loss, gs = compute_gradient(model, states, actions, sigmas, loss_func)
@@ -368,10 +368,10 @@ function train_loop(
         epoch_loss = Vector{Float32}()
         epoch_path = mkpath(joinpath(path, "epoch_$i"))
 
-        @showprogress for (j, batch) in enumerate(val_loader)
+        for (j, batch) in enumerate(val_loader)
             states, actions, tspans, sigmas = gpu(batch)
 
-            loss = sum(loss_func.(model(states, actions), sigmas))
+            loss = sum(loss_func.(model.(states, actions), sigmas))
             push!(epoch_loss, loss)
 
             if j <= evaluation_samples
@@ -399,10 +399,9 @@ function train_loop(
         val_loss = metrics[:val_loss][end]
         println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
 
-        # if i % checkpoint_every == 0 || i == epochs
-        #     checkpoint_path = mkpath(joinpath(epoch_path, "model"))
-        #     println("Checkpointing")
-        #     save(model, checkpoint_path)
-        # end
+        if i % checkpoint_every == 0 || i == epochs
+            println("Checkpointing")
+            BSON.@save joinpath(epoch_path, "model.bson") model
+        end
     end
 end

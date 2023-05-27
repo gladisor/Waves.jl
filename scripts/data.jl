@@ -37,7 +37,7 @@ pulse_x = -10.0f0
 pulse_y = 0.0f0
 pulse_intensity = 10.0f0
 ## number of episodes to generate
-episodes = 100
+episodes = 200
 ## declaring name of dataset
 name = "single_cylinder_dataset"
 

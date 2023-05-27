@@ -235,7 +235,7 @@ function (model::ScatteredEnergyModel)(s::WaveEnvState, a::Vector{<:AbstractDesi
     return hcat([recur(action) for action in a]...)
 end
 
-function compute_gradient(model::ScatteredEnergyModel, states, actions, sigmas, loss_func::Function)
+function compute_gradient(model, states, actions, sigmas, loss_func::Function)
     loss, back = Flux.pullback(_model -> sum(loss_func.(_model.(states, actions), sigmas)), model)
     return loss, back(one(loss))[1]
 end
@@ -309,7 +309,7 @@ function visualize!(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: A
     return nothing
 end
 
-function overfit!(model::ScatteredEnergyModel, states, actions, tspans, sigmas, lr)
+function overfit!(model, states, actions, tspans, sigmas, lr)
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, model)
 

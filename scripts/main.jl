@@ -36,40 +36,17 @@ horizon = 3
 wave_input_layer = TotalWaveInput()
 batchsize = 10
 pml_scale = 10000.0f0
-lr = 1e-6
+lr = 5e-6
 decay_rate = 1.0f0
 MODEL_PATH = mkpath(joinpath(main_path, "models/nfreq=$(nfreq)_hsize=$(h_size)_act=$(activation)_gs=$(latent_grid_size)_ele=$(latent_elements)_hor=$(horizon)_in=$(wave_input_layer)_bs=$(batchsize)_pml=$(pml_scale)_lr=$(lr)_decay=$(decay_rate)"))
-
 steps = 20
 epochs = 1000
 
 latent_dim = OneDim(latent_grid_size, latent_elements)
 
-wave_encoder = build_hypernet_wave_encoder(
-    latent_dim = latent_dim,
-    input_layer = wave_input_layer,
-    nfreq = nfreq,
-    h_size = h_size,
-    activation = activation
-    )
-
-design_encoder = HypernetDesignEncoder(
-    env.design_space, 
-    action_space(env), 
-    nfreq, 
-    h_size, 
-    activation, 
-    latent_dim
-    )
-
-dynamics = LatentDynamics(
-    latent_dim,
-    ambient_speed = env.total_dynamics.ambient_speed,
-    freq = env.total_dynamics.source.freq,
-    pml_width = 5.0f0,
-    pml_scale = pml_scale
-    )
-
+wave_encoder = build_hypernet_wave_encoder(latent_dim = latent_dim, input_layer = wave_input_layer, nfreq = nfreq, h_size = h_size, activation = activation)
+design_encoder = HypernetDesignEncoder(env.design_space, action_space(env), nfreq, h_size, activation, latent_dim)
+dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = 5.0f0, pml_scale = pml_scale)
 iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
 
 mlp = Chain( ## normalization in these layers seems to harm?
@@ -82,13 +59,7 @@ mlp = Chain( ## normalization in these layers seems to harm?
     vec
     )
 
-model = ScatteredEnergyModel(
-    wave_encoder, 
-    design_encoder, 
-    latent_dim, 
-    iter, 
-    env.design_space,
-    mlp)# |> gpu
+model = ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter, env.design_space, mlp)# |> gpu
 
 train_data = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
 val_data = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize)
@@ -96,27 +67,21 @@ val_data = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize
 states, actions, tspans, sigmas = first(val_data) |> gpu
 
 struct LatentSeparation
-    base::ScatteredEnergyModel
+    total::ScatteredEnergyModel
     incident_encoder::Chain
 end
 
 Flux.@functor LatentSeparation
 
 function (ls::LatentSeparation)(s::WaveEnvState, a::Vector{<: AbstractDesign})
-    return ls.base(s, a)
+    latent_state = ls.total.wave_encoder(s) .- ls.incident_encoder(s)
+    recur = Recur(ls.total, (latent_state, s.design))
+    return hcat([recur(action) for action in a]...)
 end
 
-incident_encoder = build_hypernet_wave_encoder(
-    latent_dim = latent_dim,
-    input_layer = IncidentWaveInput(),
-    nfreq = nfreq,
-    h_size = h_size,
-    activation = activation
-    )
-
+incident_encoder = build_hypernet_wave_encoder(latent_dim = latent_dim, input_layer = IncidentWaveInput(), nfreq = nfreq, h_size = h_size, activation = activation)
 ls = LatentSeparation(model, incident_encoder) |> gpu
-
-ls.(states, actions)
+y = ls.(states, actions)
 
 # train_loop(
 #     model,

@@ -6,6 +6,10 @@ struct TotalWaveInput <: WaveInputLayer end
 Flux.@functor TotalWaveInput
 (input::TotalWaveInput)(s::WaveEnvState) = s.wave_total[:, :, :, :]
 
+struct IncidentWaveInput <: WaveInputLayer end
+Flux.@functor IncidentWaveInput
+(input::IncidentWaveInput)(s::WaveEnvState) = s.wave_incident[:, :, :, :]
+
 struct ScatteredWaveInput <: WaveInputLayer end
 Flux.@functor ScatteredWaveInput
 (input::ScatteredWaveInput)(s::WaveEnvState) = s.wave_total[:, :, :, :] .- s.wave_incident[:, :, :, :]

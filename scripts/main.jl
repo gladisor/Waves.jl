@@ -9,7 +9,7 @@ using Waves
 include("improved_model.jl")
 include("plot.jl")
 
-Flux.device!(3)
+Flux.device!(0)
 
 main_path = "data/single_cylinder_dataset"
 data_path = joinpath(main_path, "episodes")
@@ -21,9 +21,11 @@ reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 
 println("Load Train Data")
-@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:40])
+@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:1#40
+    ])
 println("Load Val Data")
-@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 41:52])
+@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 2:3#41:52
+    ])
 
 nfreq = 6
 h_size = 256
@@ -42,6 +44,7 @@ steps = 20
 epochs = 1000
 
 latent_dim = OneDim(latent_grid_size, latent_elements)
+
 wave_encoder = build_hypernet_wave_encoder(
     latent_dim = latent_dim,
     input_layer = wave_input_layer,
@@ -85,23 +88,48 @@ model = ScatteredEnergyModel(
     latent_dim, 
     iter, 
     env.design_space,
-    mlp) |> gpu
+    mlp)# |> gpu
 
 train_data = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
 val_data = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize)
 
-train_loop(
-    model,
-    loss_func = Flux.mse,
-    train_steps = steps,
-    train_loader = train_data,
-    val_steps = steps,
-    val_loader = val_data,
-    epochs = epochs,
-    lr = lr,
-    decay_rate = decay_rate,
+states, actions, tspans, sigmas = first(val_data) |> gpu
+
+struct LatentSeparation
+    base::ScatteredEnergyModel
+    incident_encoder::Chain
+end
+
+Flux.@functor LatentSeparation
+
+function (ls::LatentSeparation)(s::WaveEnvState, a::Vector{<: AbstractDesign})
+    return ls.base(s, a)
+end
+
+incident_encoder = build_hypernet_wave_encoder(
     latent_dim = latent_dim,
-    evaluation_samples = 1,
-    checkpoint_every = 1,
-    path = MODEL_PATH
+    input_layer = IncidentWaveInput(),
+    nfreq = nfreq,
+    h_size = h_size,
+    activation = activation
     )
+
+ls = LatentSeparation(model, incident_encoder) |> gpu
+
+ls.(states, actions)
+
+# train_loop(
+#     model,
+#     loss_func = Flux.mse,
+#     train_steps = steps,
+#     train_loader = train_data,
+#     val_steps = steps,
+#     val_loader = val_data,
+#     epochs = epochs,
+#     lr = lr,
+#     decay_rate = decay_rate,
+#     latent_dim = latent_dim,
+#     evaluation_samples = 1,
+#     checkpoint_every = 1,
+#     path = MODEL_PATH
+#     )

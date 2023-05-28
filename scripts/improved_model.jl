@@ -240,27 +240,34 @@ function compute_gradient(model, states, actions, sigmas, loss_func::Function)
     return loss, back(one(loss))[1]
 end
 
-function visualize!(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
+function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
     tspan = cpu(tspan)
     tspan_flat = vcat(tspan[1], vec(tspan[2:end, :]))
 
-    latent_state = model.wave_encoder(s)
+    # latent_state = model.wave_encoder(s)
+    latent_state = (model.total.wave_encoder(s), model.incident_encoder(s))
     design = s.design
 
     zs = []
     for (i, action) in enumerate(a)
-        z, design = propagate(model, latent_state, design, action)
-        latent_state = z[:, [1, 2, 3], end]
+        # z, design = propagate(model, latent_state, design, action)
+        # latent_state = z[:, [1, 2, 3], end]
+
+        z_tot, z_inc, design = propagate(model, latent_state, design, action)
+        latent_state = (z_tot[:, [1,2,3], end], z_inc[:, [1,2,3], end])
 
         if i == 1
-            push!(zs, cpu(z))
+            # push!(zs, cpu(z))
+            push!(zs, cpu(z_tot .- z_inc))
         else
-            push!(zs, cpu(z[:, :, 2:end]))
+            # push!(zs, cpu(z[:, :, 2:end]))
+            push!(zs, cpu(z_tot[:, :, 2:end] .- z_inc[:, :, 2:end]))
         end
     end
 
-    dim = cpu(model.latent_dim)
+    # dim = cpu(model.latent_dim)
+    dim = cpu(model.total.latent_dim)
 
     z = cat(zs..., dims = ndims(zs[1]))
     pred_sigma = cpu(model(s, a))
@@ -313,7 +320,7 @@ function overfit!(model, states, actions, tspans, sigmas, lr)
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, model)
 
-    for i in 1:200
+    for i in 1:100
         loss, gs = compute_gradient(model, states, actions, sigmas, Flux.mse)
         println(loss)
         opt_state, model = Optimisers.update(opt_state, model, gs)
@@ -325,7 +332,7 @@ function overfit!(model, states, actions, tspans, sigmas, lr)
 end
 
 function train_loop(
-        model::ScatteredEnergyModel;
+        model; #::ScatteredEnergyModel;
         loss_func::Function,
         train_steps::Int, ## only really effects validation frequency
         train_loader::DataLoader,

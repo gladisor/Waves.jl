@@ -95,7 +95,9 @@ function build_hypernet_wave_encoder(;
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
-        Dense(h_size, 3, tanh)
+        Dense(h_size, 3, 
+        # tanh
+        )
         )
 
     ps, re = destructure(embedder)
@@ -245,29 +247,29 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     tspan = cpu(tspan)
     tspan_flat = vcat(tspan[1], vec(tspan[2:end, :]))
 
-    # latent_state = model.wave_encoder(s)
-    latent_state = (model.total.wave_encoder(s), model.incident_encoder(s))
+    latent_state = model.wave_encoder(s)
+    # latent_state = (model.total.wave_encoder(s), model.incident_encoder(s))
     design = s.design
 
     zs = []
     for (i, action) in enumerate(a)
-        # z, design = propagate(model, latent_state, design, action)
-        # latent_state = z[:, [1, 2, 3], end]
+        z, design = propagate(model, latent_state, design, action)
+        latent_state = z[:, [1, 2, 3], end]
 
-        z_tot, z_inc, design = propagate(model, latent_state, design, action)
-        latent_state = (z_tot[:, [1,2,3], end], z_inc[:, [1,2,3], end])
+        # z_tot, z_inc, design = propagate(model, latent_state, design, action)
+        # latent_state = (z_tot[:, [1,2,3], end], z_inc[:, [1,2,3], end])
 
         if i == 1
-            # push!(zs, cpu(z))
-            push!(zs, cpu(z_tot .- z_inc))
+            push!(zs, cpu(z))
+            # push!(zs, cpu(z_tot .- z_inc))
         else
-            # push!(zs, cpu(z[:, :, 2:end]))
-            push!(zs, cpu(z_tot[:, :, 2:end] .- z_inc[:, :, 2:end]))
+            push!(zs, cpu(z[:, :, 2:end]))
+            # push!(zs, cpu(z_tot[:, :, 2:end] .- z_inc[:, :, 2:end]))
         end
     end
 
-    # dim = cpu(model.latent_dim)
-    dim = cpu(model.total.latent_dim)
+    dim = cpu(model.latent_dim)
+    # dim = cpu(model.total.latent_dim)
 
     z = cat(zs..., dims = ndims(zs[1]))
     pred_sigma = cpu(model(s, a))

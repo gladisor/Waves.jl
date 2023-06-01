@@ -23,6 +23,7 @@ struct DesignSpace{D <: AbstractDesign}
 end
 
 Flux.@functor DesignSpace
+Flux.trainable(::DesignSpace) = (;)
 
 function (space::DesignSpace)(design::AbstractDesign, action::AbstractDesign)
     return clamp(design + action, space.low, space.high)

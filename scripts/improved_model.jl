@@ -26,7 +26,6 @@ Flux.@functor ResidualBlock
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
         Conv(k, in_channels => out_channels, activation, pad = SamePad()),
-        # InstanceNorm(out_channels),
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -45,8 +44,8 @@ struct NormalizedDense
     act::Function
 end
 
-function NormalizedDense(in_size::Int, out_size::Int, act::Function)
-    return NormalizedDense(Dense(in_size, out_size), LayerNorm(out_size), act)
+function NormalizedDense(in_size::Int, out_size::Int, act::Function; kwargs...)
+    return NormalizedDense(Dense(in_size, out_size; kwargs...), LayerNorm(out_size), act)
 end
 
 Flux.@functor NormalizedDense
@@ -95,10 +94,7 @@ function build_hypernet_wave_encoder(;
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
-        Dense(h_size, 3, 
-        # tanh
-        )
-        )
+        Dense(h_size, 3, tanh)) ## unbounded wavespeed doesnt work
 
     ps, re = destructure(embedder)
 
@@ -129,7 +125,7 @@ struct HypernetDesignEncoder
 end
 
 Flux.@functor HypernetDesignEncoder
-Flux.trainable(model::HypernetDesignEncoder) = (;model.layers)
+# Flux.trainable(model::HypernetDesignEncoder) = (;model.layers)
 
 function HypernetDesignEncoder(
         design_space::DesignSpace,
@@ -144,12 +140,15 @@ function HypernetDesignEncoder(
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
-        Dense(h_size, 1, sigmoid)
-        )
+        Dense(h_size, 1, sigmoid))
 
     ps, re = destructure(embedder)
 
+    ## static wavespeed
     in_size = length(vec(design_space.low)) + length(vec(action_space.low))
+    
+    ## transient wavespeed
+    # in_size = length(vec(design_space.low))
 
     layers = Chain(
         NormalizedDense(in_size, h_size, activation),
@@ -157,7 +156,7 @@ function HypernetDesignEncoder(
         NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
-        Dense(h_size, length(ps), bias = false),
+        Dense(h_size, length(ps), identity, bias = false),
         re,
         FrequencyDomain(latent_dim, nfreq),
         vec,
@@ -166,11 +165,19 @@ function HypernetDesignEncoder(
     return HypernetDesignEncoder(design_space, action_space, layers)
 end
 
+# transient wavespeed
+# d1_norm = (vec(d) .- vec(model.design_space.low)) ./ (vec(model.design_space.high) .- vec(model.design_space.low))
+# d2_norm = (vec(model.design_space(d, a)) .- vec(model.design_space.low)) ./ (vec(model.design_space.high) .- vec(model.design_space.low))
+# c1 = model.layers(d1_norm)
+# c2 = model.layers(d2_norm)
+# dc = (c2 .- c1) ./ 100.0f0
+# return hcat(c1, dc)
+
 function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
-    d = (d - model.design_space.low) / (model.design_space.high - model.design_space.low + EPSILON)
-    a = (a - model.action_space.low) / (model.action_space.high - model.action_space.low + EPSILON)
-    x = vcat(vec(d), vec(a))
-    return model.layers(x)
+    ## static wavespeed
+    d = (vec(d) .- vec(model.design_space.low)) ./ (vec(model.design_space.high) .- vec(model.design_space.low) .+ EPSILON)
+    a = (vec(a) .- vec(model.action_space.low)) ./ (vec(model.action_space.high) .- vec(model.action_space.low) .+ EPSILON)
+    return model.layers(vcat(d, a))
 end
 
 struct LatentDynamics <: AbstractDynamics
@@ -198,13 +205,17 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     c = wave[:, 4]
 
     force = f * sin(2.0f0 * pi * dyn.freq * t)
-
     du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
     df = f * 0.0f0
+    ## static wavespeed
     dc = c * 0.0f0
-
     return hcat(du .* dyn.bc, dv, df, dc)
+
+    ## transient wavespeed
+    # dc = wave[:, 5]
+    ## transient wavespeed
+    # return hcat(du .* dyn.bc, dv, df, dc, dc * 0.0f0)
 end
 
 struct ScatteredEnergyModel
@@ -217,7 +228,6 @@ struct ScatteredEnergyModel
 end
 
 Flux.@functor ScatteredEnergyModel
-Flux.trainable(model::ScatteredEnergyModel) = (;model.wave_encoder, model.design_encoder, model.mlp)
 
 function propagate(model::ScatteredEnergyModel, latent_state::AbstractMatrix{Float32}, d::AbstractDesign, a::AbstractDesign)
     c = model.design_encoder(d, a)
@@ -237,8 +247,10 @@ function (model::ScatteredEnergyModel)(s::WaveEnvState, a::Vector{<:AbstractDesi
     return hcat([recur(action) for action in a]...)
 end
 
+using Statistics: mean
+
 function compute_gradient(model, states, actions, sigmas, loss_func::Function)
-    loss, back = Flux.pullback(_model -> sum(loss_func.(_model.(states, actions), sigmas)), model)
+    loss, back = Flux.pullback(_model -> mean(loss_func.(_model.(states, actions), sigmas)), model)
     return loss, back(one(loss))[1]
 end
 
@@ -248,7 +260,6 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     tspan_flat = vcat(tspan[1], vec(tspan[2:end, :]))
 
     latent_state = model.wave_encoder(s)
-    # latent_state = (model.total.wave_encoder(s), model.incident_encoder(s))
     design = s.design
 
     zs = []
@@ -256,20 +267,14 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
         z, design = propagate(model, latent_state, design, action)
         latent_state = z[:, [1, 2, 3], end]
 
-        # z_tot, z_inc, design = propagate(model, latent_state, design, action)
-        # latent_state = (z_tot[:, [1,2,3], end], z_inc[:, [1,2,3], end])
-
         if i == 1
             push!(zs, cpu(z))
-            # push!(zs, cpu(z_tot .- z_inc))
         else
             push!(zs, cpu(z[:, :, 2:end]))
-            # push!(zs, cpu(z_tot[:, :, 2:end] .- z_inc[:, :, 2:end]))
         end
     end
 
     dim = cpu(model.latent_dim)
-    # dim = cpu(model.total.latent_dim)
 
     z = cat(zs..., dims = ndims(zs[1]))
     pred_sigma = cpu(model(s, a))
@@ -314,16 +319,16 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     end
 
     save(joinpath(path, "latent.png"), fig)
-    render!(dim, z, path = joinpath(path, "latent.mp4"))
     return nothing
 end
 
 function overfit!(model, states, actions, tspans, sigmas, lr)
     opt = Optimisers.Adam(lr)
+    # opt = Optimisers.Descent(lr)
     opt_state = Optimisers.setup(opt, model)
 
     for i in 1:100
-        loss, gs = compute_gradient(model, states, actions, sigmas, Flux.mse)
+        @time loss, gs = compute_gradient(model, states, actions, sigmas, Flux.mse)
         println(loss)
         opt_state, model = Optimisers.update(opt_state, model, gs)
     end
@@ -384,7 +389,7 @@ function train_loop(
         for (j, batch) in enumerate(val_loader)
             states, actions, tspans, sigmas = gpu(batch)
 
-            loss = sum(loss_func.(model.(states, actions), sigmas))
+            loss = mean(loss_func.(model.(states, actions), sigmas))
             push!(epoch_loss, loss)
 
             if j <= evaluation_samples
@@ -414,7 +419,8 @@ function train_loop(
 
         if i % checkpoint_every == 0 || i == epochs
             println("Checkpointing")
-            BSON.@save joinpath(epoch_path, "model.bson") model
+
+            BSON.bson(joinpath(epoch_path, "model.bson"), model = cpu(model))
         end
     end
 end

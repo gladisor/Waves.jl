@@ -1,337 +1,188 @@
-include("dependencies.jl")
+using BSON
+using Flux
+using Flux: flatten, destructure, Scale, Recur, DataLoader
+using ReinforcementLearning
+using FileIO
+using CairoMakie
+using Optimisers
+using Waves
+include("improved_model.jl")
+include("plot.jl")
 
-struct NormalizedDense
+struct Hypernet
     dense::Dense
-    norm::LayerNorm
-    act::Function
+    re::Optimisers.Restructure
+    domain::FrequencyDomain
 end
 
-function NormalizedDense(in_size::Int, out_size::Int, act::Function)
-    return NormalizedDense(Dense(in_size, out_size), LayerNorm(out_size), act)
+Flux.@functor Hypernet
+
+function Hypernet(in_size::Int, base::Chain, domain::FrequencyDomain)
+    ps, re = destructure(base)
+    dense = Dense(in_size, length(ps), bias = false)
+    return Hypernet(dense, re, domain)
 end
 
-Flux.@functor NormalizedDense
-
-function (dense::NormalizedDense)(x)
-    return x |> dense.dense |> dense.norm |> dense.act
+function (hypernet::Hypernet)(x::AbstractMatrix{Float32})
+   models = hypernet.re.(eachcol(hypernet.dense(x)))
+   #return cat([hypernet.domain(m) for m in models]..., dims = 3)
+   return [hypernet.domain(m) for m in models]
 end
 
-function build_mlp(in_size, h_size, n_h, out_size, act)
-
-    return Chain(
-        NormalizedDense(in_size, h_size, act),
-        [NormalizedDense(h_size, h_size, act) for _ in 1:n_h]...,
-        # Dense(in_size, h_size, act),
-        # [Dense(h_size, h_size, act) for _ in 1:n_h]...,
-        Dense(h_size, out_size)
-        )
+struct SophonWaveEncoder
+    input_layer::WaveInputLayer
+    layers::Chain
+    scale::AbstractVector{Float32}
 end
 
-function build_residual_block(k::Int, in_channels::Int, out_channels::Int, activation::Function)
+Flux.@functor SophonWaveEncoder
+Flux.trainable(wave_encoder::SophonWaveEncoder) = (;wave_encoder.layers)
 
-    main = Chain(
-        Conv((k, k), in_channels => out_channels, activation, pad = SamePad()),
-        Conv((k, k), out_channels => out_channels, pad = SamePad()))
-    
-    skip = Chain(
-        Conv((1, 1), in_channels => out_channels, pad = SamePad()))
+function SophonWaveEncoder(latent_dim::OneDim, input_layer::WaveInputLayer, nfreq::Int, h_size::Int, activation::Function; ambient_speed::Float32 = WATER)
 
-    return Chain(
-        Parallel(+, main, skip),
-        activation,
-        MaxPool((2, 2)),
-        )
-end
-
-function build_hypernet_wave_encoder(;nfreq::Int, h_size::Int, act::Function, ambient_speed::Float32, dim::OneDim)
-    
-    ## parameterizes three functions: displacement, velocity, and force
     embedder = Chain(
-        build_mlp(2 * nfreq, h_size, 2, activation), 
-        Dense(h_size, 3), Flux.Scale([1.0f0, 1.0f0/WATER, 1.0f0], bias = false)
+        Dense(2 * nfreq, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, 3, tanh),
         )
 
-    ps, re = destructure(embedder)
-
-    return Chain(
-        SingleImageInput(),
-        MeanPool((4, 4)),
-        build_residual_block(3, 1, 32, act),
-        build_residual_block(3, 32, 64, act),
-        build_residual_block(2, 64, 128, act),
-        build_residual_block(2, 128, 256, act),
+    layers = Chain(
+        MaxPool((4, 4)),
+        ResidualBlock((3, 3), 1, 32, activation),
+        ResidualBlock((3, 3), 32, 64, activation),
+        ResidualBlock((3, 3), 64, 128, activation),
         GlobalMaxPool(),
         flatten,
-        NormalizedDense(256, 512, act),
-        Dense(512, length(ps), bias = false),
-        vec,
-        re,
-        FrequencyDomain(dim, nfreq),
-        # Flux.Scale([1.0f0, 1.0f0/ambient_speed, 1.0f0], true, tanh)
-        z -> hcat(tanh.(z[:, 1]), tanh.(z[:, 2]) / ambient_speed, tanh.(z[:, 3]))
-    )
-end
-
-function build_hypernet_design_encoder(;nfreq, in_size, h_size, n_h, act, dim, speed_activation::Function)
-    
-    ## parameterizes a single function (wave speed)
-    embedder = build_mlp(2 * nfreq, h_size, 2, 1, act)
-    ps, re = destructure(embedder)
-
-    encoder = Chain(
-        build_mlp(in_size, h_size, n_h, h_size, act),
-        LayerNorm(h_size),
-        act,
-        Dense(h_size, length(ps), bias = false),
-        re,
-        FrequencyDomain(dim, nfreq),
-        vec,
-        speed_activation,
-        )
-end
-
-function build_hypernet_wave_control_model(
-        dim::OneDim; 
-        design_input_size::Int,
-        nfreq::Int,
-        h_size::Int,
-        n_h::Int, 
-        act::Function, 
-        speed_activation::Function,
-        ambient_speed::Float32,
-        freq::Float32,
-        pml_width::Float32,
-        pml_scale::Float32,
-        dt::AbstractFloat,
-        steps::Int
+        NormalizedDense(128, h_size, activation),
+        Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
         )
 
-    wave_encoder = build_hypernet_wave_encoder(
-        nfreq = nfreq,
-        h_size = h_size, 
-        act = act,
-        ambient_speed = ambient_speed,
-        dim = dim)
-
-    design_encoder = build_hypernet_design_encoder(
-        nfreq = nfreq,
-        in_size = design_input_size,
-        h_size = h_size,
-        n_h = n_h,
-        act = act,
-        dim = dim,
-        speed_activation = speed_activation)
-
-    dynamics = LatentDynamics(dim, 
-        ambient_speed = ambient_speed, 
-        freq = freq, 
-        pml_width = pml_width,
-        pml_scale = pml_scale)
-
-    iter = Integrator(runge_kutta, dynamics, 0.0f0, dt, steps)
-    mlp = Chain(
-        flatten, 
-        build_mlp(4 * size(dim, 1), h_size, n_h, 1, act),
-        vec)
-
-    return WaveControlModel(wave_encoder, design_encoder, iter, mlp)
+    scale = [1.0f0, 1.0f0 / ambient_speed, 1.0f0]
+    return SophonWaveEncoder(input_layer, layers, scale)
 end
 
-function compute_gradient(model::WaveControlModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, sigma::AbstractMatrix{Float32}, loss_func::Function)
-    loss, back = pullback(_model -> loss_func(_model(s, a), sigma), model)
-    return (loss, back(one(loss))[1])
+function (model::SophonWaveEncoder)(s::WaveEnvState)
+    x = model.layers(model.input_layer(s))
 end
 
-const SIGNAL_SCALE = 1.0f0
+function (model::SophonWaveEncoder)(s::Vector{WaveEnvState})
+    x = model.layers(cat(model.input_layer.(s)..., dims = 4))
+end
 
-function train_loop(
-        model::WaveControlModel;
-        loss_func::Function,
-        train_steps::Int, ## only really effects validation frequency
-        train_loader::DataLoader,
-        val_steps::Int,
-        val_loader::DataLoader,
-        epochs::Int,
-        lr::AbstractFloat,
-        decay_rate::Float32,
-        latent_dim::OneDim,
-        evaluation_samples::Int,
-        checkpoint_every::Int,
-        path::String
+struct SophonDesignEncoder
+    design_space::DesignSpace
+    action_space::DesignSpace
+    layers::Chain
+end
+
+Flux.@functor SophonDesignEncoder
+
+function SophonDesignEncoder(
+    latent_dim::OneDim,
+    design_space::DesignSpace,
+    action_space::DesignSpace,
+    nfreq::Int,
+    h_size::Int,
+    activation::Function)
+
+    embedder = Chain(
+        Dense(2 * nfreq, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, 1, sigmoid))
+
+    in_size = length(vec(design_space.low)) + length(vec(action_space.low))
+
+    layers = Chain(
+        NormalizedDense(in_size, h_size, activation),
+        NormalizedDense(h_size, h_size, activation),
+        NormalizedDense(h_size, h_size, activation),
+        NormalizedDense(h_size, h_size, activation),
+        NormalizedDense(h_size, h_size, activation),
+        Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
         )
 
-    opt = Optimisers.Adam(lr)
-    opt_state = Optimisers.setup(opt, model)
-
-    metrics = Dict(
-        :train_loss => Vector{Float32}(),
-        :val_loss => Vector{Float32}(),
-    )
-
-    for i in 1:epochs
-
-        epoch_loss = Vector{Float32}()
-
-        @showprogress for (j, (s, a, tspan, sigma)) in enumerate(train_loader)
-            s = gpu(s[1])
-            a = gpu(a[1])
-            tspan = tspan[1]
-            sigma = gpu(sigma[1]) * SIGNAL_SCALE
-
-            loss, gs = compute_gradient(model, s, a, sigma, loss_func)
-            opt_state, model = Optimisers.update(opt_state, model, gs)
-
-            push!(epoch_loss, loss)
-            if j == train_steps
-                break
-            end
-        end
-
-        opt_state = Optimisers.adjust(opt_state, lr * decay_rate ^ i)
-
-        push!(metrics[:train_loss], sum(epoch_loss) / train_steps)
-
-        epoch_loss = Vector{Float32}()
-        epoch_path = mkpath(joinpath(path, "epoch_$i"))
-
-        @showprogress for (j, (s, a, tspan, sigma)) in enumerate(val_loader)
-            s = gpu(s[1])
-            a = gpu(a[1])
-            tspan = tspan[1]
-            sigma = gpu(sigma[1]) * SIGNAL_SCALE
-            
-            loss = loss_func(model(s, a), sigma)
-            push!(epoch_loss, loss)
-
-            if j <= evaluation_samples
-                latent_path = mkpath(joinpath(epoch_path, "latent_$j"))
-                visualize!(model, latent_dim, s, a, tspan, sigma, path = latent_path)
-            end
-
-            if j == val_steps
-                break
-            end
-        end
-
-        push!(metrics[:val_loss], sum(epoch_loss) / val_steps)
-
-
-        fig = Figure()
-        ax = Axis(fig[1,1], title = "Loss History", xlabel = "Epoch", ylabel = "Loss Value")
-        lines!(ax, metrics[:train_loss], color = :blue, label = "Train")
-        lines!(ax, metrics[:val_loss], color = :orange, label = "Val")
-        axislegend(ax)
-        save(joinpath(epoch_path, "loss.png"), fig)
-
-        train_loss = metrics[:train_loss][end]
-        val_loss = metrics[:val_loss][end]
-        println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
-
-        if i % checkpoint_every == 0 || i == epochs
-            checkpoint_path = mkpath(joinpath(epoch_path, "model"))
-            println("Checkpointing")
-            save(model, checkpoint_path)
-        end
-    end
+    return SophonDesignEncoder(design_space, action_space, layers)
 end
 
-function overfit!(model::WaveControlModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix, dim::OneDim, lr)
-    opt = Optimisers.Adam(lr)
-    opt_state = Optimisers.setup(opt, model)
+# function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::AbstractDesign)    
+#     d_norm = (vec(d) .- vec(design_encoder.design_space.low)) ./ (vec(design_encoder.design_space.high) .- vec(design_encoder.design_space.low) .+ EPSILON)
+#     a_norm = (vec(a) .- vec(design_encoder.action_space.low)) ./ (vec(design_encoder.action_space.high) .- vec(design_encoder.action_space.low) .+ EPSILON)
+#     return design_encoder.design_space(d, a), design_encoder.layers(vcat(d_norm, a_norm)[:, :])
+# end
 
-    for i in 1:200
-        loss, gs = compute_gradient(model, s, a, sigma, Flux.mae)
-        opt_state, model = Optimisers.update(opt_state, model, gs)
-        println(loss)
-    end
+# function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::Vector{ <: AbstractDesign})
+#     recur = Recur(design_encoder, d)
+#     return hcat([recur(action) for action in a]...)
+# end
 
-    @time visualize!(model, dim, s, a, tspan, sigma, path = "")
+# function (design_encoder::SophonDesignEncoder)(states::Vector{WaveEnvState}, actions::Vector{<: Vector{<: AbstractDesign}})
+#     designs = [s.design for s in states]
+#     hcat(vec.(designs)...)
+# end
+
+function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
+    next_design = design_encoder.design_space(d, a)
+    return next_design, next_design
 end
 
-########################################################################################
+function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::Vector{<: AbstractDesign})
+    recur = Recur(design_encoder, d)
+    designs = [recur(action) for action in a]
 
-# fig = Figure()
+    x = vcat(
+            hcat(vec.(designs)...), 
+            hcat(vec.(a)...)
+        )
 
-# ax1 = Axis(fig[1, 1], aspect = 1.0f0)
-# ax2 = Axis(fig[1, 2], aspect = 1.0f0)
-# ax3 = Axis(fig[1, 3], aspect = 1.0f0)
+    vcat(design_encoder.layers(x)...)'
+end
 
-# tot = cpu(s.wave_total)[:, :, 1]
-# inc = cpu(s.wave_incident)[:, :, 1]
-# sc = tot .- inc
-
-# heatmap!(ax1, dim.x, dim.y, tot, colormap = :ice)
-# heatmap!(ax2, dim.x, dim.y, inc, colormap = :ice)
-# heatmap!(ax3, dim.x, dim.y, sc, colormap = :ice)
-# save("wave.png", fig)
-
-# ########################################################################################
 
 Flux.device!(0)
+main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
+data_path = joinpath(main_path, "episodes")
 
-elu_speed(c) = 1.0f0 .+ elu.(c)
-sigmoid_speed(c, scale = 2.0f0) = scale * sigmoid.(c)
-exp_speed(c) = exp.(c)
+env = BSON.load(joinpath(main_path, "env.bson"))[:env] |> gpu
+dim = cpu(env.dim)
+reset!(env)
+
+policy = RandomDesignPolicy(action_space(env))
+
+println("Load Train Data")
+@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
 
 nfreq = 6
-n_h = 3
-lr = 1e-6
-act = relu
-speed_activation = sigmoid #exp_speed
-pml_scale = 0.0f0
-horizon = 1
-decay_rate = 0.98f0
+h_size = 256
+activation = leakyrelu
+latent_grid_size = 15.0f0
+latent_elements = 512
+horizon = 5
+wave_input_layer = TotalWaveInput()
+batchsize = 10
+pml_width = 5.0f0
+pml_scale = 10000.0f0
+lr = 5e-6
+decay_rate = 1.0f0
+steps = 20
+latent_dim = OneDim(latent_grid_size, latent_elements)
 
-data_path = "data/ambient_speed=water/dt=1.0e-5/single_cylinder_cloak"
-@time states, actions, tspans, sigmas = prepare_data(EpisodeData(path = joinpath(data_path, "episodes/episode1/episode.bson")), horizon)
-idx = 100
-s = gpu(states[idx])
-a = gpu(actions[idx])
-design_input = vcat(vec(s.design), vec(a[1])) |> gpu
+wave_encoder = gpu(SophonWaveEncoder(latent_dim, wave_input_layer, nfreq, h_size, activation))
+design_encoder = gpu(SophonDesignEncoder(latent_dim, env.design_space, action_space(env), nfreq, h_size, activation))
+dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
+iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
 
-grid_size = 15.0f0
-dim = OneDim(grid_size, 512)
-@time model = build_hypernet_wave_control_model(
-    dim,
-    design_input_size = length(design_input),
-    nfreq = nfreq,
-    h_size = 512,
-    n_h = n_h,
-    act = act,
-    speed_activation = speed_activation,
-    ambient_speed = WATER,
-    freq = 2000.0f0,
-    pml_width = 5.0f0,
-    pml_scale = pml_scale,
-    dt = 1e-5,
-    steps = 100) |> gpu
+train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
 
-tspan = tspans[idx]
-sigma = gpu(sigmas[idx])
+states, actions, tspans, sigmas = gpu(first(train_loader))
 
-# @time visualize!(model, dim, s, a, tspan, sigma, path = "")
-@time overfit!(model, s, a, tspan, sigma, dim, lr)
-
-# # ## Loading data into memory
-# # println("Load Train Data")
-# # @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episodes/episode$i/episode.bson")) for i in 1:45])
-# # println("Load Val Data")
-# # @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episodes/episode$i/episode.bson")) for i in 46:55])
-
-# # # ## Establishing model path
-# # model_path = mkpath(joinpath(data_path, "models/last_set/lr=$(lr)_decay_rate=$(decay_rate)_nfreq=$(nfreq)_act=$(act)_speedact=$(speed_activation)_pml_scale=$(pml_scale)_grid_size=$(grid_size)_horizon=$(horizon)"))
-
-# # train_loop(model,
-# #     loss_func = mse,
-# #     train_steps = 200,
-# #     train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true),
-# #     val_steps = 200,
-# #     val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true),
-# #     epochs = 1000,
-# #     lr = lr,
-# #     decay_rate = decay_rate,
-# #     evaluation_samples = 10,
-# #     checkpoint_every = 100,
-# #     latent_dim = dim,
-# #     path = model_path
-# #     )
+idx = 1
+s, a, t, sigma = states[idx], actions[idx], tspans[idx], sigmas[idx]
+# uvf = wave_encoder(states)
+# c = design_encoder(s.design, a[1])
+# c = design_encoder(s.design, a)
+c, back = Flux.pullback(_a -> design_encoder(s.design, _a), a)
+gs = back(c)[1]

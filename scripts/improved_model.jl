@@ -125,7 +125,6 @@ struct HypernetDesignEncoder
 end
 
 Flux.@functor HypernetDesignEncoder
-# Flux.trainable(model::HypernetDesignEncoder) = (;model.layers)
 
 function HypernetDesignEncoder(
         design_space::DesignSpace,
@@ -164,14 +163,6 @@ function HypernetDesignEncoder(
 
     return HypernetDesignEncoder(design_space, action_space, layers)
 end
-
-# transient wavespeed
-# d1_norm = (vec(d) .- vec(model.design_space.low)) ./ (vec(model.design_space.high) .- vec(model.design_space.low))
-# d2_norm = (vec(model.design_space(d, a)) .- vec(model.design_space.low)) ./ (vec(model.design_space.high) .- vec(model.design_space.low))
-# c1 = model.layers(d1_norm)
-# c2 = model.layers(d2_norm)
-# dc = (c2 .- c1) ./ 100.0f0
-# return hcat(c1, dc)
 
 function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
     ## static wavespeed
@@ -242,6 +233,7 @@ function (model::ScatteredEnergyModel)(h::Tuple{AbstractMatrix{Float32}, Abstrac
 end
 
 function (model::ScatteredEnergyModel)(s::WaveEnvState, a::Vector{<:AbstractDesign})
+    Flux.reset!(model.mlp)
     latent_state = model.wave_encoder(s)
     recur = Recur(model, (latent_state, s.design))
     return hcat([recur(action) for action in a]...)
@@ -249,10 +241,16 @@ end
 
 using Statistics: mean
 
+# function compute_gradient(model, s::WaveEnvState, a::Vector{<:AbstractDesign}, sigma, loss_func)
+#     loss, back = Flux.pullback(_model -> loss_func(_model(a, a), sigma), model)
+#     return loss, back(one(loss))[1]
+# end
+
 function compute_gradient(model, states, actions, sigmas, loss_func::Function)
     loss, back = Flux.pullback(_model -> mean(loss_func.(_model.(states, actions), sigmas)), model)
     return loss, back(one(loss))[1]
 end
+
 
 function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
@@ -322,14 +320,13 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     return nothing
 end
 
-function overfit!(model, states, actions, tspans, sigmas, lr)
+function overfit!(model, states, actions, tspans, sigmas, lr, n)
     opt = Optimisers.Adam(lr)
-    # opt = Optimisers.Descent(lr)
     opt_state = Optimisers.setup(opt, model)
 
-    for i in 1:100
+    for i in 1:n
         @time loss, gs = compute_gradient(model, states, actions, sigmas, Flux.mse)
-        println(loss)
+        println("Update: $i, Loss: $loss")
         opt_state, model = Optimisers.update(opt_state, model, gs)
     end
 

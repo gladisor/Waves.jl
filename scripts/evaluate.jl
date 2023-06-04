@@ -55,37 +55,6 @@ function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, n::Int)
     return [policy(env) for i in 1:n]
 end
 
-function predict(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{ <: AbstractDesign})
-    z_wave = model.wave_encoder(s)
-    d = s.design
-
-    z, d = propagate(model, z_wave, d, a[1])
-    sigma1 = model.mlp(z)
-    z_wave = z[:, [1, 2, 3], end]
-
-    z, d = propagate(model, z_wave, d, a[2])
-    sigma2 = model.mlp(z)
-    z_wave = z[:, [1, 2, 3], end]
-
-    z, d = propagate(model, z_wave, d, a[3])
-    sigma3 = model.mlp(z)
-    z_wave = z[:, [1, 2, 3], end]
-
-    return hcat(sigma1, sigma2, sigma3)
-
-    # z, d = propagate(model, z_wave, d, a[1])
-    # sigma = model.mlp(z)
-    # z_wave = z[:, [1, 2, 3], end]
-
-    # for action in a[2:end]
-    #     z, d = propagate(model, z_wave, d, action)
-    #     sigma = hcat(sigma, model.mlp(z))
-    #     z_wave = z[:, [1, 2, 3], end]
-    # end
-
-    # return sigma
-end
-
 function compute_cost(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{ <:AbstractDesign})
     pred_sigma = model(s, a)
     return sum(pred_sigma[2:end, :])

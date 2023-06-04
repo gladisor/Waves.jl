@@ -25,8 +25,7 @@ end
 
 function (hypernet::Hypernet)(x::AbstractMatrix{Float32})
    models = hypernet.re.(eachcol(hypernet.dense(x)))
-   #return cat([hypernet.domain(m) for m in models]..., dims = 3)
-   return [hypernet.domain(m) for m in models]
+   return [permutedims(hypernet.domain(m), (2, 1)) for m in models]
 end
 
 struct SophonWaveEncoder
@@ -64,11 +63,11 @@ function SophonWaveEncoder(latent_dim::OneDim, input_layer::WaveInputLayer, nfre
 end
 
 function (model::SophonWaveEncoder)(s::WaveEnvState)
-    x = model.layers(model.input_layer(s))
+    return model.layers(model.input_layer(s))[1]
 end
 
 function (model::SophonWaveEncoder)(s::Vector{WaveEnvState})
-    x = model.layers(cat(model.input_layer.(s)..., dims = 4))
+    return model.layers(cat(model.input_layer.(s)..., dims = 4))
 end
 
 struct SophonDesignEncoder
@@ -108,39 +107,60 @@ function SophonDesignEncoder(
     return SophonDesignEncoder(design_space, action_space, layers)
 end
 
-# function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::AbstractDesign)    
-#     d_norm = (vec(d) .- vec(design_encoder.design_space.low)) ./ (vec(design_encoder.design_space.high) .- vec(design_encoder.design_space.low) .+ EPSILON)
-#     a_norm = (vec(a) .- vec(design_encoder.action_space.low)) ./ (vec(design_encoder.action_space.high) .- vec(design_encoder.action_space.low) .+ EPSILON)
-#     return design_encoder.design_space(d, a), design_encoder.layers(vcat(d_norm, a_norm)[:, :])
-# end
-
-# function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::Vector{ <: AbstractDesign})
-#     recur = Recur(design_encoder, d)
-#     return hcat([recur(action) for action in a]...)
-# end
-
-# function (design_encoder::SophonDesignEncoder)(states::Vector{WaveEnvState}, actions::Vector{<: Vector{<: AbstractDesign}})
-#     designs = [s.design for s in states]
-#     hcat(vec.(designs)...)
-# end
-
-function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
-    next_design = design_encoder.design_space(d, a)
+function (design_encoder::SophonDesignEncoder)(design::AbstractDesign, action::AbstractDesign)
+    next_design = design_encoder.design_space(design, action)
     return next_design, next_design
 end
 
-function (design_encoder::SophonDesignEncoder)(d::AbstractDesign, a::Vector{<: AbstractDesign})
-    recur = Recur(design_encoder, d)
-    designs = [recur(action) for action in a]
-
-    x = vcat(
-            hcat(vec.(designs)...), 
-            hcat(vec.(a)...)
-        )
-
-    vcat(design_encoder.layers(x)...)'
+function get_design_sequence(design_encoder::SophonDesignEncoder, design::AbstractDesign, action_sequence::Vector{<: AbstractDesign})
+    recur = Recur(design_encoder, design)
+    return [recur(action) for action in action_sequence]
 end
 
+function get_features(design_sequence::Vector{<: AbstractDesign}, action_sequence::Vector{<: AbstractDesign})
+    return vcat(hcat(vec.(design_sequence)...), hcat(vec.(action_sequence)...))
+end
+
+function (design_encoder::SophonDesignEncoder)(design::AbstractDesign, action_sequence::Vector{<: AbstractDesign})
+    design_sequence = get_design_sequence(design_encoder, design, action_sequence)
+    x = get_features(design_sequence, action_sequence)
+    return design_encoder.layers(x)
+end
+
+function (design_encoder::SophonDesignEncoder)(s::WaveEnvState, action_sequence::Vector{<: AbstractDesign})
+    return design_encoder(s.design, action_sequence)
+end
+
+function (design_encoder::SophonDesignEncoder)(design_batch::Vector{<: AbstractDesign}, action_sequence_batch::Vector{<: Vector{<: AbstractDesign}})
+    return design_encoder.(design_batch, action_sequence_batch)
+end
+
+function (design_encoder::SophonDesignEncoder)(states::Vector{WaveEnvState}, action_sequence_batch::Vector{<: Vector{<: AbstractDesign}})
+    return design_encoder([s.design for s in states], action_sequence_batch)
+end
+
+struct Sophon
+    dim::OneDim
+    wave_encoder::SophonWaveEncoder
+    design_encoder::SophonDesignEncoder
+    iter::Integrator
+    regressor::Chain
+end
+
+Flux.@functor Sophon
+
+function (sophon::Sophon)(uvf::AbstractMatrix{Float32}, c::AbstractMatrix{Float32})
+    z = sophon.iter(hcat(uvf, c))
+    return z[:, [1, 2, 3], end], z
+end
+
+function (sophon::Sophon)(s::WaveEnvState, action_sequence::Vector{<: AbstractDesign})
+    uvf = sophon.wave_encoder(s)
+    cs = sophon.design_encoder(s, action_sequence)
+    recur = Recur(sophon, uvf)
+    z = cat([recur(c) for c in cs]..., dims = 4)
+    return cat(z[:, :, 1, 1], [z[:, :, 2:end, i] for i in axes(z, 4)]..., dims = 3)
+end
 
 Flux.device!(0)
 main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
@@ -153,14 +173,14 @@ reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 
 println("Load Train Data")
-@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
+# @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
 
 nfreq = 6
 h_size = 256
 activation = leakyrelu
 latent_grid_size = 15.0f0
 latent_elements = 512
-horizon = 5
+horizon = 1
 wave_input_layer = TotalWaveInput()
 batchsize = 10
 pml_width = 5.0f0
@@ -170,19 +190,18 @@ decay_rate = 1.0f0
 steps = 20
 latent_dim = OneDim(latent_grid_size, latent_elements)
 
-wave_encoder = gpu(SophonWaveEncoder(latent_dim, wave_input_layer, nfreq, h_size, activation))
-design_encoder = gpu(SophonDesignEncoder(latent_dim, env.design_space, action_space(env), nfreq, h_size, activation))
+wave_encoder = SophonWaveEncoder(latent_dim, wave_input_layer, nfreq, h_size, activation)
+design_encoder = SophonDesignEncoder(latent_dim, env.design_space, action_space(env), nfreq, h_size, activation)
 dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
 iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
+regressor = Chain(flatten)
+sophon = gpu(Sophon(latent_dim, wave_encoder, design_encoder, iter, regressor))
 
 train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
-
 states, actions, tspans, sigmas = gpu(first(train_loader))
 
 idx = 1
 s, a, t, sigma = states[idx], actions[idx], tspans[idx], sigmas[idx]
-# uvf = wave_encoder(states)
-# c = design_encoder(s.design, a[1])
-# c = design_encoder(s.design, a)
-c, back = Flux.pullback(_a -> design_encoder(s.design, _a), a)
-gs = back(c)[1]
+
+@time cost, back = Flux.pullback(_a -> sum(sophon(s, _a)), a)
+@time gs = back(one(cost))[1]

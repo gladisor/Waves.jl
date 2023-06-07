@@ -1,0 +1,6 @@
+This model is evaluated at epoch 840 of training.
+
+Optimiser = Descent(0.01)
+3 optimization steps
+The batch size is 10
+Training steps per epoch is 20

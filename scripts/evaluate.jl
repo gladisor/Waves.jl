@@ -6,162 +6,151 @@ using FileIO
 using CairoMakie
 using Optimisers
 using Waves
+using DataFrames
+using CSV
 include("improved_model.jl")
 include("plot.jl")
-
-# function compute_cost(
-#         sigma::AbstractMatrix{Float32}, 
-#         action_sequence::Vector{<:AbstractDesign},
-#         alpha::Float32)
-
-#     return sum(sigma[2:end, :]) + alpha * sum(norm.(vec.(action_sequence)))
-# end
-
-# function optimise_actions(opt_state, model::WaveControlModel, s::WaveEnvState, a::Vector{<: AbstractDesign})
-#     cost, back = pullback(_a -> compute_cost(model(s, _a), _a, 1.0f0), a)
-#     gs = back(one(cost))[1]
-#     opt_state, a = Optimisers.update(opt_state, a, gs)
-#     return opt_state, a
-# end
-
-# function optimise_actions(opt::AbstractRule, model::WaveControlModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, steps::Int)
-#     opt_state = Optimisers.setup(opt, a)
-
-#     for i in 1:steps
-#         opt_state, a = optimise_actions(opt_state, model, s, a)
-#     end
-
-#     return a
-# end
-
-# struct MPC <: AbstractPolicy
-#     policy::AbstractPolicy
-#     model::WaveControlModel
-#     opt::AbstractRule
-#     horizon::Int
-#     opt_steps::Int
-# end
-
-# Flux.@functor MPC
-
-# function (mpc::MPC)(env::WaveEnv)
-#     s = gpu(state(env))
-#     a = gpu([mpc.policy(env) for _ in 1:mpc.horizon])
-#     a = optimise_actions(mpc.opt, mpc.model, s, a, mpc.opt_steps)
-#     return a[1]
-# end
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, n::Int)
     return [policy(env) for i in 1:n]
 end
 
-function compute_cost(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{ <:AbstractDesign})
-    pred_sigma = model(s, a)
-    return sum(pred_sigma[2:end, :])
+total_energy(sigma::AbstractMatrix{Float32}) = sum(sigma[2:end, :])
+
+function compute_gradient(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, f::Function)
+    cost, back = Flux.pullback(_a -> f(model(s, _a)), a)
+    gs = back(one(cost))[1]
+    return cost, gs
 end
 
-Flux.device!(2)
-main_path = "data/single_cylinder_dataset"
-data_path = joinpath(main_path, "episodes")
-model_path = joinpath(main_path, "models/PML_HORIZON/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=10000.0_lr=5.0e-6_decay=1.0/epoch_380/model.bson")
+function optimise_actions(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, f::Function, opt::AbstractRule, n::Int)
+    a = deepcopy(a)
+    opt_state = Optimisers.setup(opt, a)
 
+    println()
+
+    for i in 1:n
+        cost, gs = compute_gradient(model, s, a, f)
+        opt_state, a = Optimisers.update(opt_state, a, gs)
+        println(cost)
+    end
+
+    return a
+end
+
+struct MPC <: AbstractPolicy
+    policy::AbstractPolicy
+    model::ScatteredEnergyModel
+    opt::AbstractRule
+    horizon::Int
+    opt_steps::Int
+end
+
+function (mpc::MPC)(env::WaveEnv)
+    s = gpu(state(env))
+    a = gpu([mpc.policy(env) for _ in 1:mpc.horizon])
+    a = optimise_actions(mpc.model, s, a, total_energy, mpc.opt, mpc.opt_steps)
+    return a[1]
+end
+
+function flatten_series(series::AbstractVector{<: AbstractVector{Float32}})
+    return vcat(series[1], [series[i][2:end] for i in 2:length(series)]...)
+end
+
+function flatten_series(series::AbstractMatrix{Float32})
+    return flatten_series([series[:, i] for i in axes(series, 2)])
+end
+
+function measure_error(model::ScatteredEnergyModel, data::Tuple)
+    states, actions, tspans, sigmas = data
+
+    error = 0.0f0
+
+    for i in 1:length(states)
+        s, a, t, sigma = states[i], actions[i], tspans[i], sigmas[i]
+        s = gpu(s)
+        a = gpu(a)
+        sigma = gpu(sigma)
+        error += Flux.mse(model(s, a), sigma)
+
+        println(i)
+    end
+
+    return error / length(states)
+end
+
+function episode_cost(episode::EpisodeData)
+    return sum(episode.sigmas[1]) + sum([sum(episode.sigmas[i][2:end]) for i in 2:length(episode)])
+end
+
+Flux.device!(1)
+
+# model_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/models/FullState/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=10000.0_lr=5.0e-6_decay=1.0/epoch_840/model.bson"
+# model_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/models/FullState/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=0.0_lr=5.0e-6_decay=1.0/epoch_840/model.bson"
+model_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/models/TESTINGCNN/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=0.0_lr=5.0e-6_decay=1.0/epoch_730/model.bson"
+env_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/env.bson"
 model = gpu(BSON.load(model_path)[:model])
-env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
+env = gpu(BSON.load(env_path)[:env])
 policy = RandomDesignPolicy(action_space(env))
 reset!(env)
-time(env)
 
-s = gpu(state(env))
-a = gpu(build_action_sequence(policy, env, 3))
+horizon = 3
+opt_steps = 3
+lr = 0.01
+mpc = MPC(policy, model, Optimisers.Descent(lr), horizon, opt_steps)
+# states, actions, tspans, sigmas = prepare_data(random_episode1, horizon)
 
-cost, back = Flux.pullback(_a -> compute_cost(model, s, _a), a)
-gs = back(one(cost))[1]
+# idx = 30
+# s, a, t, sigma = gpu((states[idx], actions[idx], tspans[idx], sigmas[idx]))
 
+# model(s, a)
+# a = gpu([mpc.policy(env) for _ in 1:mpc.horizon])
+# a_star = optimise_actions(mpc.model, s, a, total_energy, mpc.opt, mpc.opt_steps)
 
-# @time [env(policy(env)) for i in 1:20]
 # fig = Figure()
 # ax = Axis(fig[1, 1])
-
-# for i in 1:3
-#     a = gpu(build_action_sequence(policy, env, 10))
-#     pred_sigma = cpu(model(s, a))
-#     pred_sigma = vcat(pred_sigma[1], vec(pred_sigma[2:end, :]))
-#     lines!(ax, pred_sigma)
-# end
-
+# # lines!(ax, cpu(flatten_series(sigma)), color = :blue)
+# lines!(ax, cpu(flatten_series(model(s, a))), color = :blue)
+# lines!(ax, cpu(flatten_series(model(s, a_star))), color = :orange)
 # save("sigma.png", fig)
 
-# horizon = 3
-# opt_steps = 2
-# episodes = 5
-# lr = 1e-3
-# opt = Optimisers.Descent(lr)
-# mpc = gpu(MPC(policy, model, opt, horizon, opt_steps))
-# @time episode = generate_episode_data(policy, env)
-# plot_sigma!(model, episode, path = "sigma.png")
-# states, actions, tspans, sigmas = prepare_data(episode, 3)
+## evaluating random baseline agent
+# @time random_episode1 = generate_episode_data(policy, env)
+# @time random_episode2 = generate_episode_data(policy, env)
+# @time random_episode3 = generate_episode_data(policy, env)
+# @time data = prepare_data([random_episode1, random_episode2, random_episode3], horizon)
+# @time error = measure_error(model, data)
+# random_cost1 = episode_cost(random_episode1)
+# random_cost2 = episode_cost(random_episode2)
+# random_cost3 = episode_cost(random_episode3)
 
-# idx = 20
+# idx = 70
 # s = gpu(states[idx])
 # a = gpu(actions[idx])
-# t = tspans[idx]
-# sigma = gpu(sigmas[idx])
-# pred_sigma_original = model(s, a)
+# tspan = tspans[idx]
+# sigma = sigmas[idx]
 
-# opt_state = Optimisers.setup(opt, a)
+# episode1 = EpisodeData(path = "episode1.bson")
+# episode2 = EpisodeData(path = "episode2.bson")
+# episode3 = EpisodeData(path = "episode3.bson")
 
-# alpha = 0.0f0
+## running and evaluating mpc in the environment
+@time episode1 = generate_episode_data(mpc, env)
+cost1 = episode_cost(episode1)
+println(cost1)
 
-# cost, back = pullback(_a -> compute_cost(model(s, _a), _a, alpha), a)
-# @time gs = back(one(cost))[1]
-# opt_state, a = Optimisers.update(opt_state, a, gs)
-# pred_sigma_opt_1 = model(s, a)
+@time episode2 = generate_episode_data(mpc, env)
+cost2 = episode_cost(episode2)
+println(cost2)
 
-# cost, back = pullback(_a -> compute_cost(model(s, _a), _a, alpha), a)
-# @time gs = back(one(cost))[1]
-# opt_state, a = Optimisers.update(opt_state, a, gs)
-# pred_sigma_opt_2 = model(s, a)
+@time episode3 = generate_episode_data(mpc, env)
+cost3 = episode_cost(episode3)
+println(cost3)
 
-# cost, back = pullback(_a -> compute_cost(model(s, _a), _a, alpha), a)
-# @time gs = back(one(cost))[1]
-# opt_state, a = Optimisers.update(opt_state, a, gs)
-# pred_sigma_opt_3 = model(s, a)
+tspan = flatten_series(episode1.tspans)
+sigma1 = flatten_series(episode1.sigmas)
+sigma2 = flatten_series(episode2.sigmas)
+sigma3 = flatten_series(episode3.sigmas)
 
-# fig = Figure()
-# ax = Axis(fig[1, 1], aspect = 1.0f0)
-
-# for i in axes(t, 2)
-#     lines!(ax, t[:, i], cpu(pred_sigma_original[:, i]), color = :blue)
-# end
-
-# for i in axes(t, 2)
-#     lines!(ax, t[:, i], cpu(pred_sigma_opt_1[:, i]), color = :red)
-# end
-
-# for i in axes(t, 2)
-#     lines!(ax, t[:, i], cpu(pred_sigma_opt_2[:, i]), color = :orange)
-# end
-
-# for i in axes(t, 2)
-#     lines!(ax, t[:, i], cpu(pred_sigma_opt_3[:, i]), color = :yellow)
-# end
-
-# save("sigma.png", fig)
-
-# println("Rendering")
-# @time render!(mpc, env, path = joinpath(model_path, "mpc.mp4"), seconds = 50.0f0)
-# @time render!(policy, env, path = joinpath(model_path, "random.mp4"), seconds = 50.0f0)
-
-# println("Running MPC")
-# mpc_hook = TotalRewardPerEpisode()
-# run(mpc, env, StopAfterEpisode(episodes), mpc_hook)
-
-# println("Running Random")
-# random_hook = TotalRewardPerEpisode()
-# run(policy, env, StopAfterEpisode(episodes), random_hook)
-
-# avg_mpc = mean(mpc_hook.rewards)
-# avg_random = mean(random_hook.rewards)
-
-# println("MPC: $avg_mpc")
-# println("RANDOM: $avg_random")
+data = DataFrame(tspan = tspan, sigma1 = sigma1, sigma2 = sigma2, sigma3 = sigma3)
+CSV.write("pml=off,latent=15m,horizon=3/data.csv", data)

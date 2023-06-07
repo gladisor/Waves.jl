@@ -179,7 +179,9 @@ struct AdjustableRadiiScatterers <: AbstractScatterers
 end
 
 Flux.@functor AdjustableRadiiScatterers
-Flux.trainable(design::AdjustableRadiiScatterers) = (;design.cylinders.r)
+# Flux.trainable(design::AdjustableRadiiScatterers) = (;design.cylinders.r)
+# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;r = design.cylinders.r))
+Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
 Base.vec(design::AdjustableRadiiScatterers) = design.cylinders.r
 
 function build_action_space(design::AdjustableRadiiScatterers, scale::Float32)

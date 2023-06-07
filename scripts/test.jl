@@ -102,6 +102,7 @@ function SophonDesignEncoder(
         NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
         Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        c -> hcat(c...)
         )
 
     return SophonDesignEncoder(design_space, action_space, layers)
@@ -149,17 +150,36 @@ end
 
 Flux.@functor Sophon
 
-function (sophon::Sophon)(uvf::AbstractMatrix{Float32}, c::AbstractMatrix{Float32})
+function (sophon::Sophon)(uvf::AbstractMatrix{Float32}, c::AbstractVector{Float32})
     z = sophon.iter(hcat(uvf, c))
     return z[:, [1, 2, 3], end], z
+end
+
+function (sophon::Sophon)(uvf::AbstractMatrix{Float32}, cs::AbstractMatrix{Float32})
+    recur = Recur(sophon, uvf)
+    z = cat([recur(cs[:, i]) for i in axes(cs, 2)]..., dims = 4)
+end
+
+function stack_solution(z::AbstractArray{Float32, 4})
+    return cat(z[:, :, 1, 1], [z[:, :, 2:end, i] for i in axes(z, 4)]..., dims = 3)
+end
+
+function unstack_solution(z::AbstractArray{Float32, 3}, n::Int)
+    @assert (size(z, 3) - 1) % n == 0
+    lower(i) = 1 + n * (i - 1)
+    upper(i) = 1 + n * i
+    return cat([z[:, :, lower(i):upper(i)] for i in 1:div(size(z, 3)-1, n)]..., dims = 4)
 end
 
 function (sophon::Sophon)(s::WaveEnvState, action_sequence::Vector{<: AbstractDesign})
     uvf = sophon.wave_encoder(s)
     cs = sophon.design_encoder(s, action_sequence)
-    recur = Recur(sophon, uvf)
-    z = cat([recur(c) for c in cs]..., dims = 4)
-    return cat(z[:, :, 1, 1], [z[:, :, 2:end, i] for i in axes(z, 4)]..., dims = 3)
+    z = sophon(uvf, cs)
+    # return sophon.regressor(stack_solution(z))
+end
+
+function Flux.ChainRulesCore.rrule(sophon::Sophon, uvf::AbstractMatrix{Float32}, cs::AbstractMatrix{Float32})
+    z = sophon(uvf, cs)
 end
 
 Flux.device!(0)
@@ -180,7 +200,7 @@ h_size = 256
 activation = leakyrelu
 latent_grid_size = 15.0f0
 latent_elements = 512
-horizon = 1
+horizon = 3
 wave_input_layer = TotalWaveInput()
 batchsize = 10
 pml_width = 5.0f0
@@ -194,7 +214,30 @@ wave_encoder = SophonWaveEncoder(latent_dim, wave_input_layer, nfreq, h_size, ac
 design_encoder = SophonDesignEncoder(latent_dim, env.design_space, action_space(env), nfreq, h_size, activation)
 dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
 iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
-regressor = Chain(flatten)
+
+k_size = 3
+pad_func = pad_reflect
+
+regressor = Chain(
+    flatten,
+    Dense(4 * latent_elements, h_size, activation),
+    Dense(h_size, h_size, activation),
+
+    x -> permutedims(x[:, :, :], (2, 1, 3)),
+
+    x -> pad_func(x, (k_size - 1, 0)),
+    Conv((k_size,), h_size => h_size, activation),
+
+    x -> pad_func(x, (k_size - 1, 0)),
+    Conv((k_size,), h_size => h_size, activation),
+
+    x -> pad_func(x, (k_size - 1, 0)),
+    Conv((k_size,), h_size => h_size, activation),
+
+    Conv((1,), h_size => 1),
+    vec
+    )
+
 sophon = gpu(Sophon(latent_dim, wave_encoder, design_encoder, iter, regressor))
 
 train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
@@ -203,5 +246,24 @@ states, actions, tspans, sigmas = gpu(first(train_loader))
 idx = 1
 s, a, t, sigma = states[idx], actions[idx], tspans[idx], sigmas[idx]
 
-@time cost, back = Flux.pullback(_a -> sum(sophon(s, _a)), a)
-@time gs = back(one(cost))[1]
+# uvf = sophon.wave_encoder(s)
+# cs = sophon.design_encoder(s, a)
+# z = sophon(uvf, cs)
+Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
+
+opt_state = Optimisers.setup(Optimisers.Descenta(1e-2), a)
+
+cost, back = Flux.pullback(_a -> sum(sophon.design_encoder(s, _a)), a)
+gs = back(one(cost))[1]
+opt_state, a = Optimisers.update(opt_state, a, gs)
+display(cost)
+
+cost, back = Flux.pullback(_a -> sum(sophon.design_encoder(s, _a)), a)
+gs = back(one(cost))[1]
+opt_state, a = Optimisers.update(opt_state, a, gs)
+display(cost)
+
+cost, back = Flux.pullback(_a -> sum(sophon.design_encoder(s, _a)), a)
+gs = back(one(cost))[1]
+opt_state, a = Optimisers.update(opt_state, a, gs)
+display(cost)

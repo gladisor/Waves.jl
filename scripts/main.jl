@@ -9,7 +9,7 @@ using Waves
 include("improved_model.jl")
 include("plot.jl")
 
-Flux.device!(2)
+Flux.device!(0)
 main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
 data_path = joinpath(main_path, "episodes")
 
@@ -27,20 +27,23 @@ println("Load Val Data")
 @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 151:200
     ])
 
+# @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
+# @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
+
 nfreq = 6
 h_size = 256
 activation = leakyrelu
-latent_grid_size = 30.0f0
+latent_grid_size = 15.0f0
 latent_elements = 512
 horizon = 5
 wave_input_layer = TotalWaveInput()
 batchsize = 10
 
 pml_width = 5.0f0
-pml_scale = 0.0f0#10000.0f0
+pml_scale = 10000.0f0
 lr = 5e-6
 decay_rate = 1.0f0
-MODEL_PATH = mkpath(joinpath(main_path, "models/CNNREGRESSOR/nfreq=$(nfreq)_hsize=$(h_size)_act=$(activation)_gs=$(latent_grid_size)_ele=$(latent_elements)_hor=$(horizon)_in=$(wave_input_layer)_bs=$(batchsize)_pml=$(pml_scale)_lr=$(lr)_decay=$(decay_rate)"))
+MODEL_PATH = mkpath(joinpath(main_path, "models/WORKING_ON_1DCNN/nfreq=$(nfreq)_hsize=$(h_size)_act=$(activation)_gs=$(latent_grid_size)_ele=$(latent_elements)_hor=$(horizon)_in=$(wave_input_layer)_bs=$(batchsize)_pml=$(pml_scale)_lr=$(lr)_decay=$(decay_rate)"))
 println(MODEL_PATH)
 steps = 20
 epochs = 1000
@@ -51,52 +54,65 @@ design_encoder = HypernetDesignEncoder(env.design_space, action_space(env), nfre
 dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
 iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
 
-mlp = Chain( ## normalization in these layers seems to harm?
-    flatten,
-    ## transient wavespeed
-    # Dense(5 * size(latent_dim, 1), h_size, activation),
-    ## static wavespeed
-    Dense(4 * size(latent_dim, 1), h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, 1),
-    vec)
-
-# mlp = Chain(
-#     flatten,
-#     Dense(4 * latent_elements, h_size, activation),
+# mlp = Chain( ## normalization in these layers seems to harm?
+#     x -> reshape(x, (4 * latent_elements, :, size(x, ndims(x)))),
+#     Dense(4 * size(latent_dim, 1), h_size, activation),
 #     Dense(h_size, h_size, activation),
-#     x -> x[:, :, :],
-#     x -> permutedims(x, (2, 1, 3)),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     Conv((1,), h_size => 1),
-#     vec
-# )
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, 1),
+#     flatten
+#     )
+
+k_size = 5
+mlp = Chain(
+    x -> reshape(x, (4 * latent_elements, :, size(x, ndims(x)))),
+
+    Dense(4 * latent_elements, h_size, activation),
+    Dense(h_size, h_size, activation),
+    x -> permutedims(x, (2, 1, 3)),
+
+    x -> pad_reflect(x, (k_size - 1, 0)),
+    Conv((k_size,), h_size => h_size, activation),
+
+    x -> pad_reflect(x, (k_size - 1, 0)),
+    Conv((k_size,), h_size => h_size, activation),
+
+    x -> pad_reflect(x, (k_size - 1, 0)),
+    Conv((k_size,), h_size => h_size, activation),
+
+    Conv((1,), h_size => 1),
+    flatten
+)
+
+function overfit(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, t::AbstractMatrix{Float32}, sigma::AbstractMatrix{Float32})
+    y = flatten_repeated_last_dim(sigma)
+    opt = Optimisers.Adam(5e-6)
+    opt_state = Optimisers.setup(opt, model)
+
+    trainmode!(model)
+
+    for i in 1:200
+        loss, back = Flux.pullback(m -> Flux.mse(m(s, a), y), model)
+        println("Update: $i, Loss: $loss")
+        gs = back(one(loss))[1]
+        opt_state, model = Optimisers.update(opt_state, model, gs)
+    end
+
+    testmode!(model)
+    visualize!(model, s, a, t, sigma, path = "")
+end
 
 model = ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter, env.design_space, mlp) |> gpu
 train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
 val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize)
 
-# investigate further if i can only include u and v fields in mlp
 # states, actions, tspans, sigmas = gpu(first(train_loader))
 # s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]
-# # zi = hcat(model.wave_encoder(s), model.design_encoder(s.design, a[1]))
-# # z = model.iter(zi)
-# # y = model.mlp(z)
-
-# # fig = Figure()
-# # ax = Axis(fig[1, 1])
-# # lines!(ax, cpu(y))
-# # save("sigma.png", fig)
-# overfit!(model, states, actions, tspans, sigmas, lr, 500)
+# overfit(model, s, a, t, sigma)
 
 train_loop(
     model,

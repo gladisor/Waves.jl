@@ -1,6 +1,7 @@
 const EPSILON = Float32(1e-3)
 
 abstract type WaveInputLayer end
+(input::WaveInputLayer)(s::Vector{WaveEnvState}) = cat(input.(s)..., dims = 4)
 
 struct TotalWaveInput <: WaveInputLayer end
 Flux.@functor TotalWaveInput
@@ -26,6 +27,7 @@ Flux.@functor ResidualBlock
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
         Conv(k, in_channels => out_channels, activation, pad = SamePad()),
+        # BatchNorm(out_channels),
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -73,13 +75,36 @@ function (freq::FrequencyDomain)(m)
     return m(freq.domain)
 end
 
+struct Hypernet
+    dense::Dense
+    re::Optimisers.Restructure
+    domain::FrequencyDomain
+end
+
+Flux.@functor Hypernet
+
+function Hypernet(in_size::Int, base::Chain, domain::FrequencyDomain)
+    ps, re = destructure(base)
+    dense = Dense(in_size, length(ps), bias = false)
+    return Hypernet(dense, re, domain)
+end
+
+function (hypernet::Hypernet)(x::AbstractVector{Float32})
+    m = hypernet.re(hypernet.dense(x))
+    return hypernet.domain(m)
+end
+
+function (hypernet::Hypernet)(x::AbstractMatrix{Float32})
+    models = hypernet.re.(eachcol(hypernet.dense(x)))
+    return  cat([hypernet.domain(m) for m in models]..., dims = ndims(x) + 1)
+end
+
 function build_mlp(in_size::Int, h_size::Int, n_h::Int, activation::Function)
 
     return Chain(
         NormalizedDense(in_size, h_size, activation),
         [NormalizedDense(h_size, h_size, activation) for _ in 1:n_h]...)
 end
-
 
 function build_hypernet_wave_encoder(;
         latent_dim::OneDim,
@@ -107,12 +132,14 @@ function build_hypernet_wave_encoder(;
         GlobalMaxPool(),
         flatten,
         NormalizedDense(128, h_size, activation),
-        Dense(h_size, length(ps), bias = false),
-        vec,
-        re,
-        FrequencyDomain(latent_dim, nfreq),
+        Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        # uvf -> cat(uvf..., dims = 3)
+        # Dense(h_size, length(ps), bias = false),
+        # vec,
+        # re,
+        # FrequencyDomain(latent_dim, nfreq),
         Scale([1.0f0, 1.0f0/WATER, 1.0f0], false),
-        z -> permutedims(z, (2, 1))
+        z -> permutedims(z, (2, 1, 3))
         )
 
     return model
@@ -155,10 +182,12 @@ function HypernetDesignEncoder(
         NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
-        Dense(h_size, length(ps), identity, bias = false),
-        re,
-        FrequencyDomain(latent_dim, nfreq),
-        vec,
+        Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        c -> permutedims(c, (2, 1))
+        # Dense(h_size, length(ps), identity, bias = false),
+        # re,
+        # FrequencyDomain(latent_dim, nfreq),
+        # vec,
         )
 
     return HypernetDesignEncoder(design_space, action_space, layers)
@@ -170,6 +199,8 @@ function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
     a = (vec(a) .- vec(model.action_space.low)) ./ (vec(model.action_space.high) .- vec(model.action_space.low) .+ EPSILON)
     return model.layers(vcat(d, a))
 end
+
+# (model::HypernetDesignEncoder)(s::WaveEnvState, a::AbstractDesign) = model(s.design, a)
 
 struct LatentDynamics <: AbstractDynamics
     C0::Float32
@@ -202,11 +233,6 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     ## static wavespeed
     dc = c * 0.0f0
     return hcat(du .* dyn.bc, dv, df, dc)
-
-    ## transient wavespeed
-    # dc = wave[:, 5]
-    ## transient wavespeed
-    # return hcat(du .* dyn.bc, dv, df, dc, dc * 0.0f0)
 end
 
 struct ScatteredEnergyModel
@@ -229,65 +255,73 @@ end
 function (model::ScatteredEnergyModel)(h::Tuple{AbstractMatrix{Float32}, AbstractDesign}, a::AbstractDesign)
     latent_state, d = h
     z, d = propagate(model, latent_state, d, a)
-    return (z[:, [1, 2, 3], end], d), model.mlp(z)
+    return (z[:, [1, 2, 3], end], d), z
+end
+
+function flatten_repeated_last_dim(x::AbstractArray{Float32})
+
+    last_dim = size(x, ndims(x))
+    first_component = selectdim(x, ndims(x), 1)
+    second_component = selectdim(selectdim(x, ndims(x) - 1, 2:size(x, ndims(x) - 1)), ndims(x), 2:last_dim)
+    new_dims = (size(second_component)[1:end-2]..., prod(size(second_component)[end-1:end]))
+
+    return cat(
+        first_component,
+        reshape(second_component, new_dims),
+        dims = ndims(x) - 1)
+end
+
+function generate_latent_solution(model::ScatteredEnergyModel, latent_state::AbstractMatrix{Float32}, d::AbstractDesign, a::Vector{<: AbstractDesign})
+    recur = Recur(model, (latent_state, d))
+    return cat([recur(action) for action in a]..., dims = 4)
 end
 
 function (model::ScatteredEnergyModel)(s::WaveEnvState, a::Vector{<:AbstractDesign})
-    Flux.reset!(model.mlp)
-    latent_state = model.wave_encoder(s)
-    recur = Recur(model, (latent_state, s.design))
-    return hcat([recur(action) for action in a]...)
+    latent_state = model.wave_encoder(s)[:, :, 1]
+    z = flatten_repeated_last_dim(generate_latent_solution(model, latent_state, s.design, a))
+    return model.mlp(Flux.unsqueeze(z, dims = ndims(z) + 1))
+end
+
+function (model::ScatteredEnergyModel)(states::Vector{WaveEnvState}, a::Vector{<: Vector{<: AbstractDesign}})
+    latent_states = Flux.unbatch(model.wave_encoder(states))
+    z = cat(flatten_repeated_last_dim.(generate_latent_solution.([model], latent_states, [s.design for s in states], a))..., dims = 4)
+    return model.mlp(z)
 end
 
 using Statistics: mean
-
-# function compute_gradient(model, s::WaveEnvState, a::Vector{<:AbstractDesign}, sigma, loss_func)
-#     loss, back = Flux.pullback(_model -> loss_func(_model(a, a), sigma), model)
-#     return loss, back(one(loss))[1]
-# end
-
 function compute_gradient(model, states, actions, sigmas, loss_func::Function)
-    loss, back = Flux.pullback(_model -> mean(loss_func.(_model.(states, actions), sigmas)), model)
-    return loss, back(one(loss))[1]
-end
+    # loss, back = Flux.pullback(_model -> mean(loss_func.(_model.(states, actions), sigmas)), model)
+    # return loss, back(one(loss))[1]
 
+    y = hcat(flatten_repeated_last_dim.(sigmas)...)
+    loss, back = Flux.pullback(m -> loss_func(m(states, actions), y), model)
+    gs = back(one(loss))[1]
+
+    return loss, gs
+end
 
 function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
-    tspan = cpu(tspan)
-    tspan_flat = vcat(tspan[1], vec(tspan[2:end, :]))
+    tspan = cpu(flatten_repeated_last_dim(tspan))
 
-    latent_state = model.wave_encoder(s)
+    latent_state = model.wave_encoder(s)[:, :, 1]
     design = s.design
 
-    zs = []
-    for (i, action) in enumerate(a)
-        z, design = propagate(model, latent_state, design, action)
-        latent_state = z[:, [1, 2, 3], end]
-
-        if i == 1
-            push!(zs, cpu(z))
-        else
-            push!(zs, cpu(z[:, :, 2:end]))
-        end
-    end
-
+    z = cpu(flatten_repeated_last_dim(generate_latent_solution(model, latent_state, design, a)))
     dim = cpu(model.latent_dim)
-
-    z = cat(zs..., dims = ndims(zs[1]))
-    pred_sigma = cpu(model(s, a))
+    pred_sigma = cpu(model(s, a))[:, 1]
 
     fig = Figure(resolution = (1920, 1080), fontsize = 30)
     z_grid = fig[1, 1] = GridLayout()
 
-    ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan_flat, z[:, 1, :], colormap = :ice)
+    ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan, z[:, 1, :], colormap = :ice)
     Colorbar(z_grid[1, 2], hm1)
     ax1.title = "Displacement"
     ax1.ylabel = "Time (s)"
     ax1.xticklabelsvisible = false
     ax1.xticksvisible = false
 
-    ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan_flat, z[:, 2, :], colormap = :ice)
+    ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan, z[:, 2, :], colormap = :ice)
     Colorbar(z_grid[1, 4], hm2)
     ax2.title = "Velocity"
     ax2.xticklabelsvisible = false
@@ -295,13 +329,13 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     ax2.yticklabelsvisible = false
     ax2.yticksvisible = false
 
-    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan_flat, z[:, 3, :], colormap = :ice)
+    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 3, :], colormap = :ice)
     Colorbar(z_grid[2, 2], hm3)
     ax3.title = "Force"
     ax3.xlabel = "Distance (m)"
     ax3.ylabel = "Time (s)"
 
-    ax4, hm4 = heatmap(z_grid[2, 3], dim.x, tspan_flat, z[:, 4, :], colormap = :ice)
+    ax4, hm4 = heatmap(z_grid[2, 3], dim.x, tspan, z[:, 4, :], colormap = :ice)
     Colorbar(z_grid[2, 4], hm4)
     ax4.title = "Wave Speed"
     ax4.xlabel = "Distance (m)"
@@ -311,10 +345,10 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     p_grid = fig[1, 2] = GridLayout()
     p_axis = Axis(p_grid[1, 1], title = "Prediction of Scattered Energy Versus Ground Truth", xlabel = "Time (s)", ylabel = "Scattered Energy (σ)")
 
-    for i in axes(tspan, 2)
-        lines!(p_axis, tspan[:, i], cpu(sigma[:, i]), color = :blue, label = "True", linewidth = 3)
-        lines!(p_axis, tspan[:, i], pred_sigma[:, i], color = :orange, label = "Predicted", linewidth = 3)
-    end
+    sigma = cpu(flatten_repeated_last_dim(sigma))
+    lines!(p_axis, tspan, sigma, color = :blue, label = "True")
+    lines!(p_axis, tspan, pred_sigma, color = :orange, label = "Predicted")
+    axislegend(p_axis, position = :rb)
 
     save(joinpath(path, "latent.png"), fig)
     return nothing
@@ -386,13 +420,18 @@ function train_loop(
         for (j, batch) in enumerate(val_loader)
             states, actions, tspans, sigmas = gpu(batch)
 
-            loss = mean(loss_func.(model.(states, actions), sigmas))
+            y = hcat(flatten_repeated_last_dim.(sigmas)...)
+            loss = loss_func(model(states, actions), y)
             push!(epoch_loss, loss)
 
             if j <= evaluation_samples
                 latent_path = mkpath(joinpath(epoch_path, "latent_$j"))
                 for (i, (s, a, tspan, sigma)) in enumerate(zip(states, actions, tspans, sigmas))
-                    @time visualize!(model, s, a, tspan, sigma, path = mkpath(joinpath(latent_path, "$i")))
+                    try
+                        @time visualize!(model, s, a, tspan, sigma, path = mkpath(joinpath(latent_path, "$i")))
+                    catch e
+                        println(e)
+                    end
                 end
             end
 

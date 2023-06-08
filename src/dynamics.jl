@@ -45,6 +45,7 @@ end
 
 function (iter::Integrator)(ui::AbstractArray{Float32})
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
+    # tspan = build_tspan(iter.ti, iter.dt, iter.steps - 1)
     recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
 end

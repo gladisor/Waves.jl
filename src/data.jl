@@ -54,8 +54,9 @@ function prepare_data(episode::EpisodeData, horizon::Int)
 
     n = horizon - 1
 
-    for i in 1:length(episode)
-        boundary = min(i+n, length(episode))
+    for i in 1:(length(episode) - n)
+        # boundary = min(i+n, length(episode))
+        boundary = i + n
         
         push!(states, episode.states[i])
         push!(actions, episode.actions[i:boundary])

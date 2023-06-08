@@ -121,12 +121,14 @@ function render!(;
         u_scattered::Extrapolation, 
         u_incident::Union{Extrapolation, Nothing} = nothing, 
         design::Union{Extrapolation, Nothing} = nothing, 
-        seconds::Float32 = 1.0f0, 
+        seconds::Float32 = 1.0f0,
+        minimum_value = -1.0f0,
+        maximum_value = 1.0f0,
         path::String)
 
     fig = Figure()
 
-    ax1 = Axis(fig[1, 1], aspect = 1.0f0, title = "Scattered Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
+    ax1 = Axis(fig[1, 1], aspect = 1.0f0, title = "Total Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
 
     if !isnothing(u_incident)
         ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Incident Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
@@ -137,7 +139,7 @@ function render!(;
 
     record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
         empty!(ax1)
-        heatmap!(ax1, dim.x, dim.y, u_scattered(t)[:, :, 1], colormap = :ice)
+        heatmap!(ax1, dim.x, dim.y, u_scattered(t)[:, :, 1], colormap = :ice, colorrange = (minimum_value, maximum_value))
 
         if !isnothing(u_incident)
             empty!(ax2)
@@ -181,18 +183,22 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     tspans = vcat(sol[:tspan]...)
     u_incident = vcat(sol[:incident]...)
     u_scattered = vcat(sol[:scattered]...)
+    u_total = u_incident .+ u_scattered
 
     design_times = vcat(design_times...)
     designs = vcat(designs...)
 
-    u_incident = linear_interpolation(tspans, u_incident)
-    u_scattered = linear_interpolation(tspans, u_scattered)
+    # u_incident = linear_interpolation(tspans, u_incident)
+    # u_scattered = linear_interpolation(tspans, u_scattered)
+    # u_total = linear_interpolation(tspans, u_incident .+ u_scattered)
+
+    u_total = linear_interpolation(tspans, u_total)
     d = linear_interpolation(design_times, designs, extrapolation_bc = Flat())
 
     render!(
         dim = cpu(env.dim), 
         tspan = tspans, 
-        u_scattered = u_scattered, 
+        u_scattered = u_total,#u_scattered, 
         # u_incident = u_incident,
         design = d; 
         kwargs...)

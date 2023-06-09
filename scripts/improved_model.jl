@@ -27,7 +27,6 @@ Flux.@functor ResidualBlock
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
         Conv(k, in_channels => out_channels, activation, pad = SamePad()),
-        # BatchNorm(out_channels),
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -133,11 +132,6 @@ function build_hypernet_wave_encoder(;
         flatten,
         NormalizedDense(128, h_size, activation),
         Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        # uvf -> cat(uvf..., dims = 3)
-        # Dense(h_size, length(ps), bias = false),
-        # vec,
-        # re,
-        # FrequencyDomain(latent_dim, nfreq),
         Scale([1.0f0, 1.0f0/WATER, 1.0f0], false),
         z -> permutedims(z, (2, 1, 3))
         )
@@ -166,15 +160,16 @@ function HypernetDesignEncoder(
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
-        Dense(h_size, 1, sigmoid))
+        Dense(h_size, 1, sigmoid)
+        )
 
     ps, re = destructure(embedder)
 
     ## static wavespeed
-    in_size = length(vec(design_space.low)) + length(vec(action_space.low))
+    # in_size = length(vec(design_space.low)) + length(vec(action_space.low))
     
     ## transient wavespeed
-    # in_size = length(vec(design_space.low))
+    in_size = length(vec(design_space.low))
 
     layers = Chain(
         NormalizedDense(in_size, h_size, activation),
@@ -184,23 +179,28 @@ function HypernetDesignEncoder(
         NormalizedDense(h_size, h_size, activation),
         Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
         c -> permutedims(c, (2, 1))
-        # Dense(h_size, length(ps), identity, bias = false),
-        # re,
-        # FrequencyDomain(latent_dim, nfreq),
-        # vec,
         )
 
     return HypernetDesignEncoder(design_space, action_space, layers)
 end
 
-function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
-    ## static wavespeed
-    d = (vec(d) .- vec(model.design_space.low)) ./ (vec(model.design_space.high) .- vec(model.design_space.low) .+ EPSILON)
-    a = (vec(a) .- vec(model.action_space.low)) ./ (vec(model.action_space.high) .- vec(model.action_space.low) .+ EPSILON)
-    return model.layers(vcat(d, a))
+function normalize(design::AbstractDesign, ds::DesignSpace)
+    return (vec(design) .- vec(ds.low)) ./ (vec(ds.high) .- vec(ds.low) .+ EPSILON)
 end
 
-# (model::HypernetDesignEncoder)(s::WaveEnvState, a::AbstractDesign) = model(s.design, a)
+function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
+    d1 = normalize(d, model.design_space)
+    d2 = normalize(model.design_space(d, a), model.design_space)
+
+    c1 = model.layers(d1)
+    c2 = model.layers(d2)
+
+    c1 = gpu(randn(Float32, size(c1)))
+    c2 = gpu(randn(Float32, size(c2)))
+
+    dc = (c2 .- c1) / (100/0.00001f0) ## hardcoded for now
+    return hcat(c1, dc)
+end
 
 struct LatentDynamics <: AbstractDynamics
     C0::Float32
@@ -225,14 +225,16 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     v = wave[:, 2]
     f = wave[:, 3]
     c = wave[:, 4]
+    dc = wave[:, 5]
 
     force = f * sin(2.0f0 * pi * dyn.freq * t)
     du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
     df = f * 0.0f0
     ## static wavespeed
-    dc = c * 0.0f0
-    return hcat(du .* dyn.bc, dv, df, dc)
+    # dc = c * 0.0f0
+    ddc = dc * 0.0f0
+    return hcat(du .* dyn.bc, dv, df, dc, ddc)
 end
 
 struct ScatteredEnergyModel
@@ -290,9 +292,6 @@ end
 
 using Statistics: mean
 function compute_gradient(model, states, actions, sigmas, loss_func::Function)
-    # loss, back = Flux.pullback(_model -> mean(loss_func.(_model.(states, actions), sigmas)), model)
-    # return loss, back(one(loss))[1]
-
     y = hcat(flatten_repeated_last_dim.(sigmas)...)
     loss, back = Flux.pullback(m -> loss_func(m(states, actions), y), model)
     gs = back(one(loss))[1]
@@ -329,13 +328,13 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     ax2.yticklabelsvisible = false
     ax2.yticksvisible = false
 
-    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 3, :], colormap = :ice)
+    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 3, :], colormap = :ice, colorrange = (-1.0, 1.0))
     Colorbar(z_grid[2, 2], hm3)
     ax3.title = "Force"
     ax3.xlabel = "Distance (m)"
     ax3.ylabel = "Time (s)"
 
-    ax4, hm4 = heatmap(z_grid[2, 3], dim.x, tspan, z[:, 4, :], colormap = :ice)
+    ax4, hm4 = heatmap(z_grid[2, 3], dim.x, tspan, z[:, 4, :], colormap = :ice, colorrange = (0.0, 1.0))
     Colorbar(z_grid[2, 4], hm4)
     ax4.title = "Wave Speed"
     ax4.xlabel = "Distance (m)"

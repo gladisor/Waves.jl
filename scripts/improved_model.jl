@@ -172,11 +172,19 @@ function HypernetDesignEncoder(
     in_size = length(vec(design_space.low))
 
     layers = Chain(
-        NormalizedDense(in_size, h_size, activation),
+
+        Dense(in_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        # Dense(h_size, h_size, activation),
+
+        # NormalizedDense(in_size, h_size, activation),
+        # NormalizedDense(h_size, h_size, activation),
+        # NormalizedDense(h_size, h_size, activation),
+        # NormalizedDense(h_size, h_size, activation),
         NormalizedDense(h_size, h_size, activation),
-        NormalizedDense(h_size, h_size, activation),
-        NormalizedDense(h_size, h_size, activation),
-        NormalizedDense(h_size, h_size, activation),
+
         Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
         c -> permutedims(c, (2, 1))
         )
@@ -185,7 +193,8 @@ function HypernetDesignEncoder(
 end
 
 function normalize(design::AbstractDesign, ds::DesignSpace)
-    return (vec(design) .- vec(ds.low)) ./ (vec(ds.high) .- vec(ds.low) .+ EPSILON)
+    scale = 20.0f0
+    return scale * (vec(design) .- vec(ds.low)) ./ (vec(ds.high) .- vec(ds.low) .+ EPSILON) .- (scale / 2.0f0)
 end
 
 function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
@@ -194,11 +203,7 @@ function (model::HypernetDesignEncoder)(d::AbstractDesign, a::AbstractDesign)
 
     c1 = model.layers(d1)
     c2 = model.layers(d2)
-
-    c1 = gpu(randn(Float32, size(c1)))
-    c2 = gpu(randn(Float32, size(c2)))
-
-    dc = (c2 .- c1) / (100/0.00001f0) ## hardcoded for now
+    dc = (c2 .- c1) / 1.0f-3 ## hardcoded for now
     return hcat(c1, dc)
 end
 
@@ -231,10 +236,10 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
     df = f * 0.0f0
+    
     ## static wavespeed
     # dc = c * 0.0f0
-    ddc = dc * 0.0f0
-    return hcat(du .* dyn.bc, dv, df, dc, ddc)
+    return hcat(du .* dyn.bc, dv, df, dc, dc * 0.0f0)
 end
 
 struct ScatteredEnergyModel
@@ -458,4 +463,42 @@ function train_loop(
             BSON.bson(joinpath(epoch_path, "model.bson"), model = cpu(model))
         end
     end
+end
+
+function overfit(
+        model::ScatteredEnergyModel, 
+        s,#::WaveEnvState, 
+        a,#::Vector{<: AbstractDesign}, 
+        t,#::AbstractMatrix{Float32}, 
+        sigma,#::AbstractMatrix{Float32}
+        )
+    # y = flatten_repeated_last_dim(sigma)
+
+    y = hcat(flatten_repeated_last_dim.(sigma)...)
+
+    opt = Optimisers.Adam(5e-6)
+    opt_state = Optimisers.setup(opt, model)
+
+    trainmode!(model)
+
+    for i in 1:100
+
+        Flux.reset!(model)
+        loss, back = Flux.pullback(m -> Flux.mse(m(s, a), y), model)
+        println("Update: $i, Loss: $loss")
+        gs = back(one(loss))[1]
+        opt_state, model = Optimisers.update(opt_state, model, gs)
+    end
+
+    Flux.reset!(model)
+    testmode!(model)
+
+    p1 = mkpath("latent1")
+    visualize!(model, s[1], a[1], t[1], sigma[1], path = p1)
+
+    p2 = mkpath("latent2")
+    visualize!(model, s[2], a[2], t[2], sigma[2], path = p2)
+
+    p3 = mkpath("latent3")
+    visualize!(model, s[3], a[3], t[3], sigma[3], path = p3)
 end

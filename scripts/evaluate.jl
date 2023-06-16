@@ -15,9 +15,9 @@ function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, n::Int)
     return [policy(env) for i in 1:n]
 end
 
-total_energy(sigma::AbstractMatrix{Float32}) = sum(sigma[2:end, :])
+total_energy(sigma::AbstractMatrix{Float32}) = sum(sigma[2:end])
 
-function compute_gradient(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, f::Function)
+function compute_actions_gradient(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign}, f::Function)
     cost, back = Flux.pullback(_a -> f(model(s, _a)), a)
     gs = back(one(cost))[1]
     return cost, gs
@@ -30,7 +30,7 @@ function optimise_actions(model::ScatteredEnergyModel, s::WaveEnvState, a::Vecto
     println()
 
     for i in 1:n
-        cost, gs = compute_gradient(model, s, a, f)
+        cost, gs = compute_actions_gradient(model, s, a, f)
         opt_state, a = Optimisers.update(opt_state, a, gs)
         println(cost)
     end
@@ -61,96 +61,107 @@ function flatten_series(series::AbstractMatrix{Float32})
     return flatten_series([series[:, i] for i in axes(series, 2)])
 end
 
-function measure_error(model::ScatteredEnergyModel, data::Tuple)
-    states, actions, tspans, sigmas = data
+# function measure_error(model::ScatteredEnergyModel, data::Tuple)
+#     states, actions, tspans, sigmas = data
 
-    error = 0.0f0
+#     error = 0.0f0
 
-    for i in 1:length(states)
-        s, a, t, sigma = states[i], actions[i], tspans[i], sigmas[i]
-        s = gpu(s)
-        a = gpu(a)
-        sigma = gpu(sigma)
-        error += Flux.mse(model(s, a), sigma)
+#     for i in 1:length(states)
+#         s, a, t, sigma = states[i], actions[i], tspans[i], sigmas[i]
+#         s = gpu(s)
+#         a = gpu(a)
+#         sigma = gpu(sigma)
+#         error += Flux.mse(model(s, a), sigma)
 
-        println(i)
-    end
+#         println(i)
+#     end
 
-    return error / length(states)
-end
+#     return error / length(states)
+# end
 
 function episode_cost(episode::EpisodeData)
     return sum(episode.sigmas[1]) + sum([sum(episode.sigmas[i][2:end]) for i in 2:length(episode)])
 end
 
-Flux.device!(1)
+# Flux.device!(0)
 
-# model_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/models/FullState/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=10000.0_lr=5.0e-6_decay=1.0/epoch_840/model.bson"
-# model_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/models/FullState/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=0.0_lr=5.0e-6_decay=1.0/epoch_840/model.bson"
-model_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/models/TESTINGCNN/nfreq=6_hsize=256_act=leakyrelu_gs=15.0_ele=512_hor=3_in=TotalWaveInput()_bs=10_pml=0.0_lr=5.0e-6_decay=1.0/epoch_730/model.bson"
-env_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset/env.bson"
-model = gpu(BSON.load(model_path)[:model])
-env = gpu(BSON.load(env_path)[:env])
-policy = RandomDesignPolicy(action_space(env))
+# main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
+main_path = "data/triple_ring_dataset"
+data_path = joinpath(main_path, "episodes")
+model_path = "/home/012761749/Waves.jl/data/triple_ring_dataset/models/full_cnn/pml_width=10.0_pml_scale=10000.0_k_size=2/epoch_120/model.bson"
+
+println("Loading Environment")
+env = BSON.load(joinpath(data_path, "env.bson"))[:env]
+dim = cpu(env.dim)
 reset!(env)
+policy = RandomDesignPolicy(action_space(env))
 
-horizon = 3
-opt_steps = 3
-lr = 0.01
-mpc = MPC(policy, model, Optimisers.Descent(lr), horizon, opt_steps)
-# states, actions, tspans, sigmas = prepare_data(random_episode1, horizon)
+random_episode1 = EpisodeData(path = joinpath(data_path, "episode1/episode.bson"))
+random_episode2 = EpisodeData(path = joinpath(data_path, "episode2/episode.bson"))
+random_episode3 = EpisodeData(path = joinpath(data_path, "episode3/episode.bson"))
 
+tspan = flatten_series(random_episode1.tspans)
+sigma1 = flatten_series(random_episode1.sigmas)
+sigma2 = flatten_series(random_episode2.sigmas)
+sigma3 = flatten_series(random_episode3.sigmas)
+data = DataFrame(tspan = tspan, sigma1 = sigma1, sigma2 = sigma2, sigma3 = sigma3)
+# CSV.write("random.csv", data)
+
+random_avg = (data[!, :sigma1] .+ data[!, :sigma2] .+ data[!, :sigma3]) ./ 3.0f0
+
+mpc_episode1 = EpisodeData(path = "mpc_episode1.bson")
+mpc_episode2 = EpisodeData(path = "mpc_episode2.bson")
+mpc_episode3 = EpisodeData(path = "mpc_episode3.bson")
+
+tspan = flatten_series(mpc_episode1.tspans)
+sigma1 = flatten_series(mpc_episode1.sigmas)
+sigma2 = flatten_series(mpc_episode2.sigmas)
+sigma3 = flatten_series(mpc_episode3.sigmas)
+
+mpc_avg = (sigma1 .+ sigma2 .+ sigma3) ./ 3.0f0
+
+
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, data[!, :tspan], random_avg)
+lines!(ax, data[!, :tspan], mpc_avg)
+save("compare.png", fig)
+
+# horizon = 5
+# opt_steps = 30
+# lr = 0.01
 # idx = 30
-# s, a, t, sigma = gpu((states[idx], actions[idx], tspans[idx], sigmas[idx]))
 
-# model(s, a)
+# states, actions, tspans, sigmas = prepare_data(random_episode1, horizon)
+# s, a, t, sigma = gpu((states[idx], actions[idx], tspans[idx], sigmas[idx]))
+# model = gpu(BSON.load(model_path)[:model])
+# mpc = MPC(policy, model, Optimisers.Adam(lr), horizon, opt_steps)
+
 # a = gpu([mpc.policy(env) for _ in 1:mpc.horizon])
 # a_star = optimise_actions(mpc.model, s, a, total_energy, mpc.opt, mpc.opt_steps)
 
 # fig = Figure()
 # ax = Axis(fig[1, 1])
-# # lines!(ax, cpu(flatten_series(sigma)), color = :blue)
-# lines!(ax, cpu(flatten_series(model(s, a))), color = :blue)
-# lines!(ax, cpu(flatten_series(model(s, a_star))), color = :orange)
+# lines!(ax, cpu(vec(model(s, a))), color = :blue)
+# lines!(ax, cpu(vec(model(s, a_star))), color = :orange)
 # save("sigma.png", fig)
 
-## evaluating random baseline agent
-# @time random_episode1 = generate_episode_data(policy, env)
-# @time random_episode2 = generate_episode_data(policy, env)
-# @time random_episode3 = generate_episode_data(policy, env)
-# @time data = prepare_data([random_episode1, random_episode2, random_episode3], horizon)
-# @time error = measure_error(model, data)
-# random_cost1 = episode_cost(random_episode1)
-# random_cost2 = episode_cost(random_episode2)
-# random_cost3 = episode_cost(random_episode3)
+# @time episode1 = generate_episode_data(mpc, env)
+# save(episode1, "mpc_episode1.bson")
+# @time episode2 = generate_episode_data(mpc, env)
+# save(episode2, "mpc_episode2.bson")
+# @time episode3 = generate_episode_data(mpc, env)
+# save(episode3, "mpc_episode3.bson")
 
-# idx = 70
-# s = gpu(states[idx])
-# a = gpu(actions[idx])
-# tspan = tspans[idx]
-# sigma = sigmas[idx]
+# cost1 = episode_cost(episode1)
+# cost2 = episode_cost(episode2)
+# cost3 = episode_cost(episode3)
 
-# episode1 = EpisodeData(path = "episode1.bson")
-# episode2 = EpisodeData(path = "episode2.bson")
-# episode3 = EpisodeData(path = "episode3.bson")
-
-## running and evaluating mpc in the environment
-@time episode1 = generate_episode_data(mpc, env)
-cost1 = episode_cost(episode1)
-println(cost1)
-
-@time episode2 = generate_episode_data(mpc, env)
-cost2 = episode_cost(episode2)
-println(cost2)
-
-@time episode3 = generate_episode_data(mpc, env)
-cost3 = episode_cost(episode3)
-println(cost3)
-
-tspan = flatten_series(episode1.tspans)
-sigma1 = flatten_series(episode1.sigmas)
-sigma2 = flatten_series(episode2.sigmas)
-sigma3 = flatten_series(episode3.sigmas)
-
-data = DataFrame(tspan = tspan, sigma1 = sigma1, sigma2 = sigma2, sigma3 = sigma3)
-CSV.write("pml=off,latent=15m,horizon=3/data.csv", data)
+# tspan = flatten_series(episode1.tspans)
+# sigma1 = flatten_series(episode1.sigmas)
+# sigma2 = flatten_series(episode2.sigmas)
+# sigma3 = flatten_series(episode3.sigmas)
+# data = DataFrame(tspan = tspan, sigma1 = sigma1)
+#, sigma2 = sigma2, sigma3 = sigma3)
+# CSV.write("mpc.csv", data)

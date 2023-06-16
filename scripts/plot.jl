@@ -137,7 +137,7 @@ function render!(;
     frames = Int(round(FRAMES_PER_SECOND * seconds))
     tspan = range(tspan[1], tspan[end], frames)
 
-    record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
+    CairoMakie.record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
         empty!(ax1)
         heatmap!(ax1, dim.x, dim.y, u_scattered(t)[:, :, 1], colormap = :ice, colorrange = (minimum_value, maximum_value))
 
@@ -220,7 +220,7 @@ function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
         ylims!(ax, min_u, max_u)
     end
 
-    record(fig, path, axes(u, 3), framerate = 60) do i
+    CairoMakie.record(fig, path, axes(u, 3), framerate = 60) do i
         empty!(ax)
         lines!(ax, dim.x, u[:, 1, i], color = :blue)
     end

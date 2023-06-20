@@ -10,9 +10,8 @@ using Waves
 include("improved_model.jl")
 include("plot.jl")
 
-Flux.device!(2)
-main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
-# main_path = "data/triple_ring_dataset"
+Flux.device!(0)
+main_path = "data/full_state_single_adjustable_radii"
 data_path = joinpath(main_path, "episodes")
 
 println("Loading Environment")
@@ -22,33 +21,43 @@ reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 
 println("Load Data")
-@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:150])
-@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 151:200])
+
+## full dataset (too big)
+# @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:150])
+# @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 151:200])
+
+## for initial pretrain
+@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:50])
+@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 191:200])
+
+## for transfer learning
+# @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 51:100])
+# @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 181:190])
 
 println("Declaring Hyperparameters")
 nfreq = 6
-h_size = 256
+h_size = 256 ## try increase (memory issues :( sad)
 activation = leakyrelu
 latent_grid_size = 15.0f0
-latent_elements = 1024 #512
-horizon = 5
+latent_elements = 1024
+horizon = 1
 wave_input_layer = TotalWaveInput()
-batchsize = 10
-pml_width = 5.0f0
-pml_scale = 10000.0f0
+batchsize = 5
+pml_width = 10.0f0
+pml_scale = 0.0f0 #10000.0f0
 lr = 5e-6
 decay_rate = 1.0f0
 k_size = 2
 steps = 20
 epochs = 1000
 
-# MODEL_PATH = mkpath(joinpath(main_path, "models/TEMP/nfreq=$(nfreq)_hsize=$(h_size)_act=$(activation)_gs=$(latent_grid_size)_ele=$(latent_elements)_hor=$(horizon)_in=$(wave_input_layer)_bs=$(batchsize)_pml=$(pml_scale)_lr=$(lr)_decay=$(decay_rate)"))
-MODEL_PATH = mkpath(joinpath(main_path, "models/full_cnn/pml_width=$(pml_width)_pml_scale=$(pml_scale)_latent_elements=$(latent_elements)_latent_grid_size=$(latent_grid_size)"))
+MODEL_PATH = mkpath(joinpath(main_path, "models/no_norm_horizon=$horizon/batchsize=$(batchsize)_pml_off"))
+# MODEL_PATH = mkpath(joinpath(main_path, "models/transfer_learning/model_name_placeholder"))
 println(MODEL_PATH)
+# model = gpu(BSON.load(joinpath(main_path, "models/no_norm_horizon=1/batchsize=5/epoch_1000/model.bson"))[:model])
 
 println("Initializing Model Components")
 latent_dim = OneDim(latent_grid_size, latent_elements)
-# wave_encoder = build_hypernet_wave_encoder(latent_dim = latent_dim, input_layer = wave_input_layer, nfreq = nfreq, h_size = h_size, activation = activation)
 wave_encoder = build_split_hypernet_wave_encoder(latent_dim = latent_dim, input_layer = wave_input_layer, nfreq = nfreq, h_size = h_size, activation = activation)
 design_encoder = HypernetDesignEncoder(env.design_space, action_space(env), nfreq, h_size, activation, latent_dim)
 dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
@@ -57,7 +66,6 @@ iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
 ## using displacement and wavespeed seems to be pretty good
 mlp = Chain(
     reshape_latent_solution,
-    # build_mlp_decoder(latent_elements, h_size, activation)
     build_full_cnn_decoder(latent_elements, h_size, k_size, activation)
     )
 

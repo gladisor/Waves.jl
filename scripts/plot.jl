@@ -139,11 +139,11 @@ function render!(;
 
     CairoMakie.record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
         empty!(ax1)
-        heatmap!(ax1, dim.x, dim.y, u_scattered(t)[:, :, 1], colormap = :ice, colorrange = (minimum_value, maximum_value))
+        heatmap!(ax1, dim.x, dim.y, u_scattered(t), colormap = :ice, colorrange = (minimum_value, maximum_value))
 
         if !isnothing(u_incident)
             empty!(ax2)
-            heatmap!(ax2, dim.x, dim.y, u_incident(t)[:, :, 1], colormap = :ice)
+            heatmap!(ax2, dim.x, dim.y, u_incident(t), colormap = :ice)
         end
         
         if !isnothing(design)
@@ -165,16 +165,16 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 
     sol = Dict(
         :tspan => [tspan0],
-        :incident => [u_incident_0],
-        :scattered => [u_scattered_0]
+        :incident => [displacement.(u_incident_0)],
+        :scattered => [displacement.(u_scattered_0)]
     )
 
     while !is_terminated(env)
         tspan, u_incident, u_scattered = cpu(env(policy(env)))
 
         push!(sol[:tspan], tspan[2:end])
-        push!(sol[:incident], u_incident[2:end])
-        push!(sol[:scattered], u_scattered[2:end])
+        push!(sol[:incident], displacement.(u_incident[2:end]))
+        push!(sol[:scattered], displacement.(u_scattered[2:end]))
 
         push!(design_times, time(env))
         push!(designs, cpu(env.total_dynamics.design(time(env))))
@@ -185,13 +185,11 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     u_scattered = vcat(sol[:scattered]...)
     u_total = u_incident .+ u_scattered
 
+    # return u_total
+
     design_times = vcat(design_times...)
     designs = vcat(designs...)
-
-    # u_incident = linear_interpolation(tspans, u_incident)
-    # u_scattered = linear_interpolation(tspans, u_scattered)
-    # u_total = linear_interpolation(tspans, u_incident .+ u_scattered)
-
+    
     u_total = linear_interpolation(tspans, u_total)
     d = linear_interpolation(design_times, designs, extrapolation_bc = Flat())
 

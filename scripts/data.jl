@@ -51,7 +51,7 @@ function build_triple_ring_design_space()
 end
 
 ## selecting gpu
-Flux.device!(1)
+Flux.device!(3)
 ## setting discretization in space and time
 grid_size = 15.0f0
 elements = 512
@@ -71,7 +71,7 @@ pulse_intensity = 10.0f0
 episodes = 200
 ## declaring name of dataset
 # name = "single_cylinder_dataset"
-name = "triple_ring_dataset"
+name = "full_state_single_adjustable_radii"
 
 ## building FEM grid
 dim = TwoDim(grid_size, elements)
@@ -83,10 +83,12 @@ println("Building WaveEnv")
 env = WaveEnv(
     dim,
     reset_wave = Silence(),
-    design_space = build_triple_ring_design_space(),
+    # design_space = build_triple_ring_design_space(),
+    design_space = build_simple_radii_design_space(),
     action_speed = action_speed,
     source = Source(pulse, freq = freq),
-    sensor = DisplacementImage(),
+    # sensor = DisplacementImage(),
+    sensor = WaveImage(),
     ambient_speed = WATER,
     pml_width = pml_width,
     pml_scale = pml_scale,
@@ -95,7 +97,7 @@ env = WaveEnv(
     actions = actions) |> gpu
 
 policy = RandomDesignPolicy(action_space(env))
-# @time render!(policy, env, path = "vid.mp4", seconds = env.actions * 0.5f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+# @time render!(policy, env, path = "vid.mp4", seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 
 ## saving environment
 data_path = mkpath("data/$name/episodes")
@@ -104,7 +106,7 @@ BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
 println("Rendering Example")
 include("plot.jl")
 
-@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.5f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+# @time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 # starting data generation loop
 
 println("Generating Data")

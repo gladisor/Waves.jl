@@ -106,11 +106,8 @@ function (env::WaveEnv)(action::AbstractDesign)
     ti = time(env)
     tspan = build_tspan(ti, env.dt, env.integration_steps)
 
-    # design = cpu(env.total_dynamics.design(ti))
-    # interp = gpu(DesignInterpolator(design, env.design_space(design, action), ti, tspan[end]))
     design = env.total_dynamics.design(ti)
     interp = DesignInterpolator(design, env.design_space(design, gpu(action)), ti, tspan[end])
-
     env.total_dynamics = update_design(env.total_dynamics, interp)
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
@@ -122,7 +119,6 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.wave_incident = u_incident[end]
 
     u_scattered = u_total .- u_incident
-    
     env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
 
     env.time_step += env.integration_steps

@@ -1,0 +1,14 @@
+prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
+exec_prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
+libdir=/lts/home/012761749/Waves.jl/.CondaPkg/env/lib
+includedir=/lts/home/012761749/Waves.jl/.CondaPkg/env/include
+
+Name: FreeType 2
+URL: https://freetype.org
+Description: A free, high-quality, and portable font engine.
+Version: 24.3.18
+Requires: 
+Requires.private: zlib, libpng
+Libs: -L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib -lfreetype
+Libs.private: 
+Cflags: -I${includedir}/freetype2

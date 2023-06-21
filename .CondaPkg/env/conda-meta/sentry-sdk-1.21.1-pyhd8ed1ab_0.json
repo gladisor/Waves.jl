@@ -1,0 +1,1307 @@
+{
+    "arch": null,
+    "build": "pyhd8ed1ab_0",
+    "build_number": 0,
+    "build_string": "pyhd8ed1ab_0",
+    "channel": "https://conda.anaconda.org/conda-forge/noarch",
+    "constrains": [],
+    "depends": [
+        "certifi",
+        "python >=3",
+        "urllib3 >=1.10"
+    ],
+    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/sentry-sdk-1.21.1-pyhd8ed1ab_0",
+    "files": [
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/INSTALLER",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/LICENSE",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/METADATA",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/RECORD",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/REQUESTED",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/WHEEL",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/direct_url.json",
+        "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/top_level.txt",
+        "lib/python3.11/site-packages/sentry_sdk/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/_compat.py",
+        "lib/python3.11/site-packages/sentry_sdk/_functools.py",
+        "lib/python3.11/site-packages/sentry_sdk/_lru_cache.py",
+        "lib/python3.11/site-packages/sentry_sdk/_queue.py",
+        "lib/python3.11/site-packages/sentry_sdk/_types.py",
+        "lib/python3.11/site-packages/sentry_sdk/_werkzeug.py",
+        "lib/python3.11/site-packages/sentry_sdk/api.py",
+        "lib/python3.11/site-packages/sentry_sdk/attachments.py",
+        "lib/python3.11/site-packages/sentry_sdk/client.py",
+        "lib/python3.11/site-packages/sentry_sdk/consts.py",
+        "lib/python3.11/site-packages/sentry_sdk/crons/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/crons/api.py",
+        "lib/python3.11/site-packages/sentry_sdk/crons/consts.py",
+        "lib/python3.11/site-packages/sentry_sdk/crons/decorator.py",
+        "lib/python3.11/site-packages/sentry_sdk/debug.py",
+        "lib/python3.11/site-packages/sentry_sdk/envelope.py",
+        "lib/python3.11/site-packages/sentry_sdk/hub.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/_wsgi_common.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/aiohttp.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/argv.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/arq.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/asgi.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/asyncio.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/atexit.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/aws_lambda.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/beam.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/boto3.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/bottle.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/celery.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/chalice.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/cloud_resource_context.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/dedupe.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/asgi.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/middleware.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/signals_handlers.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/templates.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/transactions.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/views.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/excepthook.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/executing.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/falcon.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/fastapi.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/flask.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/gcp.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/gnu_backtrace.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/client.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/server.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/httpx.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/huey.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/logging.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/modules.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/consts.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/propagator.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/span_processor.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/pure_eval.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/pymongo.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/pyramid.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/quart.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/redis.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/rq.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/sanic.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/serverless.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/socket.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__init__.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/spark/spark_driver.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/spark/spark_worker.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/sqlalchemy.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/starlette.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/starlite.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/stdlib.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/threading.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/tornado.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/trytond.py",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/wsgi.py",
+        "lib/python3.11/site-packages/sentry_sdk/profiler.py",
+        "lib/python3.11/site-packages/sentry_sdk/py.typed",
+        "lib/python3.11/site-packages/sentry_sdk/scope.py",
+        "lib/python3.11/site-packages/sentry_sdk/scrubber.py",
+        "lib/python3.11/site-packages/sentry_sdk/serializer.py",
+        "lib/python3.11/site-packages/sentry_sdk/session.py",
+        "lib/python3.11/site-packages/sentry_sdk/sessions.py",
+        "lib/python3.11/site-packages/sentry_sdk/tracing.py",
+        "lib/python3.11/site-packages/sentry_sdk/tracing_utils.py",
+        "lib/python3.11/site-packages/sentry_sdk/tracing_utils_py2.py",
+        "lib/python3.11/site-packages/sentry_sdk/tracing_utils_py3.py",
+        "lib/python3.11/site-packages/sentry_sdk/transport.py",
+        "lib/python3.11/site-packages/sentry_sdk/utils.py",
+        "lib/python3.11/site-packages/sentry_sdk/worker.py",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/_compat.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/_functools.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/_lru_cache.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/_queue.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/_types.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/_werkzeug.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/api.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/attachments.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/client.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/consts.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/api.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/consts.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/decorator.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/debug.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/envelope.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/hub.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/_wsgi_common.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/aiohttp.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/argv.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/arq.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/asgi.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/asyncio.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/atexit.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/aws_lambda.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/beam.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/boto3.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/bottle.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/celery.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/chalice.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/cloud_resource_context.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/dedupe.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/asgi.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/middleware.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/signals_handlers.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/templates.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/transactions.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/views.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/excepthook.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/executing.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/falcon.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/fastapi.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/flask.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/gcp.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/gnu_backtrace.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__pycache__/client.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__pycache__/server.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/httpx.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/huey.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/logging.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/modules.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/consts.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/propagator.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/span_processor.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/pure_eval.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/pymongo.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/pyramid.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/quart.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/redis.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/rq.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/sanic.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/serverless.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/socket.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__pycache__/__init__.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__pycache__/spark_driver.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__pycache__/spark_worker.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/sqlalchemy.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/starlette.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/starlite.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/stdlib.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/threading.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/tornado.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/trytond.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/wsgi.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/profiler.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/scope.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/scrubber.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/serializer.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/session.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/sessions.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing_utils.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing_utils_py2.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing_utils_py3.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/transport.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/utils.cpython-311.pyc",
+        "lib/python3.11/site-packages/sentry_sdk/__pycache__/worker.cpython-311.pyc"
+    ],
+    "fn": "sentry-sdk-1.21.1-pyhd8ed1ab_0.conda",
+    "license": "BSD-2-Clause",
+    "license_family": "BSD",
+    "link": {
+        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/sentry-sdk-1.21.1-pyhd8ed1ab_0",
+        "type": 1
+    },
+    "md5": "19abd8dd0b920f7f783c39c20dbee436",
+    "name": "sentry-sdk",
+    "noarch": "python",
+    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/sentry-sdk-1.21.1-pyhd8ed1ab_0.tar.bz2",
+    "paths_data": {
+        "paths": [
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/INSTALLER",
+                "path_type": "hardlink",
+                "sha256": "d0edee15f91b406f3f99726e44eb990be6e34fd0345b52b910c568e0eef6a2a8",
+                "sha256_in_prefix": "d0edee15f91b406f3f99726e44eb990be6e34fd0345b52b910c568e0eef6a2a8",
+                "size_in_bytes": 5
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/LICENSE",
+                "path_type": "hardlink",
+                "sha256": "1debe21ebccb78277399138ab0b43dcb09904f003f39c49d713159ebcc5e6576",
+                "sha256_in_prefix": "1debe21ebccb78277399138ab0b43dcb09904f003f39c49d713159ebcc5e6576",
+                "size_in_bytes": 1092
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/METADATA",
+                "path_type": "hardlink",
+                "sha256": "04214b59af409030224fcdd79cb5ad01d701d36b18db895ed1f1634958b7a4e6",
+                "sha256_in_prefix": "04214b59af409030224fcdd79cb5ad01d701d36b18db895ed1f1634958b7a4e6",
+                "size_in_bytes": 8637
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/RECORD",
+                "path_type": "hardlink",
+                "sha256": "6161781ac73d3e681dfaae6592c19493f3662d65017f38e8f8ecab7788cb89a9",
+                "sha256_in_prefix": "6161781ac73d3e681dfaae6592c19493f3662d65017f38e8f8ecab7788cb89a9",
+                "size_in_bytes": 14682
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/REQUESTED",
+                "path_type": "hardlink",
+                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "sha256_in_prefix": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/WHEEL",
+                "path_type": "hardlink",
+                "sha256": "6bece9151209cceab941fba10736e1880d5e1d3ccd0899fc39d46f85d357d119",
+                "sha256_in_prefix": "6bece9151209cceab941fba10736e1880d5e1d3ccd0899fc39d46f85d357d119",
+                "size_in_bytes": 110
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/direct_url.json",
+                "path_type": "hardlink",
+                "sha256": "4b852012a5b919a8091a19368351d5d3754ecbdf1bacbe5beb617a9d95631005",
+                "sha256_in_prefix": "4b852012a5b919a8091a19368351d5d3754ecbdf1bacbe5beb617a9d95631005",
+                "size_in_bytes": 106
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk-1.21.1.dist-info/top_level.txt",
+                "path_type": "hardlink",
+                "sha256": "5eb433df45c4f45297498ff218baddf5bb2fd91937f741930c9392ba361a3312",
+                "sha256_in_prefix": "5eb433df45c4f45297498ff218baddf5bb2fd91937f741930c9392ba361a3312",
+                "size_in_bytes": 11
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "6b4467e642671d5e8f2b48f2e6ab575a24a50f3fe4f1d712b951a79118d15556",
+                "sha256_in_prefix": "6b4467e642671d5e8f2b48f2e6ab575a24a50f3fe4f1d712b951a79118d15556",
+                "size_in_bytes": 992
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/_compat.py",
+                "path_type": "hardlink",
+                "sha256": "81c9e0a46d05b2334c7e3e8b82d35ff01fb35d497ba36425da00b56809693d15",
+                "sha256_in_prefix": "81c9e0a46d05b2334c7e3e8b82d35ff01fb35d497ba36425da00b56809693d15",
+                "size_in_bytes": 2720
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/_functools.py",
+                "path_type": "hardlink",
+                "sha256": "796cfa9b0d57fbb76b25a53805b09da1da895a2f4e827d20acfe9cf639789190",
+                "sha256_in_prefix": "796cfa9b0d57fbb76b25a53805b09da1da895a2f4e827d20acfe9cf639789190",
+                "size_in_bytes": 4957
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/_lru_cache.py",
+                "path_type": "hardlink",
+                "sha256": "0c90741a8f03463ec7dc1127689a3479a8877af4386785f35c4593f2c98174cc",
+                "sha256_in_prefix": "0c90741a8f03463ec7dc1127689a3479a8877af4386785f35c4593f2c98174cc",
+                "size_in_bytes": 5390
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/_queue.py",
+                "path_type": "hardlink",
+                "sha256": "a6d4cf26b53c427c2442a41b28e04d6e74c93427fefca02d74ec0e85c211c869",
+                "sha256_in_prefix": "a6d4cf26b53c427c2442a41b28e04d6e74c93427fefca02d74ec0e85c211c869",
+                "size_in_bytes": 11267
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/_types.py",
+                "path_type": "hardlink",
+                "sha256": "998b3cb62365d73b458faa0d594905fc6f0952f50e7acb45ef28f96d31572db5",
+                "sha256_in_prefix": "998b3cb62365d73b458faa0d594905fc6f0952f50e7acb45ef28f96d31572db5",
+                "size_in_bytes": 2247
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/_werkzeug.py",
+                "path_type": "hardlink",
+                "sha256": "66d9747c86141ebc41669d185dc5326919d562d8dc6bfd4b403babfa9ce4a48a",
+                "sha256_in_prefix": "66d9747c86141ebc41669d185dc5326919d562d8dc6bfd4b403babfa9ce4a48a",
+                "size_in_bytes": 3790
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/api.py",
+                "path_type": "hardlink",
+                "sha256": "05a37b35b83eb0ddb9bc9321b5c98722b0caab3d9f9af561a84fc53aceb2224f",
+                "sha256_in_prefix": "05a37b35b83eb0ddb9bc9321b5c98722b0caab3d9f9af561a84fc53aceb2224f",
+                "size_in_bytes": 5423
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/attachments.py",
+                "path_type": "hardlink",
+                "sha256": "94048a9d59372d32693f554e5e7dfcd981ce78e234b6f8b6468bd8e983ec3a39",
+                "sha256_in_prefix": "94048a9d59372d32693f554e5e7dfcd981ce78e234b6f8b6468bd8e983ec3a39",
+                "size_in_bytes": 1811
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/client.py",
+                "path_type": "hardlink",
+                "sha256": "1248e37e9e1fc3afc97a6b2733aea9c53dcbad5e3724a4b4694b20e6f7bc8942",
+                "sha256_in_prefix": "1248e37e9e1fc3afc97a6b2733aea9c53dcbad5e3724a4b4694b20e6f7bc8942",
+                "size_in_bytes": 21320
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/consts.py",
+                "path_type": "hardlink",
+                "sha256": "744479d94028db82c412b02f4af932febcd794c28d8145fa39e16d074cf34227",
+                "sha256_in_prefix": "744479d94028db82c412b02f4af932febcd794c28d8145fa39e16d074cf34227",
+                "size_in_bytes": 6775
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "ee7af31d59c32f16780e5640e44f07259d792d73b80117a3a6706d00dc0bc530",
+                "sha256_in_prefix": "ee7af31d59c32f16780e5640e44f07259d792d73b80117a3a6706d00dc0bc530",
+                "size_in_bytes": 170
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/api.py",
+                "path_type": "hardlink",
+                "sha256": "aa0e3678dd6ebce16390e7506eaadd3c49302e9c629338be29e81135f2ad1fb0",
+                "sha256_in_prefix": "aa0e3678dd6ebce16390e7506eaadd3c49302e9c629338be29e81135f2ad1fb0",
+                "size_in_bytes": 1481
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/consts.py",
+                "path_type": "hardlink",
+                "sha256": "757a8993999e052bb9ae3946a6a00e964a400a7b948bbb2f427005a32d593545",
+                "sha256_in_prefix": "757a8993999e052bb9ae3946a6a00e964a400a7b948bbb2f427005a32d593545",
+                "size_in_bytes": 87
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/decorator.py",
+                "path_type": "hardlink",
+                "sha256": "870a14abf913f9fc63f97997c84ce35d4caeb023b2ea2fc67920b10e494ed8c0",
+                "sha256_in_prefix": "870a14abf913f9fc63f97997c84ce35d4caeb023b2ea2fc67920b10e494ed8c0",
+                "size_in_bytes": 2005
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/debug.py",
+                "path_type": "hardlink",
+                "sha256": "653fbb5680880394d8861ed7f9949a4b3619e3f32ea0dbf38b5da02a020ace6d",
+                "sha256_in_prefix": "653fbb5680880394d8861ed7f9949a4b3619e3f32ea0dbf38b5da02a020ace6d",
+                "size_in_bytes": 1132
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/envelope.py",
+                "path_type": "hardlink",
+                "sha256": "81872c148451ec3e03f575ed1805367bef1e0118acd4b78f608a6773730ec4e2",
+                "sha256_in_prefix": "81872c148451ec3e03f575ed1805367bef1e0118acd4b78f608a6773730ec4e2",
+                "size_in_bytes": 9591
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/hub.py",
+                "path_type": "hardlink",
+                "sha256": "c5f3c3d102e365392baff865a1e4c83302dbb3c6148ab3b9417f24de67afe033",
+                "sha256_in_prefix": "c5f3c3d102e365392baff865a1e4c83302dbb3c6148ab3b9417f24de67afe033",
+                "size_in_bytes": 23801
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "43a406993dec48b4998c22e32fcebe1f24a6b0a6128e3c59b40f249202e4dcd6",
+                "sha256_in_prefix": "43a406993dec48b4998c22e32fcebe1f24a6b0a6128e3c59b40f249202e4dcd6",
+                "size_in_bytes": 6773
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/_wsgi_common.py",
+                "path_type": "hardlink",
+                "sha256": "f4cfaee47e598a19d9f25158d9ef5efe432a23c4a89a4beb260a1945b534e252",
+                "sha256_in_prefix": "f4cfaee47e598a19d9f25158d9ef5efe432a23c4a89a4beb260a1945b534e252",
+                "size_in_bytes": 4494
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/aiohttp.py",
+                "path_type": "hardlink",
+                "sha256": "c9b5959d537c4a11eb89b30b1f772deaba0f05d3a40acd67520354c957a399b7",
+                "sha256_in_prefix": "c9b5959d537c4a11eb89b30b1f772deaba0f05d3a40acd67520354c957a399b7",
+                "size_in_bytes": 8411
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/argv.py",
+                "path_type": "hardlink",
+                "sha256": "9176ac539dfdc89a87fcb65a0bb5543b461e93ea272544bf240de6671d105613",
+                "sha256_in_prefix": "9176ac539dfdc89a87fcb65a0bb5543b461e93ea272544bf240de6671d105613",
+                "size_in_bytes": 963
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/arq.py",
+                "path_type": "hardlink",
+                "sha256": "88d8ca156cd097c41748b16906945fb2d8094e96f9581e085ec4e7b9ca9dc94d",
+                "sha256_in_prefix": "88d8ca156cd097c41748b16906945fb2d8094e96f9581e085ec4e7b9ca9dc94d",
+                "size_in_bytes": 6071
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/asgi.py",
+                "path_type": "hardlink",
+                "sha256": "aa65dc63652368a9eab508c58143492d70655074932e5a12464382d738637d93",
+                "sha256_in_prefix": "aa65dc63652368a9eab508c58143492d70655074932e5a12464382d738637d93",
+                "size_in_bytes": 11762
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/asyncio.py",
+                "path_type": "hardlink",
+                "sha256": "2f1aa954bb10fc69cc2dca38e8646cb0974ab09ff81b65c4592138bff92f5e31",
+                "sha256_in_prefix": "2f1aa954bb10fc69cc2dca38e8646cb0974ab09ff81b65c4592138bff92f5e31",
+                "size_in_bytes": 2859
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/atexit.py",
+                "path_type": "hardlink",
+                "sha256": "6ea04b521ab4f3626e6835802070229f9e9ed9978cb4e3f4c5ea514c865cf933",
+                "sha256_in_prefix": "6ea04b521ab4f3626e6835802070229f9e9ed9978cb4e3f4c5ea514c865cf933",
+                "size_in_bytes": 1847
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/aws_lambda.py",
+                "path_type": "hardlink",
+                "sha256": "ec7bd6d42171b2f41e700caf403e3762900a8b1fe7a5452a31235df1c6d76227",
+                "sha256_in_prefix": "ec7bd6d42171b2f41e700caf403e3762900a8b1fe7a5452a31235df1c6d76227",
+                "size_in_bytes": 15769
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/beam.py",
+                "path_type": "hardlink",
+                "sha256": "e33f6d18118c9d4a6c32d2592462790d670de9433d4b0643fb2574b83a016e8e",
+                "sha256_in_prefix": "e33f6d18118c9d4a6c32d2592462790d670de9433d4b0643fb2574b83a016e8e",
+                "size_in_bytes": 5689
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/boto3.py",
+                "path_type": "hardlink",
+                "sha256": "bdd4fb2ab4e81d6c12ffbe4011c036ce710f23be88b8b39978a392e75ef6fd7d",
+                "sha256_in_prefix": "bdd4fb2ab4e81d6c12ffbe4011c036ce710f23be88b8b39978a392e75ef6fd7d",
+                "size_in_bytes": 4428
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/bottle.py",
+                "path_type": "hardlink",
+                "sha256": "f2ee282fa631ea8b7be41cdec4796363e1e5c66a7fba274a2dbd5e070fde60b4",
+                "sha256_in_prefix": "f2ee282fa631ea8b7be41cdec4796363e1e5c66a7fba274a2dbd5e070fde60b4",
+                "size_in_bytes": 6506
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/celery.py",
+                "path_type": "hardlink",
+                "sha256": "5aeb209bfe662d109e5c6ff12f7fb19fa38d59cdb1226b67887a40944f080386",
+                "sha256_in_prefix": "5aeb209bfe662d109e5c6ff12f7fb19fa38d59cdb1226b67887a40944f080386",
+                "size_in_bytes": 15902
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/chalice.py",
+                "path_type": "hardlink",
+                "sha256": "f40d494dada6f31cded21baea46a87664d40d41a461313d09acfad4be3d8f6c8",
+                "sha256_in_prefix": "f40d494dada6f31cded21baea46a87664d40d41a461313d09acfad4be3d8f6c8",
+                "size_in_bytes": 4793
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/cloud_resource_context.py",
+                "path_type": "hardlink",
+                "sha256": "1b03ee312c45fa930c601690abfe861f4986257e1a84e21891037cbc31b4c799",
+                "sha256_in_prefix": "1b03ee312c45fa930c601690abfe861f4986257e1a84e21891037cbc31b4c799",
+                "size_in_bytes": 6762
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/dedupe.py",
+                "path_type": "hardlink",
+                "sha256": "b576a069910bf948cff6bd44784656cd77e4f5979ba6663b936aab2ddda6b46a",
+                "sha256_in_prefix": "b576a069910bf948cff6bd44784656cd77e4f5979ba6663b936aab2ddda6b46a",
+                "size_in_bytes": 1184
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "c199a6aed2c395b757f8b32dda1509216321e46b2567208bf867dacbeaa6da6b",
+                "sha256_in_prefix": "c199a6aed2c395b757f8b32dda1509216321e46b2567208bf867dacbeaa6da6b",
+                "size_in_bytes": 20190
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/asgi.py",
+                "path_type": "hardlink",
+                "sha256": "1cb23b2956392b6f1fcdd9b6978153528cd92d49a878d6ebc793f8ea2d498402",
+                "sha256_in_prefix": "1cb23b2956392b6f1fcdd9b6978153528cd92d49a878d6ebc793f8ea2d498402",
+                "size_in_bytes": 5038
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/middleware.py",
+                "path_type": "hardlink",
+                "sha256": "6bf6bf581956f45a5161ff13bf789063182b9879daf860443fa4b91883c5bae1",
+                "sha256_in_prefix": "6bf6bf581956f45a5161ff13bf789063182b9879daf860443fa4b91883c5bae1",
+                "size_in_bytes": 5968
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/signals_handlers.py",
+                "path_type": "hardlink",
+                "sha256": "cee143a0ddde127a07662a9bd6afb0a5685e8598b52e5518850bcb44016d4726",
+                "sha256_in_prefix": "cee143a0ddde127a07662a9bd6afb0a5685e8598b52e5518850bcb44016d4726",
+                "size_in_bytes": 2470
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/templates.py",
+                "path_type": "hardlink",
+                "sha256": "fd826d7c5c9abda9bbff3a8dfb48246b3a33e8cab1305cf689f6b4926916f00e",
+                "sha256_in_prefix": "fd826d7c5c9abda9bbff3a8dfb48246b3a33e8cab1305cf689f6b4926916f00e",
+                "size_in_bytes": 5433
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/transactions.py",
+                "path_type": "hardlink",
+                "sha256": "8769ccf57e4851f99fc946ae2722a3d4c319f6c95e519c3b433ea8a543413132",
+                "sha256_in_prefix": "8769ccf57e4851f99fc946ae2722a3d4c319f6c95e519c3b433ea8a543413132",
+                "size_in_bytes": 4179
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/views.py",
+                "path_type": "hardlink",
+                "sha256": "1486d94d3d63220fd6044e6926e31971ead08341c89fe798105e2f40cd7c8a4e",
+                "sha256_in_prefix": "1486d94d3d63220fd6044e6926e31971ead08341c89fe798105e2f40cd7c8a4e",
+                "size_in_bytes": 2869
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/excepthook.py",
+                "path_type": "hardlink",
+                "sha256": "3830e820a507fdd5994ffddb4e127df6aebd51f19cdca19295c5bde628ca7709",
+                "sha256_in_prefix": "3830e820a507fdd5994ffddb4e127df6aebd51f19cdca19295c5bde628ca7709",
+                "size_in_bytes": 2260
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/executing.py",
+                "path_type": "hardlink",
+                "sha256": "35d6c937fe29da6c356b68c146ca38d080c60d475db11da2e69d7d5a067885e4",
+                "sha256_in_prefix": "35d6c937fe29da6c356b68c146ca38d080c60d475db11da2e69d7d5a067885e4",
+                "size_in_bytes": 2041
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/falcon.py",
+                "path_type": "hardlink",
+                "sha256": "81a4afa2d426db86dac5e5f45983c2e9a629c7d9347108be89e7bdac9336117b",
+                "sha256_in_prefix": "81a4afa2d426db86dac5e5f45983c2e9a629c7d9347108be89e7bdac9336117b",
+                "size_in_bytes": 8005
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/fastapi.py",
+                "path_type": "hardlink",
+                "sha256": "b540cdd0d7f353fe715d76abca85f3860e9b3f259dba88606ed795ed23c31bc1",
+                "sha256_in_prefix": "b540cdd0d7f353fe715d76abca85f3860e9b3f259dba88606ed795ed23c31bc1",
+                "size_in_bytes": 4460
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/flask.py",
+                "path_type": "hardlink",
+                "sha256": "b365ecd97a1e5e970337321cf5dbaf9f90e952787d4d25c64f81f1deb3654e58",
+                "sha256_in_prefix": "b365ecd97a1e5e970337321cf5dbaf9f90e952787d4d25c64f81f1deb3654e58",
+                "size_in_bytes": 8211
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/gcp.py",
+                "path_type": "hardlink",
+                "sha256": "ef7c117a3baad3dc84d3a247d8e43a1232d3ccae8fac4d1c38fb4d801eb0ef28",
+                "sha256_in_prefix": "ef7c117a3baad3dc84d3a247d8e43a1232d3ccae8fac4d1c38fb4d801eb0ef28",
+                "size_in_bytes": 8166
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/gnu_backtrace.py",
+                "path_type": "hardlink",
+                "sha256": "b381e267c1fb527d4d93b08eadfe84cdfeebb4464122425db236334f4b61125e",
+                "sha256_in_prefix": "b381e267c1fb527d4d93b08eadfe84cdfeebb4464122425db236334f4b61125e",
+                "size_in_bytes": 2930
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "f893f914ad5da6ecbe1206285d7c0b0e1de268addcfdead2677267a9fd57b65d",
+                "sha256_in_prefix": "f893f914ad5da6ecbe1206285d7c0b0e1de268addcfdead2677267a9fd57b65d",
+                "size_in_bytes": 104
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/client.py",
+                "path_type": "hardlink",
+                "sha256": "34d24bb791542f769dd75559f13dc6ce16c4041a0d749a84f35d00920cef5f81",
+                "sha256_in_prefix": "34d24bb791542f769dd75559f13dc6ce16c4041a0d749a84f35d00920cef5f81",
+                "size_in_bytes": 3144
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/server.py",
+                "path_type": "hardlink",
+                "sha256": "90ba9cce5fb5c4d76bb50847b6f8fa57a45d6e4e69e03cdd6134a513af79c0bc",
+                "sha256_in_prefix": "90ba9cce5fb5c4d76bb50847b6f8fa57a45d6e4e69e03cdd6134a513af79c0bc",
+                "size_in_bytes": 2337
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/httpx.py",
+                "path_type": "hardlink",
+                "sha256": "1fc0a32b55b7a8cdd8dfed78fb8a5bef0dc7621569405f171d61cc6b63c2a79b",
+                "sha256_in_prefix": "1fc0a32b55b7a8cdd8dfed78fb8a5bef0dc7621569405f171d61cc6b63c2a79b",
+                "size_in_bytes": 3879
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/huey.py",
+                "path_type": "hardlink",
+                "sha256": "c07e6d0db16d479fd5ae5552bcef424495474c1b1eecf6e7b811b1ee933f1105",
+                "sha256_in_prefix": "c07e6d0db16d479fd5ae5552bcef424495474c1b1eecf6e7b811b1ee933f1105",
+                "size_in_bytes": 4658
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/logging.py",
+                "path_type": "hardlink",
+                "sha256": "82cb483b6fdf65ddb05e5fc0c16b830aef03f87e39e69d5dd9e5d2adbb5f5b2b",
+                "sha256_in_prefix": "82cb483b6fdf65ddb05e5fc0c16b830aef03f87e39e69d5dd9e5d2adbb5f5b2b",
+                "size_in_bytes": 8686
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/modules.py",
+                "path_type": "hardlink",
+                "sha256": "e007563ed06541e2a9aa3a700c016a764dc463ed8f93622eb045fce4905ba929",
+                "sha256_in_prefix": "e007563ed06541e2a9aa3a700c016a764dc463ed8f93622eb045fce4905ba929",
+                "size_in_bytes": 1411
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "a7764ec5abe4a1df0ba96e8cbc377f21464d6c140e5c672a921a4fcbcbd8e0f6",
+                "sha256_in_prefix": "a7764ec5abe4a1df0ba96e8cbc377f21464d6c140e5c672a921a4fcbcbd8e0f6",
+                "size_in_bytes": 210
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/consts.py",
+                "path_type": "hardlink",
+                "sha256": "7c931aa5f292495222b6477eedda279d7e529050d60fc9ca084a6d5e881f7bcf",
+                "sha256_in_prefix": "7c931aa5f292495222b6477eedda279d7e529050d60fc9ca084a6d5e881f7bcf",
+                "size_in_bytes": 167
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/propagator.py",
+                "path_type": "hardlink",
+                "sha256": "164184599fed6aa27c9b462d77228d88eda704b6ccc45afca12ce5a17a9c0c00",
+                "sha256_in_prefix": "164184599fed6aa27c9b462d77228d88eda704b6ccc45afca12ce5a17a9c0c00",
+                "size_in_bytes": 3609
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/span_processor.py",
+                "path_type": "hardlink",
+                "sha256": "577e5aaf95c6e72e72d88e249ca2c92de0ccf22fffb3015390734e692f989b6b",
+                "sha256_in_prefix": "577e5aaf95c6e72e72d88e249ca2c92de0ccf22fffb3015390734e692f989b6b",
+                "size_in_bytes": 9406
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/pure_eval.py",
+                "path_type": "hardlink",
+                "sha256": "d814a8c849035ac7b4be015e18724d932beadf9b19b582ff329f66a19c1cde09",
+                "sha256_in_prefix": "d814a8c849035ac7b4be015e18724d932beadf9b19b582ff329f66a19c1cde09",
+                "size_in_bytes": 4554
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/pymongo.py",
+                "path_type": "hardlink",
+                "sha256": "396b56145ad449f2a42358ab26141355201e9ed51ff1aeeebe64b439977ef8b4",
+                "sha256_in_prefix": "396b56145ad449f2a42358ab26141355201e9ed51ff1aeeebe64b439977ef8b4",
+                "size_in_bytes": 5499
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/pyramid.py",
+                "path_type": "hardlink",
+                "sha256": "fb003cdfc8c13fc719d66d387fb1b101a37ec2059a7351e97a387c6a77681ad9",
+                "sha256_in_prefix": "fb003cdfc8c13fc719d66d387fb1b101a37ec2059a7351e97a387c6a77681ad9",
+                "size_in_bytes": 7442
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/quart.py",
+                "path_type": "hardlink",
+                "sha256": "e7536a72f8a3fb8581cf5053a66737c9aa1416f113e83e4126db7021882fb1e5",
+                "sha256_in_prefix": "e7536a72f8a3fb8581cf5053a66737c9aa1416f113e83e4126db7021882fb1e5",
+                "size_in_bytes": 7377
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/redis.py",
+                "path_type": "hardlink",
+                "sha256": "cbcdbc42f38453894717c18f2a0e51538c016c4dd9c4f06f6d179e8ae95d38ae",
+                "sha256_in_prefix": "cbcdbc42f38453894717c18f2a0e51538c016c4dd9c4f06f6d179e8ae95d38ae",
+                "size_in_bytes": 6964
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/rq.py",
+                "path_type": "hardlink",
+                "sha256": "674e9c6f19055e7e83d1e5eccd7f61915e8f27fadb465a4aaaa41977b8f36d62",
+                "sha256_in_prefix": "674e9c6f19055e7e83d1e5eccd7f61915e8f27fadb465a4aaaa41977b8f36d62",
+                "size_in_bytes": 5368
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/sanic.py",
+                "path_type": "hardlink",
+                "sha256": "02669a5869ded729295a8613988085abc642750fa15d4e812e609ca2a1389c5f",
+                "sha256_in_prefix": "02669a5869ded729295a8613988085abc642750fa15d4e812e609ca2a1389c5f",
+                "size_in_bytes": 11329
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/serverless.py",
+                "path_type": "hardlink",
+                "sha256": "b6ba6baae11c1f1ad4844e448b933fc4afcc94c3976615c83dff789586eb8616",
+                "sha256_in_prefix": "b6ba6baae11c1f1ad4844e448b933fc4afcc94c3976615c83dff789586eb8616",
+                "size_in_bytes": 1975
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/socket.py",
+                "path_type": "hardlink",
+                "sha256": "6d3ccbc2661afed783fbca3a55cd27fcf23cda43519ea0988ea041fe200785e4",
+                "sha256_in_prefix": "6d3ccbc2661afed783fbca3a55cd27fcf23cda43519ea0988ea041fe200785e4",
+                "size_in_bytes": 2905
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__init__.py",
+                "path_type": "hardlink",
+                "sha256": "a0e7b0304ae7664dabccdbc89593ba511c507b1bbd6d426e48b3369bfcc40b2f",
+                "sha256_in_prefix": "a0e7b0304ae7664dabccdbc89593ba511c507b1bbd6d426e48b3369bfcc40b2f",
+                "size_in_bytes": 208
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/spark/spark_driver.py",
+                "path_type": "hardlink",
+                "sha256": "94cc0a62e76d839b0b70f1219b03a30feee9bb2922596c9023511b280c5461fb",
+                "sha256_in_prefix": "94cc0a62e76d839b0b70f1219b03a30feee9bb2922596c9023511b280c5461fb",
+                "size_in_bytes": 8483
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/spark/spark_worker.py",
+                "path_type": "hardlink",
+                "sha256": "73fca464e007541316365b55618f4a0cf2ed20b9ec1da8efd436306d806316d8",
+                "sha256_in_prefix": "73fca464e007541316365b55618f4a0cf2ed20b9ec1da8efd436306d806316d8",
+                "size_in_bytes": 3998
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/sqlalchemy.py",
+                "path_type": "hardlink",
+                "sha256": "dbb6972d333248562f5edf3b10da72dcb85732d53a2cbacdca29aedff1c5d414",
+                "sha256_in_prefix": "dbb6972d333248562f5edf3b10da72dcb85732d53a2cbacdca29aedff1c5d414",
+                "size_in_bytes": 3762
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/starlette.py",
+                "path_type": "hardlink",
+                "sha256": "615e28b02999ab1bf82a1757cf365456cb82a1f0fe93375c39d8fc5505eb952a",
+                "sha256_in_prefix": "615e28b02999ab1bf82a1757cf365456cb82a1f0fe93375c39d8fc5505eb952a",
+                "size_in_bytes": 21393
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/starlite.py",
+                "path_type": "hardlink",
+                "sha256": "9503547880e3796beb0b0dc5942cc1101552f175de17de078ac6e7d052fc501e",
+                "sha256_in_prefix": "9503547880e3796beb0b0dc5942cc1101552f175de17de078ac6e7d052fc501e",
+                "size_in_bytes": 10090
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/stdlib.py",
+                "path_type": "hardlink",
+                "sha256": "5a2511614e6fcbf60b6de86eba4a0e77e55e390283c6577c9b88197e8f10635e",
+                "sha256_in_prefix": "5a2511614e6fcbf60b6de86eba4a0e77e55e390283c6577c9b88197e8f10635e",
+                "size_in_bytes": 8078
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/threading.py",
+                "path_type": "hardlink",
+                "sha256": "6bd18ef0cae92838126660e73a0b41101c3aa20444cb5680e01dbb6490e4c611",
+                "sha256_in_prefix": "6bd18ef0cae92838126660e73a0b41101c3aa20444cb5680e01dbb6490e4c611",
+                "size_in_bytes": 2858
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/tornado.py",
+                "path_type": "hardlink",
+                "sha256": "7316c2cfd74c945b4d51ca55c2d34f28bf938f3ee9d8d077bd707ef6849e0bbc",
+                "sha256_in_prefix": "7316c2cfd74c945b4d51ca55c2d34f28bf938f3ee9d8d077bd707ef6849e0bbc",
+                "size_in_bytes": 7309
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/trytond.py",
+                "path_type": "hardlink",
+                "sha256": "e9965afa1d5dbaa6fd1c761111023a4e09a61c93457c696182d09a54acbc46e9",
+                "sha256_in_prefix": "e9965afa1d5dbaa6fd1c761111023a4e09a61c93457c696182d09a54acbc46e9",
+                "size_in_bytes": 1746
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/wsgi.py",
+                "path_type": "hardlink",
+                "sha256": "0cc5f074e2daa5a07b897568282af3daa111df97aa707680513a4b4c188bc0f5",
+                "sha256_in_prefix": "0cc5f074e2daa5a07b897568282af3daa111df97aa707680513a4b4c188bc0f5",
+                "size_in_bytes": 9559
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/profiler.py",
+                "path_type": "hardlink",
+                "sha256": "490dc4d9b0f0b8639a9554e97186846024c2506b03a55dbc9d29d2489e375837",
+                "sha256_in_prefix": "490dc4d9b0f0b8639a9554e97186846024c2506b03a55dbc9d29d2489e375837",
+                "size_in_bytes": 33366
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/py.typed",
+                "path_type": "hardlink",
+                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "sha256_in_prefix": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/scope.py",
+                "path_type": "hardlink",
+                "sha256": "34a88ae35a59950b1798bd0db16ff46816522f6f4a74c3e83f7840ad94cbe6f8",
+                "sha256_in_prefix": "34a88ae35a59950b1798bd0db16ff46816522f6f4a74c3e83f7840ad94cbe6f8",
+                "size_in_bytes": 17287
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/scrubber.py",
+                "path_type": "hardlink",
+                "sha256": "ba6dd413a37c782849e16f221a62452051fe94f8a839c8a8ce4c7f8515235f73",
+                "sha256_in_prefix": "ba6dd413a37c782849e16f221a62452051fe94f8a839c8a8ce4c7f8515235f73",
+                "size_in_bytes": 3893
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/serializer.py",
+                "path_type": "hardlink",
+                "sha256": "2a4e2748d58ed3aa2ce46d1f26bdda54bb6628296193216b2298883c2acf9a3b",
+                "sha256_in_prefix": "2a4e2748d58ed3aa2ce46d1f26bdda54bb6628296193216b2298883c2acf9a3b",
+                "size_in_bytes": 11931
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/session.py",
+                "path_type": "hardlink",
+                "sha256": "fc86d29be4f92c4139cb9368dcf8ba6eda2e69199d9dd51becb14209428e7dff",
+                "sha256_in_prefix": "fc86d29be4f92c4139cb9368dcf8ba6eda2e69199d9dd51becb14209428e7dff",
+                "size_in_bytes": 5561
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/sessions.py",
+                "path_type": "hardlink",
+                "sha256": "4ba0b6ca62adc0f004b64a1fe7ac3f2f3fa81b1eb9ad36af74c3c7f3d76c01c3",
+                "sha256_in_prefix": "4ba0b6ca62adc0f004b64a1fe7ac3f2f3fa81b1eb9ad36af74c3c7f3d76c01c3",
+                "size_in_bytes": 5902
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/tracing.py",
+                "path_type": "hardlink",
+                "sha256": "2ef44acc57b8b80615ffbdb45dac32224d09dc61bea1dd1431b123f65019618d",
+                "sha256_in_prefix": "2ef44acc57b8b80615ffbdb45dac32224d09dc61bea1dd1431b123f65019618d",
+                "size_in_bytes": 28447
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/tracing_utils.py",
+                "path_type": "hardlink",
+                "sha256": "13acc492a696cb86583c0c4868446c1607b740313cf77aa629b93502754e0273",
+                "sha256_in_prefix": "13acc492a696cb86583c0c4868446c1607b740313cf77aa629b93502754e0273",
+                "size_in_bytes": 10297
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/tracing_utils_py2.py",
+                "path_type": "hardlink",
+                "sha256": "7ed0861f63ede047d722e61ec0f9e66c2edcdc964e6ed292018af92b06e9a250",
+                "sha256_in_prefix": "7ed0861f63ede047d722e61ec0f9e66c2edcdc964e6ed292018af92b06e9a250",
+                "size_in_bytes": 1244
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/tracing_utils_py3.py",
+                "path_type": "hardlink",
+                "sha256": "0717ed3ed8897b09350424e567ede25077d5035a61b97deedcf788b4c8c81739",
+                "sha256_in_prefix": "0717ed3ed8897b09350424e567ede25077d5035a61b97deedcf788b4c8c81739",
+                "size_in_bytes": 2146
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/transport.py",
+                "path_type": "hardlink",
+                "sha256": "23a352b8715af2588fcfaa78cbf724df3fa539f8b83faaaea96a3eda03ffdc73",
+                "sha256_in_prefix": "23a352b8715af2588fcfaa78cbf724df3fa539f8b83faaaea96a3eda03ffdc73",
+                "size_in_bytes": 17338
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/utils.py",
+                "path_type": "hardlink",
+                "sha256": "6e90f73395ce3a83d727411ae47dab631d2752e1e6c70eb30b31b811890a5938",
+                "sha256_in_prefix": "6e90f73395ce3a83d727411ae47dab631d2752e1e6c70eb30b31b811890a5938",
+                "size_in_bytes": 37975
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/worker.py",
+                "path_type": "hardlink",
+                "sha256": "f6e1477f5d8bc4de196a53c427fde4aad6fa4b15515b0405be300e60907721c4",
+                "sha256_in_prefix": "f6e1477f5d8bc4de196a53c427fde4aad6fa4b15515b0405be300e60907721c4",
+                "size_in_bytes": 4172
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/_compat.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/_functools.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/_lru_cache.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/_queue.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/_types.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/_werkzeug.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/api.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/attachments.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/client.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/consts.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/api.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/consts.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/crons/__pycache__/decorator.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/debug.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/envelope.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/hub.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/_wsgi_common.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/aiohttp.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/argv.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/arq.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/asgi.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/asyncio.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/atexit.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/aws_lambda.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/beam.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/boto3.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/bottle.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/celery.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/chalice.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/cloud_resource_context.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/dedupe.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/asgi.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/middleware.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/signals_handlers.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/templates.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/transactions.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/django/__pycache__/views.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/excepthook.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/executing.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/falcon.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/fastapi.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/flask.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/gcp.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/gnu_backtrace.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__pycache__/client.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/grpc/__pycache__/server.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/httpx.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/huey.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/logging.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/modules.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/consts.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/propagator.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/opentelemetry/__pycache__/span_processor.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/pure_eval.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/pymongo.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/pyramid.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/quart.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/redis.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/rq.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/sanic.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/serverless.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/socket.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__pycache__/__init__.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__pycache__/spark_driver.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/spark/__pycache__/spark_worker.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/sqlalchemy.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/starlette.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/starlite.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/stdlib.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/threading.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/tornado.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/trytond.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/integrations/__pycache__/wsgi.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/profiler.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/scope.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/scrubber.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/serializer.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/session.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/sessions.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing_utils.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing_utils_py2.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/tracing_utils_py3.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/transport.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/utils.cpython-311.pyc",
+                "path_type": "pyc_file"
+            },
+            {
+                "_path": "lib/python3.11/site-packages/sentry_sdk/__pycache__/worker.cpython-311.pyc",
+                "path_type": "pyc_file"
+            }
+        ],
+        "paths_version": 1
+    },
+    "platform": null,
+    "requested_spec": "",
+    "sha256": "6f0103c9905ad6c99c401093fc818a9d24b8958096cf1a7f700306cb21b40b8f",
+    "size": 133455,
+    "subdir": "noarch",
+    "timestamp": 1682715919658,
+    "track_features": "",
+    "url": "https://conda.anaconda.org/conda-forge/noarch/sentry-sdk-1.21.1-pyhd8ed1ab_0.conda",
+    "version": "1.21.1"
+}

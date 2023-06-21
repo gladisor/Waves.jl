@@ -77,7 +77,7 @@ train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, bat
 # val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize)
 
 states, actions, tspans, sigmas = gpu(first(train_loader))
-s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]\
+s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]
 
 model(s, a)
 

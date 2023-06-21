@@ -1,0 +1,10 @@
+prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
+exec_prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
+libdir=/lts/home/012761749/Waves.jl/.CondaPkg/env/lib
+includedir=/lts/home/012761749/Waves.jl/.CondaPkg/env/include
+
+Name: libjpeg
+Description: A SIMD-accelerated JPEG codec that provides the libjpeg API
+Version: 2.1.5.1
+Libs: -L${libdir} -ljpeg
+Cflags: -I${includedir}

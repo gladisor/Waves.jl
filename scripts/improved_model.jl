@@ -313,7 +313,7 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
 
     return hcat(
-        du .* dyn.bc, ## remeber to turn bc off when using pml
+        du, # .* dyn.bc, ## remeber to turn bc off when using pml
         dv,
         f * 0.0f0,
         dc, 
@@ -552,6 +552,9 @@ function train_loop(
         path::String
         )
 
+    lg = WandbLogger(; project = "Waves.jl", name = "transfer_from_h=2_to_h=5")
+    global_logger(lg)
+
     opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, model)
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
@@ -619,12 +622,16 @@ function train_loop(
         val_loss = metrics[:val_loss][end]
         println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
 
+        Wandb.log(lg, Dict("Epoch" => i, "Train Loss" => train_loss, "Val Loss" => val_loss))
+
         if i % checkpoint_every == 0 || i == epochs
             println("Checkpointing")
 
             BSON.bson(joinpath(epoch_path, "model.bson"), model = cpu(model))
         end
     end
+
+    close(lg)
 end
 
 function overfit(

@@ -61,34 +61,33 @@ function flatten_series(series::AbstractMatrix{Float32})
     return flatten_series([series[:, i] for i in axes(series, 2)])
 end
 
-# function measure_error(model::ScatteredEnergyModel, data::Tuple)
-#     states, actions, tspans, sigmas = data
+function measure_error(model::ScatteredEnergyModel, data::Tuple)
+    states, actions, tspans, sigmas = data
 
-#     error = 0.0f0
+    error = 0.0f0
 
-#     for i in 1:length(states)
-#         s, a, t, sigma = states[i], actions[i], tspans[i], sigmas[i]
-#         s = gpu(s)
-#         a = gpu(a)
-#         sigma = gpu(sigma)
-#         error += Flux.mse(model(s, a), sigma)
+    for i in 1:length(states)
+        s, a, t, sigma = states[i], actions[i], tspans[i], sigmas[i]
+        s = gpu(s)
+        a = gpu(a)
+        sigma = gpu(sigma)
+        error += Flux.mse(model(s, a), sigma)
 
-#         println(i)
-#     end
+        println(i)
+    end
 
-#     return error / length(states)
-# end
+    return error / length(states)
+end
 
 function episode_cost(episode::EpisodeData)
     return sum(episode.sigmas[1]) + sum([sum(episode.sigmas[i][2:end]) for i in 2:length(episode)])
 end
 
-# Flux.device!(0)
+Flux.device!(3)
 
-# main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
 main_path = "data/triple_ring_dataset"
+model_path = joinpath(main_path, "models/full_cnn/pml_width=10.0_pml_scale=10000.0_k_size=2_latent_elements=1024/epoch_400/model.bson")
 data_path = joinpath(main_path, "episodes")
-model_path = "/home/012761749/Waves.jl/data/triple_ring_dataset/models/full_cnn/pml_width=10.0_pml_scale=10000.0_k_size=2/epoch_120/model.bson"
 
 println("Loading Environment")
 env = BSON.load(joinpath(data_path, "env.bson"))[:env]
@@ -106,37 +105,35 @@ sigma2 = flatten_series(random_episode2.sigmas)
 sigma3 = flatten_series(random_episode3.sigmas)
 data = DataFrame(tspan = tspan, sigma1 = sigma1, sigma2 = sigma2, sigma3 = sigma3)
 # CSV.write("random.csv", data)
-
 random_avg = (data[!, :sigma1] .+ data[!, :sigma2] .+ data[!, :sigma3]) ./ 3.0f0
+model = gpu(BSON.load(model_path)[:model])
 
-mpc_episode1 = EpisodeData(path = "mpc_episode1.bson")
-mpc_episode2 = EpisodeData(path = "mpc_episode2.bson")
-mpc_episode3 = EpisodeData(path = "mpc_episode3.bson")
+# mpc_episode1 = EpisodeData(path = "mpc_episode1.bson")
+# mpc_episode2 = EpisodeData(path = "mpc_episode2.bson")
+# mpc_episode3 = EpisodeData(path = "mpc_episode3.bson")
 
-tspan = flatten_series(mpc_episode1.tspans)
-sigma1 = flatten_series(mpc_episode1.sigmas)
-sigma2 = flatten_series(mpc_episode2.sigmas)
-sigma3 = flatten_series(mpc_episode3.sigmas)
+# tspan = flatten_series(mpc_episode1.tspans)
+# sigma1 = flatten_series(mpc_episode1.sigmas)
+# sigma2 = flatten_series(mpc_episode2.sigmas)
+# sigma3 = flatten_series(mpc_episode3.sigmas)
 
-mpc_avg = (sigma1 .+ sigma2 .+ sigma3) ./ 3.0f0
+# mpc_avg = (sigma1 .+ sigma2 .+ sigma3) ./ 3.0f0
 
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, data[!, :tspan], random_avg)
+# lines!(ax, data[!, :tspan], mpc_avg)
+# save("compare.png", fig)
 
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, data[!, :tspan], random_avg)
-lines!(ax, data[!, :tspan], mpc_avg)
-save("compare.png", fig)
-
-# horizon = 5
-# opt_steps = 30
-# lr = 0.01
-# idx = 30
+horizon = 5
+opt_steps = 30
+lr = 0.01
+idx = 30
 
 # states, actions, tspans, sigmas = prepare_data(random_episode1, horizon)
 # s, a, t, sigma = gpu((states[idx], actions[idx], tspans[idx], sigmas[idx]))
 # model = gpu(BSON.load(model_path)[:model])
-# mpc = MPC(policy, model, Optimisers.Adam(lr), horizon, opt_steps)
+mpc = MPC(policy, model, Optimisers.Adam(lr), horizon, opt_steps)
 
 # a = gpu([mpc.policy(env) for _ in 1:mpc.horizon])
 # a_star = optimise_actions(mpc.model, s, a, total_energy, mpc.opt, mpc.opt_steps)
@@ -147,12 +144,12 @@ save("compare.png", fig)
 # lines!(ax, cpu(vec(model(s, a_star))), color = :orange)
 # save("sigma.png", fig)
 
-# @time episode1 = generate_episode_data(mpc, env)
-# save(episode1, "mpc_episode1.bson")
-# @time episode2 = generate_episode_data(mpc, env)
-# save(episode2, "mpc_episode2.bson")
-# @time episode3 = generate_episode_data(mpc, env)
-# save(episode3, "mpc_episode3.bson")
+@time episode1 = generate_episode_data(mpc, env)
+save(episode1, "mpc_episode1.bson")
+@time episode2 = generate_episode_data(mpc, env)
+save(episode2, "mpc_episode2.bson")
+@time episode3 = generate_episode_data(mpc, env)
+save(episode3, "mpc_episode3.bson")
 
 # cost1 = episode_cost(episode1)
 # cost2 = episode_cost(episode2)

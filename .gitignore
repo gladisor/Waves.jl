@@ -1,4 +1,6 @@
 wandb/
+wandb
+wandb/*
 *.out
 *.bson
 *.jld2

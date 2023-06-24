@@ -1,7 +1,7 @@
-prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
-exec_prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
-libdir=/lts/home/012761749/Waves.jl/.CondaPkg/env/lib
-includedir=/lts/home/012761749/Waves.jl/.CondaPkg/env/include
+prefix=/home/012761749/Waves.jl/.CondaPkg/env
+exec_prefix=/home/012761749/Waves.jl/.CondaPkg/env
+libdir=/home/012761749/Waves.jl/.CondaPkg/env/lib
+includedir=/home/012761749/Waves.jl/.CondaPkg/env/include
 
 Name: uuid
 Description: Universally unique id library

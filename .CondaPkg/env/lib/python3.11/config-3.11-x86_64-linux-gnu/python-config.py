@@ -1,4 +1,4 @@
-#!/lts/home/012761749/Waves.jl/.CondaPkg/env/bin/python3.11
+#!/home/012761749/Waves.jl/.CondaPkg/env/bin/python3.11
 # -*- python -*-
 
 # Keep this script in sync with python-config.sh.in

@@ -10,7 +10,7 @@
         "setuptools",
         "wheel"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pip-23.1.2-pyhd8ed1ab_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pip-23.1.2-pyhd8ed1ab_0",
     "files": [
         "lib/python3.11/site-packages/pip-23.1.2-py3.11.egg-info/PKG-INFO",
         "lib/python3.11/site-packages/pip-23.1.2-py3.11.egg-info/SOURCES.txt",
@@ -1014,13 +1014,13 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pip-23.1.2-pyhd8ed1ab_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pip-23.1.2-pyhd8ed1ab_0",
         "type": 1
     },
     "md5": "7288da0d36821349cf1126e8670292df",
     "name": "pip",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pip-23.1.2-pyhd8ed1ab_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pip-23.1.2-pyhd8ed1ab_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

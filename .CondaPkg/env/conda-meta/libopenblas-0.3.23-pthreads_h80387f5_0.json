@@ -12,7 +12,7 @@
         "libgfortran-ng",
         "libgfortran5 >=11.3.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libopenblas-0.3.23-pthreads_h80387f5_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libopenblas-0.3.23-pthreads_h80387f5_0",
     "files": [
         "lib/libopenblas.so.0",
         "lib/libopenblasp-r0.3.23.so"
@@ -20,12 +20,12 @@
     "fn": "libopenblas-0.3.23-pthreads_h80387f5_0.conda",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libopenblas-0.3.23-pthreads_h80387f5_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libopenblas-0.3.23-pthreads_h80387f5_0",
         "type": 1
     },
     "md5": "9c5ea51ccb8ffae7d06c645869d24ce6",
     "name": "libopenblas",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libopenblas-0.3.23-pthreads_h80387f5_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libopenblas-0.3.23-pthreads_h80387f5_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

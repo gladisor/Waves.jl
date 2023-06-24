@@ -2,11 +2,23 @@ export WaveEnvState
 export WaveImage, DisplacementImage
 export WaveEnv, RandomDesignPolicy
 
+function Base.convert(
+        ::Type{CircularBuffer{AbstractArray{Float32, 3}}}, 
+        x::Union{
+            Vector{CUDA.CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}},
+            Vector{Array{Float32, 3}}
+            }
+        )
+
+    cb = CircularBuffer{AbstractArray{Float32, 3}}(length(x))
+    [push!(cb, x[i]) for i in axes(x, 1)]
+    return cb
+end
+
 struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
     wave_total::AbstractArray{Float32, 3}
-    wave_incident::AbstractArray{Float32, 3}
     design::AbstractDesign
 end
 
@@ -14,15 +26,6 @@ Flux.@functor WaveEnvState
 
 struct WaveImage <: AbstractSensor end
 (sensor::WaveImage)(s::WaveEnvState) = s
-
-struct DisplacementImage <: AbstractSensor end
-
-function (sensor::DisplacementImage)(s::WaveEnvState)
-    return WaveEnvState(
-        s.dim, s.tspan,
-        s.wave_total[:, :, 1, :], s.wave_incident[:, :, 1, :],
-        s.design)
-end
 
 mutable struct WaveEnv <: AbstractEnv
     dim::AbstractDim
@@ -33,8 +36,8 @@ mutable struct WaveEnv <: AbstractEnv
 
     sensor::AbstractSensor
 
-    wave_total::AbstractArray{Float32}
-    wave_incident::AbstractArray{Float32}
+    wave_total::CircularBuffer{AbstractArray{Float32, 3}}
+    wave_incident::CircularBuffer{AbstractArray{Float32, 3}}
 
     total_dynamics::WaveDynamics
     incident_dynamics::WaveDynamics
@@ -47,6 +50,7 @@ mutable struct WaveEnv <: AbstractEnv
 end
 
 Flux.@functor WaveEnv
+Flux.trainable(::WaveEnv) = (;)
 
 function WaveEnv(
         dim::TwoDim;
@@ -67,7 +71,15 @@ function WaveEnv(
     total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = rand(design_space), source = source)
     incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
     sigma = zeros(Float32, integration_steps + 1)
-    return WaveEnv(dim, reset_wave, design_space, action_speed, sensor, wave, wave, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
+
+
+    wave_total = CircularBuffer{AbstractArray{Float32, 3}}(3)
+    wave_incident = CircularBuffer{AbstractArray{Float32, 3}}(3)
+
+    fill!(wave_total, wave)
+    fill!(wave_incident, wave)
+
+    return WaveEnv(dim, reset_wave, design_space, action_speed, sensor, wave_total, wave_incident, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
 end
 
 function Base.time(env::WaveEnv)
@@ -84,9 +96,21 @@ end
 
 function RLBase.reset!(env::WaveEnv)
     env.time_step = 0
-    env.wave_total = gpu(env.reset_wave(env.wave_total))
-    env.wave_incident = gpu(env.reset_wave(env.wave_incident))
-    # design = gpu(DesignInterpolator(rand(env.design_space)))
+
+    z = gpu(zeros(Float32, size(env.wave_total[end])))
+
+    empty!(env.wave_total)
+    empty!(env.wave_incident)
+
+    fill!(env.wave_total, z)
+    fill!(env.wave_incident, z)
+
+    push!(env.wave_total, env.reset_wave(z))
+    push!(env.wave_incident, env.reset_wave(z))
+
+    # env.wave_total = gpu(env.reset_wave(env.wave_total))
+    # env.wave_incident = gpu(env.reset_wave(env.wave_incident))
+
     design = DesignInterpolator(rand(env.design_space))
 
     env.total_dynamics = WaveDynamics(
@@ -111,12 +135,18 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.total_dynamics = update_design(env.total_dynamics, interp)
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
-    u_total = unbatch(total_iter(env.wave_total))
-    env.wave_total = u_total[end]
+    # u_total = unbatch(total_iter(env.wave_total))
+    # env.wave_total = u_total[end]
+
+    u_total = unbatch(total_iter(env.wave_total[end]))
+    push!(env.wave_total, u_total[end])
 
     incident_iter = Integrator(runge_kutta, env.incident_dynamics, ti, env.dt, env.integration_steps)
-    u_incident = unbatch(incident_iter(env.wave_incident))
-    env.wave_incident = u_incident[end]
+    # u_incident = unbatch(incident_iter(env.wave_incident))
+    # env.wave_incident = u_incident[end]
+
+    u_incident = unbatch(incident_iter(env.wave_incident[end]))
+    push!(env.wave_incident, u_incident[end])
 
     u_scattered = u_total .- u_incident
     env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
@@ -126,12 +156,21 @@ function (env::WaveEnv)(action::AbstractDesign)
 end
 
 function RLBase.state(env::WaveEnv)
+
+    x = cat(
+        convert(Vector{AbstractArray{Float32, 3}}, env.wave_total)...,
+        dims = 4,
+        )
+
+    d = cpu(x[:, :, 1, :])
+
     return env.sensor(WaveEnvState(
         cpu(env.dim),
         build_tspan(env),
-        cpu(env.wave_total),
-        cpu(env.wave_incident),
-        cpu(env.total_dynamics.design(time(env)))))
+        d,
+        cpu(env.total_dynamics.design(time(env)))
+        )
+    )
 end
 
 function RLBase.state_space(env::WaveEnv)

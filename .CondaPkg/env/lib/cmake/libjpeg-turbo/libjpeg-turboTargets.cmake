@@ -47,7 +47,7 @@ unset(_cmake_expected_targets)
 
 
 # The installation prefix configured by this project.
-set(_IMPORT_PREFIX "/lts/home/012761749/Waves.jl/.CondaPkg/env")
+set(_IMPORT_PREFIX "/home/012761749/Waves.jl/.CondaPkg/env")
 
 # Create imported target libjpeg-turbo::jpeg
 add_library(libjpeg-turbo::jpeg SHARED IMPORTED)

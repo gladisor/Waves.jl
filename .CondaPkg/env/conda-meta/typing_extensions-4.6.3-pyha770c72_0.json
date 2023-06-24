@@ -8,7 +8,7 @@
     "depends": [
         "python >=3.7"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/typing_extensions-4.6.3-pyha770c72_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/typing_extensions-4.6.3-pyha770c72_0",
     "files": [
         "lib/python3.11/site-packages/typing_extensions-4.6.3.dist-info/INSTALLER",
         "lib/python3.11/site-packages/typing_extensions-4.6.3.dist-info/LICENSE",
@@ -24,13 +24,13 @@
     "license": "PSF-2.0",
     "license_family": "PSF",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/typing_extensions-4.6.3-pyha770c72_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/typing_extensions-4.6.3-pyha770c72_0",
         "type": 1
     },
     "md5": "4a3014a4d107d15475d106b751c4e352",
     "name": "typing_extensions",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/typing_extensions-4.6.3-pyha770c72_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/typing_extensions-4.6.3-pyha770c72_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

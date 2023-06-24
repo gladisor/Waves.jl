@@ -19,7 +19,7 @@
         "python_abi 3.11.* *_cp311",
         "tk >=8.6.12,<8.7.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pillow-9.5.0-py311h0b84326_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pillow-9.5.0-py311h0b84326_1",
     "files": [
         "lib/python3.11/site-packages/PIL/BdfFontFile.py",
         "lib/python3.11/site-packages/PIL/BlpImagePlugin.py",
@@ -231,12 +231,12 @@
     "fn": "pillow-9.5.0-py311h0b84326_1.conda",
     "license": "LicenseRef-PIL",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pillow-9.5.0-py311h0b84326_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pillow-9.5.0-py311h0b84326_1",
         "type": 1
     },
     "md5": "6be2190fdbf26a6c1d3356a54d955237",
     "name": "pillow",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pillow-9.5.0-py311h0b84326_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pillow-9.5.0-py311h0b84326_1.tar.bz2",
     "paths_data": {
         "paths": [
             {

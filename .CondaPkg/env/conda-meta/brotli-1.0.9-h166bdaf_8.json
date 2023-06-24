@@ -11,7 +11,7 @@
         "libbrotlienc 1.0.9 h166bdaf_8",
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/brotli-1.0.9-h166bdaf_8",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/brotli-1.0.9-h166bdaf_8",
     "files": [
         "include/brotli/decode.h",
         "include/brotli/encode.h",
@@ -21,12 +21,12 @@
     "fn": "brotli-1.0.9-h166bdaf_8.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/brotli-1.0.9-h166bdaf_8",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/brotli-1.0.9-h166bdaf_8",
         "type": 1
     },
     "md5": "2ff08978892a3e8b954397c461f18418",
     "name": "brotli",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/brotli-1.0.9-h166bdaf_8.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/brotli-1.0.9-h166bdaf_8.tar.bz2",
     "paths_data": {
         "paths": [
             {

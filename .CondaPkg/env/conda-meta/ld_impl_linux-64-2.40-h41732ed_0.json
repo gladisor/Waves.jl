@@ -8,7 +8,7 @@
         "binutils_impl_linux-64 2.40"
     ],
     "depends": [],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ld_impl_linux-64-2.40-h41732ed_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ld_impl_linux-64-2.40-h41732ed_0",
     "files": [
         "bin/x86_64-conda-linux-gnu-ld",
         "bin/x86_64-conda_cos6-linux-gnu-ld",
@@ -18,12 +18,12 @@
     "fn": "ld_impl_linux-64-2.40-h41732ed_0.conda",
     "license": "GPL-3.0-only",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ld_impl_linux-64-2.40-h41732ed_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ld_impl_linux-64-2.40-h41732ed_0",
         "type": 1
     },
     "md5": "7aca3059a1729aa76c597603f10b0dd3",
     "name": "ld_impl_linux-64",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ld_impl_linux-64-2.40-h41732ed_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ld_impl_linux-64-2.40-h41732ed_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

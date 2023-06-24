@@ -12,7 +12,7 @@
     "depends": [
         "libblas 3.9.0 17_linux64_openblas"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/liblapack-3.9.0-17_linux64_openblas",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/liblapack-3.9.0-17_linux64_openblas",
     "files": [
         "lib/liblapack.so",
         "lib/liblapack.so.3"
@@ -20,12 +20,12 @@
     "fn": "liblapack-3.9.0-17_linux64_openblas.conda",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/liblapack-3.9.0-17_linux64_openblas",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/liblapack-3.9.0-17_linux64_openblas",
         "type": 1
     },
     "md5": "a2103882c46492e26500fcb56c03de8b",
     "name": "liblapack",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/liblapack-3.9.0-17_linux64_openblas.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/liblapack-3.9.0-17_linux64_openblas.tar.bz2",
     "paths_data": {
         "paths": [
             {

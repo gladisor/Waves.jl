@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=7.5.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pthread-stubs-0.4-h36c2ea0_1001",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pthread-stubs-0.4-h36c2ea0_1001",
     "files": [
         "lib/pkgconfig/pthread-stubs.pc"
     ],
@@ -16,19 +16,19 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pthread-stubs-0.4-h36c2ea0_1001",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pthread-stubs-0.4-h36c2ea0_1001",
         "type": 1
     },
     "md5": "22dad4df6e8630e8dff2428f6f6a7036",
     "name": "pthread-stubs",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pthread-stubs-0.4-h36c2ea0_1001.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pthread-stubs-0.4-h36c2ea0_1001.tar.bz2",
     "paths_data": {
         "paths": [
             {
                 "_path": "lib/pkgconfig/pthread-stubs.pc",
                 "path_type": "hardlink",
                 "sha256": "9d262e06e04a2cfc161db1a41ae1c2ce2d64bcccdae94b80fb683acddee8aa37",
-                "sha256_in_prefix": "29e99f0f49b1c73dc42ee73be43325a955046bcb43c676b8f5578c01326407b3",
+                "sha256_in_prefix": "4053b23b8e7aaddee964416ea719007a97788873562ea013e4466b9ac6b2726c",
                 "size_in_bytes": 490
             }
         ],

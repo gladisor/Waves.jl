@@ -10,7 +10,7 @@
         "libjpeg-turbo >=2.1.5.1,<3.0a0",
         "libtiff >=4.5.0,<4.6.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lcms2-2.15-haa2dc70_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lcms2-2.15-haa2dc70_1",
     "files": [
         "bin/jpgicc",
         "bin/linkicc",
@@ -33,12 +33,12 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lcms2-2.15-haa2dc70_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lcms2-2.15-haa2dc70_1",
         "type": 1
     },
     "md5": "980d8aca0bc23ca73fa8caa3e7c84c28",
     "name": "lcms2",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lcms2-2.15-haa2dc70_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lcms2-2.15-haa2dc70_1.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -113,7 +113,7 @@
                 "_path": "lib/pkgconfig/lcms2.pc",
                 "path_type": "hardlink",
                 "sha256": "e46632f0e4b198c5b6d16e0a5aa12ccb0f8852cdbf669d2120e60e5bde0aec22",
-                "sha256_in_prefix": "f67f59a313c3a5dcd751d98a9f4f915a7b4f2314acef1ae958b78a4c16ba074e",
+                "sha256_in_prefix": "ec1f34caf4769f0139babc2013a87c5febff1884d3c383229f8c808859ffe139",
                 "size_in_bytes": 489
             },
             {

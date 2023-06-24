@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xorg-libxau-1.0.11-hd590300_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xorg-libxau-1.0.11-hd590300_0",
     "files": [
         "include/X11/Xauth.h",
         "lib/libXau.so",
@@ -20,12 +20,12 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xorg-libxau-1.0.11-hd590300_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xorg-libxau-1.0.11-hd590300_0",
         "type": 1
     },
     "md5": "2c80dc38fface310c9bd81b17037fee5",
     "name": "xorg-libxau",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xorg-libxau-1.0.11-hd590300_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xorg-libxau-1.0.11-hd590300_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -58,7 +58,7 @@
                 "_path": "lib/pkgconfig/xau.pc",
                 "path_type": "hardlink",
                 "sha256": "29fe8de787dc70b21fbbe6c7560620bee370d7b0a236022a074fc96086c7a7db",
-                "sha256_in_prefix": "4804ec02baa7c1418925bf6db0271f35b945652ff086b6dc7b8926e98ff55fa8",
+                "sha256_in_prefix": "a8cc05bb0b521f854a79cfef3bcc8f939815b3ef5caf4715f273760f621b940d",
                 "size_in_bytes": 485
             }
         ],

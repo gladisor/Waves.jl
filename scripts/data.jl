@@ -5,6 +5,8 @@ using FileIO
 using Waves
 include("plot.jl")
 
+const STORAGE_PATH = "/scratch/cmpe299-fa22/tristan/data"
+
 function build_simple_radii_design_space()
     pos = [0.0f0 0.0f0]
 
@@ -51,14 +53,15 @@ function build_triple_ring_design_space()
 end
 
 ## selecting gpu
-Flux.device!(0)
+Flux.device!(1)
 ## setting discretization in space and time
 grid_size = 15.0f0
 elements = 512
 dt = 1e-5
 ## various environment parameters
 action_speed = 500.0f0
-freq = 2000.0f0
+# freq = 2000.0f0
+freq = 1000.0f0
 pml_width = 5.0f0
 pml_scale = 10000.0f0
 actions = 100
@@ -68,11 +71,10 @@ pulse_x = -10.0f0
 pulse_y = 0.0f0
 pulse_intensity = 10.0f0
 ## number of episodes to generate
-episodes = 200
+episodes = 1000
 ## declaring name of dataset
-# name = "single_cylinder_dataset"
-# name = "full_state_single_adjustable_radii"
-name = "full_state_triple_ring_dataset"
+design_space_func = build_triple_ring_design_space
+name = "design_space=$(design_space_func)_freq=$(freq)"
 
 ## building FEM grid
 dim = TwoDim(grid_size, elements)
@@ -81,14 +83,13 @@ pulse = build_pulse(grid, pulse_x, pulse_y, pulse_intensity)
 
 ## initializing environment with settings
 println("Building WaveEnv")
+
 env = WaveEnv(
     dim,
     reset_wave = Silence(),
-    design_space = build_triple_ring_design_space(),
-    # design_space = build_simple_radii_design_space(),
+    design_space = design_space_func(),
     action_speed = action_speed,
     source = Source(pulse, freq = freq),
-    # sensor = DisplacementImage(),
     sensor = WaveImage(),
     ambient_speed = WATER,
     pml_width = pml_width,
@@ -100,15 +101,14 @@ env = WaveEnv(
 policy = RandomDesignPolicy(action_space(env))
 
 ## saving environment
-data_path = mkpath("/scratch/cmpe299-fa22/tristan/data/$name/episodes")
+data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
 BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
-## rendering a sample animation
+
+# rendering a sample animation
 println("Rendering Example")
-include("plot.jl")
+@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.2f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 
-@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 # starting data generation loop
-
 println("Generating Data")
 for i in 1:episodes
     path = mkpath(joinpath(data_path, "episode$i"))

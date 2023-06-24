@@ -1,8 +1,8 @@
 # tcl pkg-config source file
 
-prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
-exec_prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
-libdir=/lts/home/012761749/Waves.jl/.CondaPkg/env/lib
+prefix=/home/012761749/Waves.jl/.CondaPkg/env
+exec_prefix=/home/012761749/Waves.jl/.CondaPkg/env
+libdir=/home/012761749/Waves.jl/.CondaPkg/env/lib
 includedir=${prefix}/include
 
 Name: Tool Command Language

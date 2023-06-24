@@ -15,7 +15,7 @@
         "setuptools",
         "six"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/protobuf-3.20.3-py311hcafe171_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/protobuf-3.20.3-py311hcafe171_1",
     "files": [
         "lib/python3.11/site-packages/google/protobuf/__init__.py",
         "lib/python3.11/site-packages/google/protobuf/__pycache__/__init__.cpython-311.pyc",
@@ -121,12 +121,12 @@
     "license": "BSD-3-Clause",
     "license_family": "BSD",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/protobuf-3.20.3-py311hcafe171_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/protobuf-3.20.3-py311hcafe171_1",
         "type": 1
     },
     "md5": "253a65211f7ad6dea406112c771104ba",
     "name": "protobuf",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/protobuf-3.20.3-py311hcafe171_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/protobuf-3.20.3-py311hcafe171_1.tar.bz2",
     "paths_data": {
         "paths": [
             {

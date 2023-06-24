@@ -14,7 +14,7 @@
         "python >=3.7",
         "urllib3 >=1.21.1,<3"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/requests-2.31.0-pyhd8ed1ab_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/requests-2.31.0-pyhd8ed1ab_0",
     "files": [
         "lib/python3.11/site-packages/requests-2.31.0.dist-info/INSTALLER",
         "lib/python3.11/site-packages/requests-2.31.0.dist-info/LICENSE",
@@ -64,13 +64,13 @@
     "fn": "requests-2.31.0-pyhd8ed1ab_0.conda",
     "license": "Apache-2.0",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/requests-2.31.0-pyhd8ed1ab_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/requests-2.31.0-pyhd8ed1ab_0",
         "type": 1
     },
     "md5": "a30144e4156cdbb236f99ebb49828f8b",
     "name": "requests",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/requests-2.31.0-pyhd8ed1ab_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/requests-2.31.0-pyhd8ed1ab_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

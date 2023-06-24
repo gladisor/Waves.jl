@@ -2,7 +2,7 @@
 #   Copyright (C) 2014-2016, Yann Collet, Facebook
 #   BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
 
-prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
+prefix=/home/012761749/Waves.jl/.CondaPkg/env
 exec_prefix=${prefix}
 includedir=${prefix}/include
 libdir=${exec_prefix}/lib

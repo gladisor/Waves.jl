@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' /lts/home/012761749/Waves.jl/.CondaPkg/env/bin/python "$0" "$@"
+'''exec' /home/012761749/Waves.jl/.CondaPkg/env/bin/python "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re

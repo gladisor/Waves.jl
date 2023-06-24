@@ -9,7 +9,7 @@
         "libbrotlicommon 1.0.9 h166bdaf_8",
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlienc-1.0.9-h166bdaf_8",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlienc-1.0.9-h166bdaf_8",
     "files": [
         "lib/libbrotlienc.so",
         "lib/libbrotlienc.so.1",
@@ -19,12 +19,12 @@
     "fn": "libbrotlienc-1.0.9-h166bdaf_8.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlienc-1.0.9-h166bdaf_8",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlienc-1.0.9-h166bdaf_8",
         "type": 1
     },
     "md5": "04bac51ba35ea023dc48af73c1c88c25",
     "name": "libbrotlienc",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlienc-1.0.9-h166bdaf_8.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlienc-1.0.9-h166bdaf_8.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -50,7 +50,7 @@
                 "_path": "lib/pkgconfig/libbrotlienc.pc",
                 "path_type": "hardlink",
                 "sha256": "1d5838277689e2b6369c47b8946512aba56acce222d307fea019227c5091496b",
-                "sha256_in_prefix": "6db0e6d16cad0253f0d37bee67ff77f0b683ffb1fd903ba02dac95b527e4690d",
+                "sha256_in_prefix": "4fe7b9215e4248167e3c576fb4ccc1e53eb897658d43c8295ffd212eb2da147b",
                 "size_in_bytes": 787
             }
         ],

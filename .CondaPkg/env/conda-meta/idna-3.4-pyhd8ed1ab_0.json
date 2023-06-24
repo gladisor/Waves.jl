@@ -8,7 +8,7 @@
     "depends": [
         "python >=3.6"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/idna-3.4-pyhd8ed1ab_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/idna-3.4-pyhd8ed1ab_0",
     "files": [
         "lib/python3.11/site-packages/idna-3.4.dist-info/INSTALLER",
         "lib/python3.11/site-packages/idna-3.4.dist-info/LICENSE.md",
@@ -38,13 +38,13 @@
     "fn": "idna-3.4-pyhd8ed1ab_0.tar.bz2",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/idna-3.4-pyhd8ed1ab_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/idna-3.4-pyhd8ed1ab_0",
         "type": 1
     },
     "md5": "34272b248891bddccc64479f9a7fffed",
     "name": "idna",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/idna-3.4-pyhd8ed1ab_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/idna-3.4-pyhd8ed1ab_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

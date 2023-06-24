@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libdeflate-1.18-h0b41bf4_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libdeflate-1.18-h0b41bf4_0",
     "files": [
         "bin/libdeflate-gunzip",
         "bin/libdeflate-gzip",
@@ -24,12 +24,12 @@
     "fn": "libdeflate-1.18-h0b41bf4_0.conda",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libdeflate-1.18-h0b41bf4_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libdeflate-1.18-h0b41bf4_0",
         "type": 1
     },
     "md5": "6aa9c9de5542ecb07fdda9ca626252d8",
     "name": "libdeflate",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libdeflate-1.18-h0b41bf4_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libdeflate-1.18-h0b41bf4_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -78,7 +78,7 @@
                 "_path": "lib/cmake/libdeflate/libdeflate-targets.cmake",
                 "path_type": "hardlink",
                 "sha256": "ce276e19ab1ef7f6fed1a100b7ec2078f78e0ceb2a24c30deedb52328286b0cd",
-                "sha256_in_prefix": "1ca02daea3cdf67d234dca33188a3de73ad4ab69691f7957e84651ecaf7bd080",
+                "sha256_in_prefix": "8758bc82f1075570b6f8f9106ded72f0d6b38091fcb1635720fef5c6709a7ba8",
                 "size_in_bytes": 4250
             },
             {
@@ -98,7 +98,7 @@
                 "_path": "lib/pkgconfig/libdeflate.pc",
                 "path_type": "hardlink",
                 "sha256": "519e4d1cf1a4cc3970a81220bb138faf988e617d57d41048460ea309ffad899b",
-                "sha256_in_prefix": "8b3c01b09eb329cbc367c9cb38012b9689491aa0a85225ab8329ea7fd4a40e50",
+                "sha256_in_prefix": "d8f2f68871d06dd302c78e36f26ce134320948dddfd8f9bff3c248bed3ff5810",
                 "size_in_bytes": 1011
             }
         ],

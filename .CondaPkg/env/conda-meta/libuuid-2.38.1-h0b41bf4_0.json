@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libuuid-2.38.1-h0b41bf4_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libuuid-2.38.1-h0b41bf4_0",
     "files": [
         "include/uuid/uuid.h",
         "lib/libuuid.a",
@@ -20,12 +20,12 @@
     "fn": "libuuid-2.38.1-h0b41bf4_0.conda",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libuuid-2.38.1-h0b41bf4_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libuuid-2.38.1-h0b41bf4_0",
         "type": 1
     },
     "md5": "40b61aab5c7ba9ff276c41cfffe6b80b",
     "name": "libuuid",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libuuid-2.38.1-h0b41bf4_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libuuid-2.38.1-h0b41bf4_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -65,7 +65,7 @@
                 "_path": "lib/pkgconfig/uuid.pc",
                 "path_type": "hardlink",
                 "sha256": "4def02521991cbbb9a483a63d63b59cdb637ed420b4a2ce3cf88aadf8f27408b",
-                "sha256_in_prefix": "c0482d1b28578ecd5699db0840214be6ed8ea39862ae9b54f553a5b62abf0cf6",
+                "sha256_in_prefix": "3a07049a6c1514d58cb75867c482fc9527f8f1356d5ce0ea96b2bef65b912c06",
                 "size_in_bytes": 1208
             }
         ],

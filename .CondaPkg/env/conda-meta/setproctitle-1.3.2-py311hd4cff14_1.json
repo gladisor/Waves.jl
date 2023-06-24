@@ -10,7 +10,7 @@
         "python >=3.11,<3.12.0a0",
         "python_abi 3.11.* *_cp311"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setproctitle-1.3.2-py311hd4cff14_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setproctitle-1.3.2-py311hd4cff14_1",
     "files": [
         "lib/python3.11/site-packages/setproctitle-1.3.2.dist-info/INSTALLER",
         "lib/python3.11/site-packages/setproctitle-1.3.2.dist-info/METADATA",
@@ -27,12 +27,12 @@
     "fn": "setproctitle-1.3.2-py311hd4cff14_1.tar.bz2",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setproctitle-1.3.2-py311hd4cff14_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setproctitle-1.3.2-py311hd4cff14_1",
         "type": 1
     },
     "md5": "42844caae102821e24bfc266eb75bcad",
     "name": "setproctitle",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setproctitle-1.3.2-py311hd4cff14_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setproctitle-1.3.2-py311hd4cff14_1.tar.bz2",
     "paths_data": {
         "paths": [
             {

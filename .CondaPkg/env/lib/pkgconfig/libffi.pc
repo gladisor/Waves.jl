@@ -1,8 +1,8 @@
-prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env
+prefix=/home/012761749/Waves.jl/.CondaPkg/env
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 toolexeclibdir=${libdir}
-includedir=/lts/home/012761749/Waves.jl/.CondaPkg/env/include
+includedir=/home/012761749/Waves.jl/.CondaPkg/env/include
 
 Name: libffi
 Description: Library supporting Foreign Function Interfaces

@@ -9,7 +9,7 @@
         "__unix",
         "python >=3.8"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pysocks-1.7.1-pyha2e5f31_6",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pysocks-1.7.1-pyha2e5f31_6",
     "files": [
         "lib/python3.11/site-packages/PySocks-1.7.1.dist-info/INSTALLER",
         "lib/python3.11/site-packages/PySocks-1.7.1.dist-info/LICENSE",
@@ -28,13 +28,13 @@
     "license": "BSD-3-Clause",
     "license_family": "BSD",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pysocks-1.7.1-pyha2e5f31_6",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pysocks-1.7.1-pyha2e5f31_6",
         "type": 1
     },
     "md5": "2a7de29fb590ca14b5243c4c812c8025",
     "name": "pysocks",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pysocks-1.7.1-pyha2e5f31_6.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pysocks-1.7.1-pyha2e5f31_6.tar.bz2",
     "paths_data": {
         "paths": [
             {

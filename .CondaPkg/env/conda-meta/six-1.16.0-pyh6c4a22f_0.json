@@ -8,7 +8,7 @@
     "depends": [
         "python"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/six-1.16.0-pyh6c4a22f_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/six-1.16.0-pyh6c4a22f_0",
     "files": [
         "lib/python3.11/site-packages/six-1.16.0.dist-info/INSTALLER",
         "lib/python3.11/site-packages/six-1.16.0.dist-info/LICENSE",
@@ -25,13 +25,13 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/six-1.16.0-pyh6c4a22f_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/six-1.16.0-pyh6c4a22f_0",
         "type": 1
     },
     "md5": "e5f25f8dbc060e9a8d912e432202afc2",
     "name": "six",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/six-1.16.0-pyh6c4a22f_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/six-1.16.0-pyh6c4a22f_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

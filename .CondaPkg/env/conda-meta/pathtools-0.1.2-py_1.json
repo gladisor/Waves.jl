@@ -8,7 +8,7 @@
     "depends": [
         "python"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pathtools-0.1.2-py_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pathtools-0.1.2-py_1",
     "files": [
         "lib/python3.11/site-packages/pathtools-0.1.2-py2.7.egg-info/PKG-INFO",
         "lib/python3.11/site-packages/pathtools-0.1.2-py2.7.egg-info/SOURCES.txt",
@@ -27,13 +27,13 @@
     "fn": "pathtools-0.1.2-py_1.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pathtools-0.1.2-py_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pathtools-0.1.2-py_1",
         "type": 1
     },
     "md5": "7c9b5632c61951216374dbaa34659301",
     "name": "pathtools",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pathtools-0.1.2-py_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pathtools-0.1.2-py_1.tar.bz2",
     "paths_data": {
         "paths": [
             {

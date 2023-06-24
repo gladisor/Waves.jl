@@ -9,7 +9,7 @@
         "libgcc-ng >=9.4.0",
         "libzlib >=1.2.11,<1.3.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/tk-8.6.12-h27826a3_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/tk-8.6.12-h27826a3_0",
     "files": [
         "bin/sqlite3_analyzer",
         "bin/tclsh",
@@ -531,12 +531,12 @@
     "license": "TCL",
     "license_family": "BSD",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/tk-8.6.12-h27826a3_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/tk-8.6.12-h27826a3_0",
         "type": 1
     },
     "md5": "5b8c42eb62e9fc961af70bdd6a26e168",
     "name": "tk",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/tk-8.6.12-h27826a3_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/tk-8.6.12-h27826a3_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -1115,7 +1115,7 @@
                 "_path": "lib/itcl4.2.2/itclConfig.sh",
                 "path_type": "hardlink",
                 "sha256": "3d9a7c18aacfba2ae6a6a60143bf788f1d8b38d6c08bf627c563b272b4fd72f4",
-                "sha256_in_prefix": "970152276439c199b130b45296a8b5ea2864327f5d786f0ab44c4df30f52bde1",
+                "sha256_in_prefix": "ba7e60883aac8635e7fdd9cf732974ba2af7f0aa7ced2193238368f47aa4219c",
                 "size_in_bytes": 4978
             },
             {
@@ -1157,7 +1157,7 @@
                 "_path": "lib/libtcl8.6.so",
                 "path_type": "hardlink",
                 "sha256": "3764cfd6a557bfd838874c88d630910ad9582c548289ffe283ba8881d8ab07c6",
-                "sha256_in_prefix": "a047f585133691828185bceef9f235ead5566001f2d4cf8e20a9e24daa9b2dbe",
+                "sha256_in_prefix": "ac8f49b795001b30c6bc45ec05c84ac3dfcf8b87522bff249403171a906818fe",
                 "size_in_bytes": 1960832
             },
             {
@@ -1171,7 +1171,7 @@
                 "_path": "lib/libtk8.6.so",
                 "path_type": "hardlink",
                 "sha256": "164ce2cc46a27f4555e8254f541ee07dbcab82aa3e19ee015886a71e6f4bff27",
-                "sha256_in_prefix": "6917981247523186742a04f7c374495d5c268169f7e3d3645efd22801d88e2ac",
+                "sha256_in_prefix": "235ffb7bb86d846ede02c1064482e67a49574685482631bc02bd52105d679b3c",
                 "size_in_bytes": 1595424
             },
             {
@@ -1185,14 +1185,14 @@
                 "_path": "lib/pkgconfig/tcl.pc",
                 "path_type": "hardlink",
                 "sha256": "8cffba68b8f88e251c68fb07be486aad8075651557d7e3e58269c1c9066c6589",
-                "sha256_in_prefix": "e8ba80397c5fb97c831eacc9065d8c1feeba61c93e282155be74fce7966bfd89",
+                "sha256_in_prefix": "0b2e0ebbf52be3379c5e3cb3ae86f223f677a76e0fd8201c41c98dea10554d29",
                 "size_in_bytes": 1176
             },
             {
                 "_path": "lib/pkgconfig/tk.pc",
                 "path_type": "hardlink",
                 "sha256": "40c2f47b2fd0c43b2623aa16f32cc4a118cb104bc99818e34cdb60f40cb28d8d",
-                "sha256_in_prefix": "fe7042bd98aa9d1712e070389c6ffa4c44dca4b0a246ce8a19581cbd203f3f7e",
+                "sha256_in_prefix": "8db3ed5b6f19aff1a2be64d30182a36073ef8dd5101ef563173254a340b1be3c",
                 "size_in_bytes": 1180
             },
             {
@@ -2809,7 +2809,7 @@
                 "_path": "lib/tclConfig.sh",
                 "path_type": "hardlink",
                 "sha256": "76f84d5ad0f8bf445c8e7a3dfa0fc2668d7df8f53d8ba66bae76d20e3f4dcce0",
-                "sha256_in_prefix": "dea7087fd5a0b711d3527d4e73f8fb75806b804d68aa605ceae91e0121dcebb1",
+                "sha256_in_prefix": "54dafbefabca612c182a56660fb62d355195b800063da090d44db754ba23f7c4",
                 "size_in_bytes": 12659
             },
             {
@@ -2851,7 +2851,7 @@
                 "_path": "lib/tdbc1.1.3/tdbcConfig.sh",
                 "path_type": "hardlink",
                 "sha256": "cbb9a3164335a8b39996bd6e2185893a41b748d21b28a2aa3559a6105038af49",
-                "sha256_in_prefix": "d946616c0a8435e5fea442c6548257c513a09dfb2a5eda9aa32a12dcbd42ca97",
+                "sha256_in_prefix": "23ac176c25ccdc6021c193986ed0e9261866984f0750d9e3585586918601e832",
                 "size_in_bytes": 6499
             },
             {
@@ -4139,7 +4139,7 @@
                 "_path": "lib/tkConfig.sh",
                 "path_type": "hardlink",
                 "sha256": "e580f283a1b2f42d073faba4622cd779ea324dbaa73c762c9694258b5c0fef47",
-                "sha256_in_prefix": "977b080d4a60c7c4e973d3721d9467709706b28878cfa9a4a664d0a2b7ae6087",
+                "sha256_in_prefix": "643d5e7c0ae20ecc3ae3fd639223a07dd7a62aafa207e16527fb206a0c353818",
                 "size_in_bytes": 6563
             }
         ],

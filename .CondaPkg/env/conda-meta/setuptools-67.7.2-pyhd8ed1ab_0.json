@@ -8,7 +8,7 @@
     "depends": [
         "python >=3.7"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setuptools-67.7.2-pyhd8ed1ab_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setuptools-67.7.2-pyhd8ed1ab_0",
     "files": [
         "lib/python3.11/site-packages/_distutils_hack/__init__.py",
         "lib/python3.11/site-packages/_distutils_hack/override.py",
@@ -467,13 +467,13 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setuptools-67.7.2-pyhd8ed1ab_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setuptools-67.7.2-pyhd8ed1ab_0",
         "type": 1
     },
     "md5": "3b68bc43ec6baa48f7354a446267eefe",
     "name": "setuptools",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setuptools-67.7.2-pyhd8ed1ab_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/setuptools-67.7.2-pyhd8ed1ab_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

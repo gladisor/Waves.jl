@@ -9,15 +9,7 @@ abstract type WaveInputLayer end
 
 struct TotalWaveInput <: WaveInputLayer end
 Flux.@functor TotalWaveInput
-(input::TotalWaveInput)(s::WaveEnvState) = s.wave_total[:, :, :, :]
-
-struct IncidentWaveInput <: WaveInputLayer end
-Flux.@functor IncidentWaveInput
-(input::IncidentWaveInput)(s::WaveEnvState) = s.wave_incident[:, :, :, :]
-
-struct ScatteredWaveInput <: WaveInputLayer end
-Flux.@functor ScatteredWaveInput
-(input::ScatteredWaveInput)(s::WaveEnvState) = s.wave_total[:, :, :, :] .- s.wave_incident[:, :, :, :]
+(input::TotalWaveInput)(s::WaveEnvState) = s.wave_total[:, :, :, :] .+ 1f-5
 
 struct ResidualBlock
     main::Chain
@@ -30,9 +22,7 @@ Flux.@functor ResidualBlock
 
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
-        Conv(k, in_channels => out_channels, pad = SamePad()),
-        # BatchNorm(out_channels),
-        activation,
+        Conv(k, in_channels => out_channels, activation, pad = SamePad()),
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -101,51 +91,28 @@ end
 
 function (hypernet::Hypernet)(x::AbstractMatrix{Float32})
     models = hypernet.re.(eachcol(hypernet.dense(x)))
-    return  cat([hypernet.domain(m) for m in models]..., dims = ndims(x) + 1)
+    return cat([hypernet.domain(m) for m in models]..., dims = ndims(x) + 1)
 end
 
-# function build_mlp(in_size::Int, h_size::Int, n_h::Int, activation::Function)
+struct SinWaveEmbedder
+    frequencies::AbstractMatrix{Float32}
+end
 
-#     return Chain(
-#         NormalizedDense(in_size, h_size, activation),
-#         [NormalizedDense(h_size, h_size, activation) for _ in 1:n_h]...)
-# end
+Flux.@functor SinWaveEmbedder
+Flux.trainable(::SinWaveEmbedder) = (;)
 
-function build_hypernet_wave_encoder(;
-        latent_dim::OneDim,
-        nfreq::Int,
-        h_size::Int,
-        activation::Function,
-        input_layer::WaveInputLayer,
-        )
+function SinWaveEmbedder(dim::OneDim, nfreq::Int)
+    dim = cpu(dim)
+    L = dim.x[end] - dim.x[1]
+    C = L / 2.0f0
 
-    embedder = Chain(
-        Dense(2 * nfreq, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, 3, tanh)
-        # Dense(h_size, 4, tanh)
-        ) ## unbounded wavespeed doesnt work
+    n = Float32.(collect(1:nfreq))
+    frequencies = (pi * n .* (dim.x' .- C)) / L
+    return SinWaveEmbedder(sin.(frequencies))
+end
 
-    ps, re = destructure(embedder)
-
-    model = Chain(
-        input_layer,
-        MaxPool((4, 4)),
-        ResidualBlock((3, 3), 1, 32, activation),
-        ResidualBlock((3, 3), 32, 64, activation),
-        ResidualBlock((3, 3), 64, 128, activation),
-        GlobalMaxPool(),
-        flatten,
-        NormalizedDense(128, h_size, activation),
-        Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        Scale([1.0f0, 1.0f0/WATER, 1.0f0], false),
-        # Scale([1.0f0, 1.0f0/WATER, 1.0f0, 1.0f0], false),
-        z -> permutedims(z, (2, 1, 3))
-        )
-
-    return model
+function (embedder::SinWaveEmbedder)(x)
+    return permutedims(permutedims(x, (2, 1)) * embedder.frequencies, (2, 1)) ./ sum(abs, x, dims = 1) ## not adding normalization allows for large outuputs
 end
 
 struct NonTrainableScale
@@ -159,6 +126,25 @@ function (nts::NonTrainableScale)(x::AbstractArray{Float32})
     return nts.x .* x
 end
 
+struct LatentWaveNormalization
+    weight::AbstractArray{Float32}
+end
+
+Flux.@functor LatentWaveNormalization
+Flux.trainable(::LatentWaveNormalization) = (;)
+
+function LatentWaveNormalization(dim::OneDim, C::Float32)
+    u_weight = ones(Float32, size(dim, 1))
+    v_weight = ones(Float32, size(dim, 1)) ./ C
+    f_weight = ((cos.(pi * dim.x ./ 15.0f0) .+ 1) / 2.0f0) .^ 2 ## hardcoded boundary
+
+    return LatentWaveNormalization(hcat(u_weight, v_weight, f_weight)[:, :, :])
+end
+
+function (n::LatentWaveNormalization)(x)
+    return n.weight .* x
+end
+
 function build_split_hypernet_wave_encoder(;
         latent_dim::OneDim,
         nfreq::Int,
@@ -167,35 +153,45 @@ function build_split_hypernet_wave_encoder(;
         input_layer::WaveInputLayer,
         )
 
-    embedder = Chain(
-        Dense(2 * nfreq, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, 1, tanh)
-    )
+    # embedder = Chain(
+    #     Dense(2 * nfreq, h_size, activation),
+    #     Dense(h_size, h_size, activation),
+    #     Dense(h_size, h_size, activation),
+    #     Dense(h_size, h_size, activation),
+    #     Dense(h_size, 1, tanh)
+    # )
 
+    latent_elements = size(latent_dim, 1)
+
+    ## zero out forces in pml
     model = Chain(
         input_layer,
-        w -> w[:, :, [1, 2, 3], :],
         MeanPool((4, 4)),
-        # GroupNorm(3, 3),
-        # InstanceNorm(3),
         ResidualBlock((3, 3), 3, 32, activation),
         ResidualBlock((3, 3), 32, 64, activation),
         ResidualBlock((3, 3), 64, 128, activation),
         GlobalMaxPool(),
         flatten,
-        NormalizedDense(128, h_size, activation),
-        Parallel(
-            vcat,
-            Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-            Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-            Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        ),
+        Dense(128, 3 * nfreq), ## output frequencies for all fields (u, v, f)
+        b -> tanh.(reshape(b, nfreq, :)), ## reshape into a block where dims = (nfreq x fields*batchsize)
+        SinWaveEmbedder(latent_dim, nfreq), ## embed into sine wave
+        b -> reshape(b, latent_elements, 3, :), ## reshape to dims = (elements x fields x batch)
+        LatentWaveNormalization(latent_dim, WATER)
 
-        NonTrainableScale([1.0f0, 1.0f0/WATER, 0.50f0]),
-        z -> permutedims(z, (2, 1, 3))
+        # z -> permutedims(z, (2, 1, 3)), ## normalize the fields dimention
+        # NonTrainableScale([1.0f0, 1.0f0/WATER, 0.50f0]),
+        # z -> permutedims(z, (2, 1, 3))
+
+        # NormalizedDense(128, h_size, activation),
+        # Parallel(
+        #     vcat,
+        #     Chain(Dense(128, nfreq), SinWaveEmbedder(latent_dim, nfreq)),
+        #     Chain(Dense(128, nfreq), SinWaveEmbedder(latent_dim, nfreq)),
+        #     Chain(Dense(128, nfreq), SinWaveEmbedder(latent_dim, nfreq))
+        #     # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        #     # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        #     # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        # ),
     )
 
     return model
@@ -217,26 +213,31 @@ function HypernetDesignEncoder(
         activation::Function,
         latent_dim::OneDim)
 
-    embedder = Chain(
-        Dense(2 * nfreq, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, h_size, activation),
-        Dense(h_size, 1),
-        c -> sigmoid.(c) .+ 0.20f0 ## need to set some sort of floor on the minimum wavespeed
-        )
+    # embedder = Chain(
+    #     Dense(2 * nfreq, h_size, activation),
+    #     Dense(h_size, h_size, activation),
+    #     Dense(h_size, h_size, activation),
+    #     Dense(h_size, h_size, activation),
+    #     Dense(h_size, 1),
+    #     c -> sigmoid.(c) .+ 0.20f0 ## need to set some sort of floor on the minimum wavespeed
+    #     )
 
     in_size = length(vec(design_space.low))
 
     layers = Chain(
+        x -> x[:, :],
         Dense(in_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
+        Dense(h_size, nfreq),
+        c -> tanh.(c),
+        SinWaveEmbedder(latent_dim, nfreq),
+        c -> sigmoid.(c) .+ 0.20f0
 
-        NormalizedDense(h_size, h_size, activation),
-        Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        c -> permutedims(c, (2, 1))
+        # NormalizedDense(h_size, h_size, activation),
+        # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
+        # c -> permutedims(c, (2, 1))
     )
 
     return HypernetDesignEncoder(design_space, action_space, layers)
@@ -249,7 +250,6 @@ function normalize(design::AbstractDesign, ds::DesignSpace)
     scale = 2.0f0
     return scale * (vec(design) .- vec(ds.low)) ./ (vec(ds.high) .- vec(ds.low) .+ EPSILON) .- (scale / 2.0f0)
 end
-
 
 """
 A single propagation step for the design, increments the design to the next one by applying the
@@ -269,7 +269,8 @@ function (model::HypernetDesignEncoder)(d::AbstractDesign, a::DesignSequence)
     recur = Recur(model, d)
     return hcat(
         model.layers(normalize(d, model.design_space)),
-        [recur(action) for action in a]...)
+        [recur(action) for action in a]...
+        )
 end
 
 (model::HypernetDesignEncoder)(s::WaveEnvState, a::DesignSequence) = model(s.design, a)
@@ -313,7 +314,7 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
 
     return hcat(
-        du, # .* dyn.bc, ## remeber to turn bc off when using pml
+        du .* dyn.bc, ## remeber to turn bc off when using pml
         dv,
         f * 0.0f0,
         dc, 
@@ -385,65 +386,6 @@ function (model::ScatteredEnergyModel)(
     
     z = generate_latent_solution(model, s, a)
     return model.mlp(z)
-end
-
-function build_normalized_design_sequence(ds::DesignSpace, d::AbstractDesign, a::DesignSequence)
-    seq = [d]
-
-    for action in a
-        push!(seq, ds(seq[end], action))
-    end
-
-    return hcat(vec.(normalize.(seq, [ds]))...)
-end
-
-using Statistics: mean
-
-function compute_local_isometry_loss(
-        model::ScatteredEnergyModel,
-        s::WaveEnvState,
-        a::DesignSequence,
-        sigma::AbstractMatrix{Float32},
-        )
-
-    y = flatten_repeated_last_dim(sigma)
-    seq = build_normalized_design_sequence(model.design_encoder.design_space, s.design, a)
-    real_diffs = mean(diff(seq, dims = 2) .^ 2, dims = 1) * 20.0f0
-    
-    loss, back = Flux.pullback(model) do m
-        l_rec = Flux.mse(m(s, a), y)
-        c = m.design_encoder(s, a)
-        latent_diffs = mean(diff(c, dims = 2) .^ 2, dims = 1)
-        l_iso = Flux.mse(real_diffs, latent_diffs)
-        return l_rec + l_iso
-    end
-    
-    gs = back(one(loss))[1]
-    return loss, gs
-end
-
-function compute_local_isometry_loss(
-        model::ScatteredEnergyModel,
-        states::Vector{WaveEnvState},
-        actions::Vector{<: DesignSequence},
-        sigmas::Vector{<: AbstractMatrix{Float32}},
-        )
-
-    y = hcat(flatten_repeated_last_dim.(sigmas)...)
-    designs = [s.design for s in states]
-    seq = cat(build_normalized_design_sequence.([model.design_encoder.design_space], designs, actions)..., dims = 3)
-    real_diffs = mean(diff(seq, dims = 2) .^ 2, dims = 1) * 20.0f0
-    
-    loss, back = Flux.pullback(model) do m
-        l_rec = Flux.mse(m(states, actions), y)
-        c = cat(m.design_encoder.(states, actions)..., dims = 3)
-        latent_diffs = mean(diff(c, dims = 2) .^ 2, dims = 1)
-        l_iso = Flux.mse(real_diffs, latent_diffs)
-        return l_rec + l_iso
-    end
-    
-    gs = back(one(loss))[1]
-    return loss, gs
 end
 
 """
@@ -537,7 +479,7 @@ function visualize!(model::ScatteredEnergyModel, states::Vector{WaveEnvState}, a
 end
 
 function train_loop(
-        model; #::ScatteredEnergyModel;
+        model::ScatteredEnergyModel;
         loss_func::Function,
         train_steps::Int, ## only really effects validation frequency
         train_loader::DataLoader,
@@ -549,13 +491,13 @@ function train_loop(
         latent_dim::OneDim,
         evaluation_samples::Int,
         checkpoint_every::Int,
-        path::String
+        path::String,
+        opt,
         )
 
-    lg = WandbLogger(; project = "Waves.jl", name = "transfer_from_h=2_to_h=5")
-    global_logger(lg)
+    # lg = WandbLogger(;project = "Waves.jl")
+    # global_logger(lg)
 
-    opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, model)
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
 
@@ -565,12 +507,15 @@ function train_loop(
         trainmode!(model)
         for (j, batch) in enumerate(train_loader)
             states, actions, tspans, sigmas = gpu(batch)
+            
+            # loss, back = Flux.pullback(m -> loss_func(m, states, actions, sigmas), model)
+            # gs = back(one(loss))[1]
 
             y = flatten_repeated_last_dim(sigmas)
             loss, back = Flux.pullback(m -> loss_func(m(states, actions), y), model)
             gs = back(one(loss))[1]
-            push!(epoch_loss, loss)
 
+            push!(epoch_loss, loss)
             opt_state, model = Optimisers.update(opt_state, model, gs)
 
             if j == train_steps
@@ -588,8 +533,10 @@ function train_loop(
         for (j, batch) in enumerate(val_loader)
             states, actions, tspans, sigmas = gpu(batch)
 
+            # loss = loss_func(model, states, actions, sigmas)
             y = flatten_repeated_last_dim(sigmas)
             loss = loss_func(model(states, actions), y)
+
             push!(epoch_loss, loss)
 
             if j <= evaluation_samples
@@ -597,6 +544,7 @@ function train_loop(
 
                 for (i, (s, a, tspan, sigma)) in enumerate(zip(states, actions, tspans, sigmas))
                     try
+                        ## change this back s versus s[1]
                         @time visualize!(model, s, a, tspan, sigma, path = mkpath(joinpath(latent_path, "$i")))
                     catch e
                         println(e)
@@ -622,7 +570,7 @@ function train_loop(
         val_loss = metrics[:val_loss][end]
         println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
 
-        Wandb.log(lg, Dict("Epoch" => i, "Train Loss" => train_loss, "Val Loss" => val_loss))
+        # Wandb.log(lg, Dict("Epoch" => i, "Train Loss" => train_loss, "Val Loss" => val_loss))
 
         if i % checkpoint_every == 0 || i == epochs
             println("Checkpointing")
@@ -631,7 +579,7 @@ function train_loop(
         end
     end
 
-    close(lg)
+    # close(lg)
 end
 
 function overfit(
@@ -640,19 +588,17 @@ function overfit(
         a::Union{DesignSequence, Vector{<: DesignSequence}},
         t::Union{AbstractMatrix{Float32}, Vector{ <: AbstractMatrix{Float32}}}, 
         sigma::Union{AbstractMatrix{Float32}, Vector{ <: AbstractMatrix{Float32}}},
-        lr::AbstractFloat,
         n::Int; 
+        opt,
         path::String = "")
 
     y = flatten_repeated_last_dim(sigma)
 
-    opt = Optimisers.Adam(lr)
     opt_state = Optimisers.setup(opt, model)
 
     trainmode!(model)
 
     for i in 1:n
-
         loss, back = Flux.pullback(m -> Flux.mse(m(s, a), y), model)
         gs = back(one(loss))[1]
         println("Update: $i, Loss: $loss")

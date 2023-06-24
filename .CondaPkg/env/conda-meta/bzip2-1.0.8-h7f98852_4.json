@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=9.3.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/bzip2-1.0.8-h7f98852_4",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/bzip2-1.0.8-h7f98852_4",
     "files": [
         "bin/bunzip2",
         "bin/bzcat",
@@ -39,12 +39,12 @@
     "license": "bzip2-1.0.6",
     "license_family": "BSD",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/bzip2-1.0.8-h7f98852_4",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/bzip2-1.0.8-h7f98852_4",
         "type": 1
     },
     "md5": "a1fd65c7ccbf10880423d82bca54eb54",
     "name": "bzip2",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/bzip2-1.0.8-h7f98852_4.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/bzip2-1.0.8-h7f98852_4.tar.bz2",
     "paths_data": {
         "paths": [
             {

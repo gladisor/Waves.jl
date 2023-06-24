@@ -10,7 +10,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libwebp-base-1.3.0-h0b41bf4_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libwebp-base-1.3.0-h0b41bf4_0",
     "files": [
         "include/webp/decode.h",
         "include/webp/demux.h",
@@ -49,12 +49,12 @@
     "fn": "libwebp-base-1.3.0-h0b41bf4_0.conda",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libwebp-base-1.3.0-h0b41bf4_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libwebp-base-1.3.0-h0b41bf4_0",
         "type": 1
     },
     "md5": "0d4a7508d8c6c65314f2b9c1f56ad408",
     "name": "libwebp-base",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libwebp-base-1.3.0-h0b41bf4_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libwebp-base-1.3.0-h0b41bf4_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -212,35 +212,35 @@
                 "_path": "lib/pkgconfig/libsharpyuv.pc",
                 "path_type": "hardlink",
                 "sha256": "85f4e3d5353a82ec615cef3d22aa314e4d6f09cb3265a59e450d2a507757f617",
-                "sha256_in_prefix": "cbdc1bbbc19658c9cde0ef17f10306df8b4f33e992975aebeda71f7324047e0e",
+                "sha256_in_prefix": "b2b1e31bc4697a4b317d5e4d01e730776dec4610fce8c925f5510aba9fed22a8",
                 "size_in_bytes": 513
             },
             {
                 "_path": "lib/pkgconfig/libwebp.pc",
                 "path_type": "hardlink",
                 "sha256": "bd1e8d5ef060e16b3addc0379c0a50c8437ce6400fe47c903aad0f65ff891a80",
-                "sha256_in_prefix": "f47cb2684a72f2e0753919b4ca188b9de1c0da9cc170b5110b7a42ca5f032b3e",
+                "sha256_in_prefix": "70fd6d8a745e4f507e343943b011be195e73971816b3dca26a5cf12550d9ff61",
                 "size_in_bytes": 519
             },
             {
                 "_path": "lib/pkgconfig/libwebpdecoder.pc",
                 "path_type": "hardlink",
                 "sha256": "203ba8ae8f8c03e3b4025e425b011fbdf8d2a5f05cd816a0dca44254b19642d1",
-                "sha256_in_prefix": "ef8d8e1c2491b117f04631f4fe609b25e9feb146ddd0c3fcb9d93aa05d45c4ef",
+                "sha256_in_prefix": "0f757981dde68293fe689adc8f37f09cbf0aa732230a5edc61042255b13171b2",
                 "size_in_bytes": 525
             },
             {
                 "_path": "lib/pkgconfig/libwebpdemux.pc",
                 "path_type": "hardlink",
                 "sha256": "25df1591fc3b94908e0abe4e4265a4a4568398f5b47569b1acbeaf2698a92719",
-                "sha256_in_prefix": "62e8d1466c5e857a78f87995048dd72df829c6510a3c54c7992b3e2da2374fcb",
+                "sha256_in_prefix": "514cb4dc24133008b3faf6e8bccca20729909aa5a0769401e6f2ed8c61c982f5",
                 "size_in_bytes": 524
             },
             {
                 "_path": "lib/pkgconfig/libwebpmux.pc",
                 "path_type": "hardlink",
                 "sha256": "9a51d4ecafb5d8add5d65942877f0b59de654bb283bdd36f7aa3a29291f36a9b",
-                "sha256_in_prefix": "799264cf87dd838b0af1f9e31b3c602bb1d8cb8d59c5d21032160d2d0058a1f1",
+                "sha256_in_prefix": "be69567cb59e0da35a17bdcde03cff9b043256b54d2cb67a4848195b47f53910",
                 "size_in_bytes": 543
             },
             {

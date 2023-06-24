@@ -8,7 +8,7 @@
     "depends": [
         "python"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/smmap-3.0.5-pyh44b312d_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/smmap-3.0.5-pyh44b312d_0",
     "files": [
         "lib/python3.11/site-packages/smmap-3.0.5.dist-info/INSTALLER",
         "lib/python3.11/site-packages/smmap-3.0.5.dist-info/LICENSE",
@@ -45,13 +45,13 @@
     "fn": "smmap-3.0.5-pyh44b312d_0.tar.bz2",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/smmap-3.0.5-pyh44b312d_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/smmap-3.0.5-pyh44b312d_0",
         "type": 1
     },
     "md5": "3a8dc70789709aa315325d5df06fb7e4",
     "name": "smmap",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/smmap-3.0.5-pyh44b312d_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/smmap-3.0.5-pyh44b312d_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

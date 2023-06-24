@@ -8,7 +8,7 @@
     "depends": [
         "python"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/appdirs-1.4.4-pyh9f0ad1d_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/appdirs-1.4.4-pyh9f0ad1d_0",
     "files": [
         "lib/python3.11/site-packages/appdirs-1.4.4.dist-info/INSTALLER",
         "lib/python3.11/site-packages/appdirs-1.4.4.dist-info/LICENSE.txt",
@@ -24,13 +24,13 @@
     "fn": "appdirs-1.4.4-pyh9f0ad1d_0.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/appdirs-1.4.4-pyh9f0ad1d_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/appdirs-1.4.4-pyh9f0ad1d_0",
         "type": 1
     },
     "md5": "5f095bc6454094e96f146491fd03633b",
     "name": "appdirs",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/appdirs-1.4.4-pyh9f0ad1d_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/appdirs-1.4.4-pyh9f0ad1d_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

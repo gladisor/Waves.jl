@@ -16,7 +16,7 @@
         "python >=3.11,<3.12.0a0",
         "python_abi 3.11.* *_cp311"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/numpy-1.25.0-py311h64a7726_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/numpy-1.25.0-py311h64a7726_0",
     "files": [
         "bin/f2py",
         "bin/f2py3",
@@ -1388,33 +1388,33 @@
     "fn": "numpy-1.25.0-py311h64a7726_0.conda",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/numpy-1.25.0-py311h64a7726_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/numpy-1.25.0-py311h64a7726_0",
         "type": 1
     },
     "md5": "4df60430eca64502eb01e02df92246bf",
     "name": "numpy",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/numpy-1.25.0-py311h64a7726_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/numpy-1.25.0-py311h64a7726_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
                 "_path": "bin/f2py",
                 "path_type": "hardlink",
                 "sha256": "812682d5cd156bbe356b2e7cfe7628fe94aefda85a710d8948adaf97deedf3f8",
-                "sha256_in_prefix": "20f6b485bdf33b7d72060aa51f785b085b61b111df89a6adad3681ee447e0801",
+                "sha256_in_prefix": "24b3cc4c0d73c2f79ea3f7e449d7417fa98e67723ce56668beffdd366c284ee6",
                 "size_in_bytes": 499
             },
             {
                 "_path": "bin/f2py3",
                 "path_type": "hardlink",
                 "sha256": "812682d5cd156bbe356b2e7cfe7628fe94aefda85a710d8948adaf97deedf3f8",
-                "sha256_in_prefix": "20f6b485bdf33b7d72060aa51f785b085b61b111df89a6adad3681ee447e0801",
+                "sha256_in_prefix": "24b3cc4c0d73c2f79ea3f7e449d7417fa98e67723ce56668beffdd366c284ee6",
                 "size_in_bytes": 499
             },
             {
                 "_path": "bin/f2py3.11",
                 "path_type": "hardlink",
                 "sha256": "812682d5cd156bbe356b2e7cfe7628fe94aefda85a710d8948adaf97deedf3f8",
-                "sha256_in_prefix": "20f6b485bdf33b7d72060aa51f785b085b61b111df89a6adad3681ee447e0801",
+                "sha256_in_prefix": "24b3cc4c0d73c2f79ea3f7e449d7417fa98e67723ce56668beffdd366c284ee6",
                 "size_in_bytes": 499
             },
             {
@@ -1490,7 +1490,7 @@
                 "_path": "lib/python3.11/site-packages/numpy/__config__.py",
                 "path_type": "hardlink",
                 "sha256": "416722cb5f8a78972e922d8753b6688b5c1fbcfc09dd61fa4df7aa5bb1bfa7f5",
-                "sha256_in_prefix": "9a5a2c716def2539d89fd2d0d7e7884b2f7d6ba25ba3bdf678e4a7e5fbe765f1",
+                "sha256_in_prefix": "74e36b6a6f9e1bc489b31e7d523682b986a090666cbfbadb981ffef8ad687eb8",
                 "size_in_bytes": 6550
             },
             {
@@ -4336,7 +4336,7 @@
                 "_path": "lib/python3.11/site-packages/numpy/distutils/__config__.py",
                 "path_type": "hardlink",
                 "sha256": "416722cb5f8a78972e922d8753b6688b5c1fbcfc09dd61fa4df7aa5bb1bfa7f5",
-                "sha256_in_prefix": "9a5a2c716def2539d89fd2d0d7e7884b2f7d6ba25ba3bdf678e4a7e5fbe765f1",
+                "sha256_in_prefix": "74e36b6a6f9e1bc489b31e7d523682b986a090666cbfbadb981ffef8ad687eb8",
                 "size_in_bytes": 6550
             },
             {
@@ -5540,7 +5540,7 @@
                 "_path": "lib/python3.11/site-packages/numpy/distutils/site.cfg",
                 "path_type": "hardlink",
                 "sha256": "aa26cd3c4b72b03e421c408b4a8dea80bb7efad6f5e6b9ae081cbd7eb1edb8ca",
-                "sha256_in_prefix": "ec4892fc922923558f66a217cb7f4aabc82dd86909630fb0485b82b59d740e9e",
+                "sha256_in_prefix": "e2bd67aaf801d38646c416b000f788637b873698152a422519ea23ff6d0cc84a",
                 "size_in_bytes": 629
             },
             {

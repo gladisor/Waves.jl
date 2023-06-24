@@ -9,7 +9,7 @@
         "libgcc-ng >=12",
         "ncurses >=6.3,<7.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/readline-8.2-h8228510_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/readline-8.2-h8228510_1",
     "files": [
         "include/readline/chardefs.h",
         "include/readline/history.h",
@@ -39,12 +39,12 @@
     "fn": "readline-8.2-h8228510_1.conda",
     "license": "GPL-3.0-only",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/readline-8.2-h8228510_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/readline-8.2-h8228510_1",
         "type": 1
     },
     "md5": "47d31b792659ce70f470b5c82fdfb7a4",
     "name": "readline",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/readline-8.2-h8228510_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/readline-8.2-h8228510_1.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -145,14 +145,14 @@
                 "_path": "lib/pkgconfig/history.pc",
                 "path_type": "hardlink",
                 "sha256": "38c4a1e0f30016152962d4d39423b20146afd3cfc2734122af4d856d8c3751c6",
-                "sha256_in_prefix": "b51b194b1d2593a3d94d6963f323b68159d7c563dac596acd2ea3f8f7e759f17",
+                "sha256_in_prefix": "05137c8ed2a9e8efc1a358fe57d762172fd2d8f13dc3b3e4eea90e1d69455a1b",
                 "size_in_bytes": 548
             },
             {
                 "_path": "lib/pkgconfig/readline.pc",
                 "path_type": "hardlink",
                 "sha256": "9862c8c3b38a7d9a4b19a0385edc8a5efa0cd8f48774b187adc6eeb6b93b61f1",
-                "sha256_in_prefix": "4ba970c31fc1cb0d08cecd46bdc3c2bce6c905384b94b187ce3d283ba9c45bdf",
+                "sha256_in_prefix": "09e6bca5b95522eee2cd57c82b526e1ae2b0bc1152e9d0d17b9ad9e4a5a02045",
                 "size_in_bytes": 562
             },
             {

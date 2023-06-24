@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xz-5.2.6-h166bdaf_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xz-5.2.6-h166bdaf_0",
     "files": [
         "bin/lzcat",
         "bin/lzcmp",
@@ -152,18 +152,18 @@
     "fn": "xz-5.2.6-h166bdaf_0.tar.bz2",
     "license": "LGPL-2.1 and GPL-2.0",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xz-5.2.6-h166bdaf_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xz-5.2.6-h166bdaf_0",
         "type": 1
     },
     "md5": "2161070d867d1b1204ea749c8eec4ef0",
     "name": "xz",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xz-5.2.6-h166bdaf_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/xz-5.2.6-h166bdaf_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
                 "_path": "bin/lzcat",
                 "path_type": "softlink",
-                "sha256_in_prefix": "6f54d1588825665a9d560f746831c1a66f613b9c5eb407b5eb2e30d4a4f37559",
+                "sha256_in_prefix": "be5a29a32da5c87e614e81528299da79fa4a173b0193526b4b336591b9fe4517",
                 "size_in_bytes": 95336
             },
             {
@@ -205,7 +205,7 @@
             {
                 "_path": "bin/lzma",
                 "path_type": "softlink",
-                "sha256_in_prefix": "6f54d1588825665a9d560f746831c1a66f613b9c5eb407b5eb2e30d4a4f37559",
+                "sha256_in_prefix": "be5a29a32da5c87e614e81528299da79fa4a173b0193526b4b336591b9fe4517",
                 "size_in_bytes": 95336
             },
             {
@@ -219,7 +219,7 @@
                 "_path": "bin/lzmainfo",
                 "path_type": "hardlink",
                 "sha256": "15c7682c6dfb57b0c51cc3b9ebc4e34b593de65caa466774fc6df8e8ff5dae05",
-                "sha256_in_prefix": "86a343ddd3c543cd00e72c42fb645bf8058a6541410c3df83e1f9a163a15f705",
+                "sha256_in_prefix": "c4380c7c51fd7206d897e2b49453b22ffb4458959231955f448b3b0af7305f7b",
                 "size_in_bytes": 17280
             },
             {
@@ -231,26 +231,26 @@
             {
                 "_path": "bin/unlzma",
                 "path_type": "softlink",
-                "sha256_in_prefix": "6f54d1588825665a9d560f746831c1a66f613b9c5eb407b5eb2e30d4a4f37559",
+                "sha256_in_prefix": "be5a29a32da5c87e614e81528299da79fa4a173b0193526b4b336591b9fe4517",
                 "size_in_bytes": 95336
             },
             {
                 "_path": "bin/unxz",
                 "path_type": "softlink",
-                "sha256_in_prefix": "6f54d1588825665a9d560f746831c1a66f613b9c5eb407b5eb2e30d4a4f37559",
+                "sha256_in_prefix": "be5a29a32da5c87e614e81528299da79fa4a173b0193526b4b336591b9fe4517",
                 "size_in_bytes": 95336
             },
             {
                 "_path": "bin/xz",
                 "path_type": "hardlink",
                 "sha256": "9748355fe7de9767ae87fe1592b8d50d08d0df8f27d52be58cd08b57a4afd1a7",
-                "sha256_in_prefix": "6f54d1588825665a9d560f746831c1a66f613b9c5eb407b5eb2e30d4a4f37559",
+                "sha256_in_prefix": "be5a29a32da5c87e614e81528299da79fa4a173b0193526b4b336591b9fe4517",
                 "size_in_bytes": 95336
             },
             {
                 "_path": "bin/xzcat",
                 "path_type": "softlink",
-                "sha256_in_prefix": "6f54d1588825665a9d560f746831c1a66f613b9c5eb407b5eb2e30d4a4f37559",
+                "sha256_in_prefix": "be5a29a32da5c87e614e81528299da79fa4a173b0193526b4b336591b9fe4517",
                 "size_in_bytes": 95336
             },
             {
@@ -434,7 +434,7 @@
                 "_path": "lib/pkgconfig/liblzma.pc",
                 "path_type": "hardlink",
                 "sha256": "4f2b79672067a9b38ec13a20903b9333ff9c355751e65ddc31b4c5d0ce7d1c79",
-                "sha256_in_prefix": "6d932145b56767bab98793bb97b1158b8feb7d3449a488ecdd8d918f7acba22b",
+                "sha256_in_prefix": "d796acbe52c85f534c87365d65a075f527036d9d2007915618462eef4396abbb",
                 "size_in_bytes": 1400
             },
             {

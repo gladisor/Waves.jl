@@ -9,7 +9,7 @@
         "libgcc-ng >=12",
         "libstdcxx-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lerc-4.0.0-h27087fc_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lerc-4.0.0-h27087fc_0",
     "files": [
         "include/Lerc_c_api.h",
         "include/Lerc_types.h",
@@ -21,12 +21,12 @@
     "license": "Apache-2.0",
     "license_family": "Apache",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lerc-4.0.0-h27087fc_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lerc-4.0.0-h27087fc_0",
         "type": 1
     },
     "md5": "76bbff344f0134279f225174e9064c8f",
     "name": "lerc",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lerc-4.0.0-h27087fc_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/lerc-4.0.0-h27087fc_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -60,7 +60,7 @@
                 "_path": "lib/pkgconfig/Lerc.pc",
                 "path_type": "hardlink",
                 "sha256": "4f7ffe72b32de14164da35c6c16d0d22602383bd243d17e06c3606e16c30cf04",
-                "sha256_in_prefix": "71505b1669dea5353a164103395639c7a07e9b5ee1974d8b90cae5d048cc6f17",
+                "sha256_in_prefix": "26c56305632c2ce5155dd43a0e8a32c51d172e1ed84d78c033ee2143e621ef77",
                 "size_in_bytes": 526
             }
         ],

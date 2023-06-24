@@ -10,7 +10,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libzlib-1.2.13-hd590300_5",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libzlib-1.2.13-hd590300_5",
     "files": [
         "lib/libz.so.1",
         "lib/libz.so.1.2.13"
@@ -19,12 +19,12 @@
     "license": "Zlib",
     "license_family": "Other",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libzlib-1.2.13-hd590300_5",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libzlib-1.2.13-hd590300_5",
         "type": 1
     },
     "md5": "f36c115f1ee199da648e0597ec2047ad",
     "name": "libzlib",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libzlib-1.2.13-hd590300_5.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libzlib-1.2.13-hd590300_5.tar.bz2",
     "paths_data": {
         "paths": [
             {

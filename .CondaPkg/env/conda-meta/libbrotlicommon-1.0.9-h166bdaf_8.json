@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlicommon-1.0.9-h166bdaf_8",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlicommon-1.0.9-h166bdaf_8",
     "files": [
         "lib/libbrotlicommon.so",
         "lib/libbrotlicommon.so.1",
@@ -18,12 +18,12 @@
     "fn": "libbrotlicommon-1.0.9-h166bdaf_8.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlicommon-1.0.9-h166bdaf_8",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlicommon-1.0.9-h166bdaf_8",
         "type": 1
     },
     "md5": "9194c9bf9428035a05352d031462eae4",
     "name": "libbrotlicommon",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlicommon-1.0.9-h166bdaf_8.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libbrotlicommon-1.0.9-h166bdaf_8.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -49,7 +49,7 @@
                 "_path": "lib/pkgconfig/libbrotlicommon.pc",
                 "path_type": "hardlink",
                 "sha256": "2bcfff06ce267b6f3d38308d14d6efd431a3c3f86d30e5ce5af20fd74396b7af",
-                "sha256_in_prefix": "532314442b87caadd7f9e5437d9f605e5b82485e7bbb660d372872459100195d",
+                "sha256_in_prefix": "b9275b3c8acf660d840433d8bf0cebdc8c784b24a07d5f582ba68a41f695d08e",
                 "size_in_bytes": 760
             }
         ],

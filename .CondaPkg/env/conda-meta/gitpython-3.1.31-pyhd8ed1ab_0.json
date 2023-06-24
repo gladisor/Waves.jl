@@ -10,7 +10,7 @@
         "python >=3.7",
         "typing_extensions >=3.7.4.3"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/gitpython-3.1.31-pyhd8ed1ab_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/gitpython-3.1.31-pyhd8ed1ab_0",
     "files": [
         "lib/python3.11/site-packages/GitPython-3.1.31.dist-info/AUTHORS",
         "lib/python3.11/site-packages/GitPython-3.1.31.dist-info/INSTALLER",
@@ -101,13 +101,13 @@
     "license": "BSD-3-Clause",
     "license_family": "BSD",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/gitpython-3.1.31-pyhd8ed1ab_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/gitpython-3.1.31-pyhd8ed1ab_0",
         "type": 1
     },
     "md5": "f6e6b482110246a81c3f03e81c68752d",
     "name": "gitpython",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/gitpython-3.1.31-pyhd8ed1ab_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/gitpython-3.1.31-pyhd8ed1ab_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

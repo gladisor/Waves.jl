@@ -10,7 +10,7 @@
         "libpng >=1.6.39,<1.7.0a0",
         "libzlib >=1.2.13,<1.3.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/freetype-2.12.1-hca18f0e_1",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/freetype-2.12.1-hca18f0e_1",
     "files": [
         "bin/freetype-config",
         "include/freetype2/freetype/config/ftconfig.h",
@@ -79,19 +79,19 @@
     "fn": "freetype-2.12.1-hca18f0e_1.conda",
     "license": "GPL-2.0-only and LicenseRef-FreeType",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/freetype-2.12.1-hca18f0e_1",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/freetype-2.12.1-hca18f0e_1",
         "type": 1
     },
     "md5": "e1232042de76d24539a436d37597eb06",
     "name": "freetype",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/freetype-2.12.1-hca18f0e_1.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/freetype-2.12.1-hca18f0e_1.tar.bz2",
     "paths_data": {
         "paths": [
             {
                 "_path": "bin/freetype-config",
                 "path_type": "hardlink",
                 "sha256": "5c31e563985e10188771319909f10fed9b16fea88b8d0006d7562378d497056a",
-                "sha256_in_prefix": "292cc7e684c84b615f6c1a1338d37bafc3853687062336bc433188f35bc089e8",
+                "sha256_in_prefix": "e6a87177fd40982fa804bfcd3b12a54da235b8599d5be0b099b2f7bad0136fe4",
                 "size_in_bytes": 6683
             },
             {
@@ -509,7 +509,7 @@
                 "_path": "lib/pkgconfig/freetype2.pc",
                 "path_type": "hardlink",
                 "sha256": "cdb0d896dce57bd5497042aad17e58f7fc00e9aab6b961772fd88dbb9c1c4123",
-                "sha256_in_prefix": "94ab1181cbfbba590bfe8ac6b4542ba3bd658c67f93c127877c9c21e396e5bb1",
+                "sha256_in_prefix": "cfa54298797c6d8f0f1489bc1bbfb60d04d1f7f9d885e5a03eb4e61eaaeeacc6",
                 "size_in_bytes": 1565
             },
             {

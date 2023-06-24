@@ -6,7 +6,7 @@
     "channel": "https://conda.anaconda.org/conda-forge/linux-64",
     "constrains": [],
     "depends": [],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libstdcxx-ng-13.1.0-hfd8a6a1_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libstdcxx-ng-13.1.0-hfd8a6a1_0",
     "files": [
         "lib/libstdc++.so",
         "lib/libstdc++.so.6",
@@ -16,12 +16,12 @@
     "fn": "libstdcxx-ng-13.1.0-hfd8a6a1_0.conda",
     "license": "GPL-3.0-only WITH GCC-exception-3.1",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libstdcxx-ng-13.1.0-hfd8a6a1_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libstdcxx-ng-13.1.0-hfd8a6a1_0",
         "type": 1
     },
     "md5": "067bcc23164642f4c226da631f2a2e1d",
     "name": "libstdcxx-ng",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libstdcxx-ng-13.1.0-hfd8a6a1_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libstdcxx-ng-13.1.0-hfd8a6a1_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

@@ -12,22 +12,22 @@ build_time_vars = {'ABIFLAGS': '',
  'BASECFLAGS': '',
  'BASECPPFLAGS': '-IObjects -IInclude -IPython',
  'BASEMODLIBS': '',
- 'BINDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/bin',
- 'BINLIBDEST': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
+ 'BINDIR': '/home/012761749/Waves.jl/.CondaPkg/env/bin',
+ 'BINLIBDEST': '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
  'BLDLIBRARY': 'libpython3.11.a',
  'BLDSHARED': 'x86_64-conda_cos6-linux-gnu-gcc -pthread -shared -Wl,-O2 '
               '-Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now '
               '-Wl,--disable-new-dtags -Wl,--gc-sections '
               '-Wl,--allow-shlib-undefined '
-              '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-              '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-              '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+              '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+              '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+              '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
               '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
               '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
               '-Wl,--allow-shlib-undefined '
-              '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-              '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-              '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+              '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+              '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+              '-L/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'BOOTSTRAP_HEADERS': '\\',
  'BUILDEXE': '',
  'BUILDPYTHON': 'python',
@@ -38,14 +38,14 @@ build_time_vars = {'ABIFLAGS': '',
  'CFLAGS': '-DNDEBUG -fwrapv -O2 -Wall -march=nocona -mtune=haswell '
            '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 '
            '-ffunction-sections -pipe -isystem '
-           '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+           '/home/012761749/Waves.jl/.CondaPkg/env/include '
            ' '
            ' '
            '    '
            '-march=nocona -mtune=haswell -ftree-vectorize -fPIC '
            '-fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe '
            '-isystem '
-           '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+           '/home/012761749/Waves.jl/.CondaPkg/env/include '
            ' '
            ' '
            '   ',
@@ -56,7 +56,7 @@ build_time_vars = {'ABIFLAGS': '',
  'CONFIGURE_CFLAGS': '-march=nocona -mtune=haswell -ftree-vectorize -fPIC '
                      '-fstack-protector-strong -fno-plt -O2 '
                      '-ffunction-sections -pipe -isystem '
-                     '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                     '/home/012761749/Waves.jl/.CondaPkg/env/include '
                      ' '
                      ' '
                      '  '
@@ -67,54 +67,54 @@ build_time_vars = {'ABIFLAGS': '',
                             '-Werror=implicit-function-declaration '
                             '-fvisibility=hidden',
  'CONFIGURE_CPPFLAGS': '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                       '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                       '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+                       '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                       '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
  'CONFIGURE_LDFLAGS': '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                       '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                       '-Wl,--allow-shlib-undefined '
-                      '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                      '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                      '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+                      '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                      '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                      '-L/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'CONFIGURE_LDFLAGS_NODIST': '-fno-semantic-interposition  '
                              '  '
                              ' -g',
  'CONFIGURE_LDFLAGS_NOLTO': '-fno-lto',
- 'CONFIG_ARGS': "'--prefix=/lts/home/012761749/Waves.jl/.CondaPkg/env' "
+ 'CONFIG_ARGS': "'--prefix=/home/012761749/Waves.jl/.CondaPkg/env' "
                 "'--build=x86_64-conda_cos6-linux-gnu' "
                 "'--host=x86_64-conda_cos6-linux-gnu' '--enable-ipv6' "
                 "'--with-ensurepip=no' "
-                "'--with-tzpath=/lts/home/012761749/Waves.jl/.CondaPkg/env/share/zoneinfo:/lts/home/012761749/Waves.jl/.CondaPkg/env/share/tzinfo' "
+                "'--with-tzpath=/home/012761749/Waves.jl/.CondaPkg/env/share/zoneinfo:/home/012761749/Waves.jl/.CondaPkg/env/share/tzinfo' "
                 "'--with-computed-gotos' '--with-system-ffi' "
                 "'--with-system-expat' '--enable-loadable-sqlite-extensions' "
-                "'--with-tcltk-includes=-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include' "
-                "'--with-tcltk-libs=-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib "
+                "'--with-tcltk-includes=-I/home/012761749/Waves.jl/.CondaPkg/env/include' "
+                "'--with-tcltk-libs=-L/home/012761749/Waves.jl/.CondaPkg/env/lib "
                 "-ltcl8.6 -ltk8.6' '--with-platlibdir=lib' '--with-lto' "
                 "'--enable-optimizations' "
                 "'-oldincludedir=/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/_build_env/x86_64-conda_cos6-linux-gnu/sysroot/usr/include' "
                 "'--disable-shared' 'PROFILE_TASK=-m test --pgo' "
                 "'build_alias=x86_64-conda_cos6-linux-gnu' "
                 "'host_alias=x86_64-conda_cos6-linux-gnu' "
-                "'PKG_CONFIG_PATH=/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/pkgconfig' "
+                "'PKG_CONFIG_PATH=/home/012761749/Waves.jl/.CondaPkg/env/lib/pkgconfig' "
                 "'MACHDEP=linux' 'CC=x86_64-conda_cos6-linux-gnu-gcc' "
                 "'CFLAGS=-march=nocona -mtune=haswell -ftree-vectorize -fPIC "
                 '-fstack-protector-strong -fno-plt -O2 -ffunction-sections '
                 '-pipe -isystem '
-                '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                '/home/012761749/Waves.jl/.CondaPkg/env/include '
                 ' '
                 ' '
                 '   '
                 "' 'LDFLAGS=-Wl,-O2 -Wl,--sort-common -Wl,--as-needed "
                 '-Wl,-z,relro -Wl,-z,now -Wl,--disable-new-dtags '
                 '-Wl,--gc-sections -Wl,--allow-shlib-undefined '
-                '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                "-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib' "
+                '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                "-L/home/012761749/Waves.jl/.CondaPkg/env/lib' "
                 "'CPPFLAGS=-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem "
-                '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                "-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include' "
+                '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                "-I/home/012761749/Waves.jl/.CondaPkg/env/include' "
                 "'CPP=/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/_build_env/bin/x86_64-conda_cos6-linux-gnu-cpp'",
- 'CONFINCLUDEDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
- 'CONFINCLUDEPY': '/lts/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11',
+ 'CONFINCLUDEDIR': '/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'CONFINCLUDEPY': '/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11',
  'COREPYTHONPATH': '',
  'COVERAGE_INFO': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/build-static/coverage.info',
  'COVERAGE_LCOV_OPTIONS': '--rc lcov_branch_coverage=1',
@@ -125,11 +125,11 @@ build_time_vars = {'ABIFLAGS': '',
  'CPPFLAGS': '-IObjects -IInclude -IPython -I. '
              '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
              '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-             '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-             '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+             '/home/012761749/Waves.jl/.CondaPkg/env/include '
+             '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
              '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-             '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-             '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+             '/home/012761749/Waves.jl/.CondaPkg/env/include '
+             '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
  'CXX': 'x86_64-conda_cos6-linux-gnu-c++ -pthread',
  'DECIMAL_CFLAGS': '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_decimal/libmpdec '
                    '-DCONFIG_64=1 -DANSI=1 -DHAVE_UINT128_T=1',
@@ -139,13 +139,13 @@ build_time_vars = {'ABIFLAGS': '',
                     '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Programs/_freeze_module.py '
                     '\\',
  'DEEPFREEZE_OBJS': 'Python/deepfreeze/deepfreeze.o',
- 'DESTDIRS': '/lts/home/012761749/Waves.jl/.CondaPkg/env '
-             '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-             '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11 '
-             '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/lib-dynload',
- 'DESTLIB': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
+ 'DESTDIRS': '/home/012761749/Waves.jl/.CondaPkg/env '
+             '/home/012761749/Waves.jl/.CondaPkg/env/lib '
+             '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11 '
+             '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/lib-dynload',
+ 'DESTLIB': '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
  'DESTPATH': '',
- 'DESTSHARED': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/lib-dynload',
+ 'DESTSHARED': '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/lib-dynload',
  'DFLAGS': '',
  'DIRMODE': 755,
  'DIST': 'README.rst ChangeLog configure configure.ac acconfig.h pyconfig.h.in '
@@ -668,12 +668,12 @@ build_time_vars = {'ABIFLAGS': '',
  'HAVE__GETPTY': 0,
  'HOSTRUNNER': '',
  'HOST_GNU_TYPE': 'x86_64-conda_cos6-linux-gnu',
- 'INCLDIRSTOMAKE': '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11 '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11',
- 'INCLUDEDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
- 'INCLUDEPY': '/lts/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11',
+ 'INCLDIRSTOMAKE': '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11 '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11',
+ 'INCLUDEDIR': '/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'INCLUDEPY': '/home/012761749/Waves.jl/.CondaPkg/env/include/python3.11',
  'INSTALL': '/usr/bin/install -c',
  'INSTALL_DATA': '/usr/bin/install -c -m 644',
  'INSTALL_PROGRAM': '/usr/bin/install -c',
@@ -686,46 +686,46 @@ build_time_vars = {'ABIFLAGS': '',
  'LDFLAGS': '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now '
             '-Wl,--disable-new-dtags -Wl,--gc-sections '
             '-Wl,--allow-shlib-undefined '
-            '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-            '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-            '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+            '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+            '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+            '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
             '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now '
             '-Wl,--disable-new-dtags -Wl,--gc-sections '
             '-Wl,--allow-shlib-undefined '
-            '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-            '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-            '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+            '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+            '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+            '-L/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'LDLIBRARY': 'libpython3.11.a',
  'LDLIBRARYDIR': '',
  'LDSHARED': 'x86_64-conda_cos6-linux-gnu-gcc -pthread -shared -Wl,-O2 '
              '-Wl,--sort-common -Wl,--as-needed -Wl,-z,relro -Wl,-z,now '
              '-Wl,--disable-new-dtags -Wl,--gc-sections '
              '-Wl,--allow-shlib-undefined '
-             '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-             '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-             '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+             '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+             '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+             '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
              '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
              '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
              '-Wl,--allow-shlib-undefined '
-             '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-             '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-             '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+             '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+             '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+             '-L/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'LDVERSION': '3.11',
  'LIBC': '',
- 'LIBDEST': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
- 'LIBDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+ 'LIBDEST': '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
+ 'LIBDIR': '/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'LIBEXPAT_A': 'Modules/expat/libexpat.a',
  'LIBEXPAT_CFLAGS': '-DNDEBUG -fwrapv -O2 -Wall -march=nocona -mtune=haswell '
                     '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt '
                     '-O2 -ffunction-sections -pipe -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
                     ' '
                     ' '
                     '  '
                     '  -march=nocona -mtune=haswell '
                     '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt '
                     '-O2 -ffunction-sections -pipe -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
                     ' '
                     ' '
                     '  '
@@ -738,15 +738,15 @@ build_time_vars = {'ABIFLAGS': '',
                     '-IObjects -IInclude -IPython -I. '
                     '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
                     '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                    '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                     '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                    '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                     '-fPIC',
  'LIBEXPAT_HEADERS': '\\',
  'LIBEXPAT_OBJS': '\\',
- 'LIBFFI_INCLUDEDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'LIBFFI_INCLUDEDIR': '/home/012761749/Waves.jl/.CondaPkg/env/include',
  'LIBM': '-lm',
  'LIBMPDEC_A': 'Modules/_decimal/libmpdec/libmpdec.a',
  'LIBMPDEC_CFLAGS': '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_decimal/libmpdec '
@@ -754,14 +754,14 @@ build_time_vars = {'ABIFLAGS': '',
                     '-fwrapv -O2 -Wall -march=nocona -mtune=haswell '
                     '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt '
                     '-O2 -ffunction-sections -pipe -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
                     ' '
                     ' '
                     '  '
                     '  -march=nocona -mtune=haswell '
                     '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt '
                     '-O2 -ffunction-sections -pipe -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
                     ' '
                     ' '
                     '  '
@@ -774,18 +774,18 @@ build_time_vars = {'ABIFLAGS': '',
                     '-IObjects -IInclude -IPython -I. '
                     '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
                     '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                    '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                     '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                    '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                    '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                    '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                     '-fPIC',
  'LIBMPDEC_HEADERS': '\\',
  'LIBMPDEC_OBJS': '\\',
  'LIBOBJDIR': 'Python/',
  'LIBOBJS': '',
- 'LIBPC': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/pkgconfig',
- 'LIBPL': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/config-3.11-x86_64-linux-gnu',
+ 'LIBPC': '/home/012761749/Waves.jl/.CondaPkg/env/lib/pkgconfig',
+ 'LIBPL': '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/config-3.11-x86_64-linux-gnu',
  'LIBPYTHON': '',
  'LIBRARY': 'libpython3.11.a',
  'LIBRARY_DEPS': 'libpython3.11.a',
@@ -806,13 +806,13 @@ build_time_vars = {'ABIFLAGS': '',
  'LOCALMODLIBS': '',
  'MACHDEP': 'linux',
  'MACHDEP_OBJS': '',
- 'MACHDESTLIB': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
+ 'MACHDESTLIB': '/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11',
  'MACOSX_DEPLOYMENT_TARGET': '',
  'MAINCC': 'x86_64-conda_cos6-linux-gnu-gcc -pthread',
  'MAJOR_IN_MKDEV': 0,
  'MAJOR_IN_SYSMACROS': 1,
  'MAKESETUP': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/makesetup',
- 'MANDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/share/man',
+ 'MANDIR': '/home/012761749/Waves.jl/.CondaPkg/env/share/man',
  'MKDIR_P': '/usr/bin/mkdir -p',
  'MODBUILT_NAMES': 'atexit  faulthandler  posix  _signal  _tracemalloc  '
                    '_codecs  _collections  errno  _io  itertools  _sre  '
@@ -839,8 +839,8 @@ build_time_vars = {'ABIFLAGS': '',
  'MODULE_AUDIOOP_LDFLAGS': '-lm',
  'MODULE_AUDIOOP_STATE': 'yes',
  'MODULE_BINASCII_CFLAGS': '-DUSE_ZLIB_CRC32 '
-                           '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
- 'MODULE_BINASCII_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                           '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'MODULE_BINASCII_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                             '-lz',
  'MODULE_BINASCII_STATE': 'yes',
  'MODULE_CMATH_DEPS': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_math.h',
@@ -882,8 +882,8 @@ build_time_vars = {'ABIFLAGS': '',
  'MODULE_XXLIMITED_35_STATE': 'yes',
  'MODULE_XXLIMITED_STATE': 'yes',
  'MODULE_XXSUBTYPE_LDFLAGS': '',
- 'MODULE_ZLIB_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
- 'MODULE_ZLIB_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+ 'MODULE_ZLIB_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'MODULE_ZLIB_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                         '-lz',
  'MODULE_ZLIB_STATE': 'yes',
  'MODULE__ABC_LDFLAGS': '',
@@ -940,9 +940,9 @@ build_time_vars = {'ABIFLAGS': '',
  'MODULE__ELEMENTTREE_STATE': 'yes',
  'MODULE__FUNCTOOLS_LDFLAGS': '',
  'MODULE__GDBM_STATE': 'missing',
- 'MODULE__HASHLIB_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'MODULE__HASHLIB_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
  'MODULE__HASHLIB_DEPS': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/hashlib.h',
- 'MODULE__HASHLIB_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib   '
+ 'MODULE__HASHLIB_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib   '
                             '-lcrypto',
  'MODULE__HASHLIB_STATE': 'yes',
  'MODULE__HEAPQ_STATE': 'yes',
@@ -953,8 +953,8 @@ build_time_vars = {'ABIFLAGS': '',
  'MODULE__JSON_STATE': 'yes',
  'MODULE__LOCALE_LDFLAGS': '',
  'MODULE__LSPROF_STATE': 'yes',
- 'MODULE__LZMA_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
- 'MODULE__LZMA_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+ 'MODULE__LZMA_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'MODULE__LZMA_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                          '-llzma',
  'MODULE__LZMA_STATE': 'yes',
  'MODULE__MD5_DEPS': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/hashlib.h',
@@ -988,7 +988,7 @@ build_time_vars = {'ABIFLAGS': '',
                         '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/getaddrinfo.c '
                         '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/getnameinfo.c',
  'MODULE__SOCKET_STATE': 'yes',
- 'MODULE__SQLITE3_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+ 'MODULE__SQLITE3_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                            '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_sqlite',
  'MODULE__SQLITE3_DEPS': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_sqlite/connection.h '
                          '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_sqlite/cursor.h '
@@ -997,11 +997,11 @@ build_time_vars = {'ABIFLAGS': '',
                          '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_sqlite/prepare_protocol.h '
                          '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_sqlite/row.h '
                          '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_sqlite/util.h',
- 'MODULE__SQLITE3_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+ 'MODULE__SQLITE3_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                             '-lsqlite3',
  'MODULE__SQLITE3_STATE': 'yes',
  'MODULE__SRE_LDFLAGS': '',
- 'MODULE__SSL_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'MODULE__SSL_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
  'MODULE__SSL_DEPS': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_ssl.h '
                      '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_ssl/cert.c '
                      '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_ssl/debughelpers.c '
@@ -1010,7 +1010,7 @@ build_time_vars = {'ABIFLAGS': '',
                      '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_ssl_data_111.h '
                      '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/_ssl_data_300.h '
                      '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Modules/socketmodule.h',
- 'MODULE__SSL_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib  '
+ 'MODULE__SSL_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib  '
                         '-lssl -lcrypto',
  'MODULE__SSL_STATE': 'yes',
  'MODULE__STATISTICS_LDFLAGS': '-lm',
@@ -1026,15 +1026,15 @@ build_time_vars = {'ABIFLAGS': '',
  'MODULE__TESTINTERNALCAPI_STATE': 'yes',
  'MODULE__TESTMULTIPHASE_STATE': 'yes',
  'MODULE__THREAD_LDFLAGS': '',
- 'MODULE__TKINTER_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+ 'MODULE__TKINTER_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                            '-Wno-strict-prototypes -DWITH_APPINIT=1',
- 'MODULE__TKINTER_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+ 'MODULE__TKINTER_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                             '-ltk8.6 -ltkstub8.6 -ltcl8.6 -ltclstub8.6',
  'MODULE__TKINTER_STATE': 'yes',
  'MODULE__TRACEMALLOC_LDFLAGS': '',
  'MODULE__TYPING_STATE': 'yes',
- 'MODULE__UUID_CFLAGS': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include/uuid',
- 'MODULE__UUID_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+ 'MODULE__UUID_CFLAGS': '-I/home/012761749/Waves.jl/.CondaPkg/env/include/uuid',
+ 'MODULE__UUID_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                          '-luuid',
  'MODULE__UUID_STATE': 'yes',
  'MODULE__WEAKREF_LDFLAGS': '',
@@ -1046,8 +1046,8 @@ build_time_vars = {'ABIFLAGS': '',
  'MVWDELCH_IS_EXPRESSION': 1,
  'NO_AS_NEEDED': '-Wl,--no-as-needed',
  'OBJECT_OBJS': '\\',
- 'OPENSSL_INCLUDES': '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
- 'OPENSSL_LDFLAGS': '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+ 'OPENSSL_INCLUDES': '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
+ 'OPENSSL_LDFLAGS': '-L/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'OPENSSL_LIBS': '-lssl -lcrypto',
  'OPENSSL_RPATH': '',
  'OPT': '-DNDEBUG -fwrapv -O2 -Wall',
@@ -1090,7 +1090,7 @@ build_time_vars = {'ABIFLAGS': '',
                              '-mtune=haswell -ftree-vectorize -fPIC '
                              '-fstack-protector-strong -fno-plt -O2 '
                              '-ffunction-sections -pipe -isystem '
-                             '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                             '/home/012761749/Waves.jl/.CondaPkg/env/include '
                              ' '
                              ' '
                              '  '
@@ -1098,7 +1098,7 @@ build_time_vars = {'ABIFLAGS': '',
                              '-mtune=haswell -ftree-vectorize -fPIC '
                              '-fstack-protector-strong -fno-plt -O2 '
                              '-ffunction-sections -pipe -isystem '
-                             '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                             '/home/012761749/Waves.jl/.CondaPkg/env/include '
                              ' '
                              ' '
                              '  '
@@ -1113,23 +1113,23 @@ build_time_vars = {'ABIFLAGS': '',
                              '-IObjects -IInclude -IPython -I. '
                              '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
                              '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                             '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                             '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                             '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                             '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                              '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                             '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                             '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                             '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                             '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                              '-DPy_BUILD_CORE_BUILTIN',
  'PY_CFLAGS': '-DNDEBUG -fwrapv -O2 -Wall -march=nocona -mtune=haswell '
               '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 '
               '-ffunction-sections -pipe -isystem '
-              '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+              '/home/012761749/Waves.jl/.CondaPkg/env/include '
               ' '
               ' '
               '   '
               ' -march=nocona -mtune=haswell -ftree-vectorize -fPIC '
               '-fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe '
               '-isystem '
-              '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+              '/home/012761749/Waves.jl/.CondaPkg/env/include '
               ' '
               ' '
               '   '
@@ -1143,14 +1143,14 @@ build_time_vars = {'ABIFLAGS': '',
  'PY_CORE_CFLAGS': '-DNDEBUG -fwrapv -O2 -Wall -march=nocona -mtune=haswell '
                    '-ftree-vectorize -fPIC -fstack-protector-strong -fno-plt '
                    '-O2 -ffunction-sections -pipe -isystem '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include '
                    ' '
                    ' '
                    '   '
                    ' -march=nocona -mtune=haswell -ftree-vectorize -fPIC '
                    '-fstack-protector-strong -fno-plt -O2 -ffunction-sections '
                    '-pipe -isystem '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include '
                    ' '
                    ' '
                    '   '
@@ -1162,62 +1162,62 @@ build_time_vars = {'ABIFLAGS': '',
                    '-IObjects -IInclude -IPython -I. '
                    '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
                    '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                   '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                    '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                   '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                   '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                   '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                    '-DPy_BUILD_CORE',
  'PY_CORE_LDFLAGS': '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                     '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                     '-Wl,--allow-shlib-undefined '
-                    '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                    '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                    '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                    '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                    '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                    '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                     '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                     '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                     '-Wl,--allow-shlib-undefined '
-                    '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                    '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                    '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                    '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                    '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                    '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                     '-fno-semantic-interposition   '
                     '  -g',
  'PY_CPPFLAGS': '-IObjects -IInclude -IPython -I. '
                 '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
                 '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                 '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+                '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
  'PY_ENABLE_SHARED': 0,
  'PY_FORMAT_SIZE_T': '"z"',
  'PY_LDFLAGS': '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                '-Wl,--allow-shlib-undefined '
-               '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-               '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-               '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+               '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+               '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+               '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                '-Wl,--allow-shlib-undefined '
-               '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-               '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-               '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+               '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+               '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+               '-L/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'PY_LDFLAGS_NODIST': '-fno-semantic-interposition   '
                       '  -g',
  'PY_LDFLAGS_NOLTO': '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                      '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                      '-Wl,--allow-shlib-undefined '
-                     '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                     '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                     '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                     '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                     '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                     '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                      '-Wl,-O2 -Wl,--sort-common -Wl,--as-needed -Wl,-z,relro '
                      '-Wl,-z,now -Wl,--disable-new-dtags -Wl,--gc-sections '
                      '-Wl,--allow-shlib-undefined '
-                     '-Wl,-rpath,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                     '-Wl,-rpath-link,/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
-                     '-L/lts/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                     '-Wl,-rpath,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                     '-Wl,-rpath-link,/home/012761749/Waves.jl/.CondaPkg/env/lib '
+                     '-L/home/012761749/Waves.jl/.CondaPkg/env/lib '
                      '-fno-lto',
  'PY_SQLITE_ENABLE_LOAD_EXTENSION': 1,
  'PY_SQLITE_HAVE_SERIALIZE': 1,
@@ -1227,7 +1227,7 @@ build_time_vars = {'ABIFLAGS': '',
                         '-mtune=haswell -ftree-vectorize -fPIC '
                         '-fstack-protector-strong -fno-plt -O2 '
                         '-ffunction-sections -pipe -isystem '
-                        '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                        '/home/012761749/Waves.jl/.CondaPkg/env/include '
                         ' '
                         ' '
                         '  '
@@ -1235,7 +1235,7 @@ build_time_vars = {'ABIFLAGS': '',
                         '-mtune=haswell -ftree-vectorize -fPIC '
                         '-fstack-protector-strong -fno-plt -O2 '
                         '-ffunction-sections -pipe -isystem '
-                        '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                        '/home/012761749/Waves.jl/.CondaPkg/env/include '
                         ' '
                         ' '
                         '  '
@@ -1249,11 +1249,11 @@ build_time_vars = {'ABIFLAGS': '',
                         '-IObjects -IInclude -IPython -I. '
                         '-I/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Include '
                         '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                        '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                        '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
+                        '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                        '-I/home/012761749/Waves.jl/.CondaPkg/env/include '
                         '-DNDEBUG -D_FORTIFY_SOURCE=2 -O2 -isystem '
-                        '/lts/home/012761749/Waves.jl/.CondaPkg/env/include '
-                        '-I/lts/home/012761749/Waves.jl/.CondaPkg/env/include',
+                        '/home/012761749/Waves.jl/.CondaPkg/env/include '
+                        '-I/home/012761749/Waves.jl/.CondaPkg/env/include',
  'PY_SUPPORT_TIER': 1,
  'Py_DEBUG': 0,
  'Py_ENABLE_SHARED': 0,
@@ -1265,7 +1265,7 @@ build_time_vars = {'ABIFLAGS': '',
  'RESSRCDIR': 'Mac/Resources/framework',
  'RETSIGTYPE': 'void',
  'RUNSHARED': '',
- 'SCRIPTDIR': '/lts/home/012761749/Waves.jl/.CondaPkg/env/lib',
+ 'SCRIPTDIR': '/home/012761749/Waves.jl/.CondaPkg/env/lib',
  'SETPGRP_HAVE_ARG': 0,
  'SHELL': '/bin/sh',
  'SHLIBS': '-lpthread -ldl  -lutil -lrt',
@@ -1319,15 +1319,15 @@ build_time_vars = {'ABIFLAGS': '',
  'TIMEMODULE_LIB': 'rt',
  'TIME_WITH_SYS_TIME': 1,
  'TM_IN_SYS_TIME': 0,
- 'TZPATH': '/lts/home/012761749/Waves.jl/.CondaPkg/env/share/zoneinfo:/lts/home/012761749/Waves.jl/.CondaPkg/env/share/tzinfo',
+ 'TZPATH': '/home/012761749/Waves.jl/.CondaPkg/env/share/zoneinfo:/home/012761749/Waves.jl/.CondaPkg/env/share/tzinfo',
  'UNICODE_DEPS': '\\',
  'UNIVERSALSDK': '',
  'UPDATE_FILE': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/Tools/scripts/update_file.py',
  'USE_COMPUTED_GOTOS': 1,
  'VERSION': '3.11',
  'VPATH': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work',
- 'WASM_ASSETS_DIR': './lts/home/012761749/Waves.jl/.CondaPkg/env',
- 'WASM_STDLIB': './lts/home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/os.py',
+ 'WASM_ASSETS_DIR': './home/012761749/Waves.jl/.CondaPkg/env',
+ 'WASM_STDLIB': './home/012761749/Waves.jl/.CondaPkg/env/lib/python3.11/os.py',
  'WHEEL_PKG_DIR': '',
  'WINDOW_HAS_FLAGS': 1,
  'WITH_DECIMAL_CONTEXTVAR': 1,
@@ -1344,7 +1344,7 @@ build_time_vars = {'ABIFLAGS': '',
  'XMLLIBSUBDIRS': 'xml xml/dom xml/etree xml/parsers xml/sax',
  'abs_builddir': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work/build-static',
  'abs_srcdir': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work',
- 'datarootdir': '/lts/home/012761749/Waves.jl/.CondaPkg/env/share',
- 'exec_prefix': '/lts/home/012761749/Waves.jl/.CondaPkg/env',
- 'prefix': '/lts/home/012761749/Waves.jl/.CondaPkg/env',
+ 'datarootdir': '/home/012761749/Waves.jl/.CondaPkg/env/share',
+ 'exec_prefix': '/home/012761749/Waves.jl/.CondaPkg/env',
+ 'prefix': '/home/012761749/Waves.jl/.CondaPkg/env',
  'srcdir': '/home/conda/feedstock_root/build_artifacts/python-split_1686419548788/work'}

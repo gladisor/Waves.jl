@@ -5,51 +5,6 @@ using CairoMakie
 
 const FRAMES_PER_SECOND = 24
 
-# function plot_wave(dim::OneDim, wave::AbstractVector{Float32}; ylims::Tuple = (-1.0f0, 1.0f0))
-#     fig = Figure()
-#     ax = Axis(fig[1, 1], aspect = 1.0f0)
-#     xlims!(ax, dim.x[1], dim.x[end])
-#     ylims!(ax, ylims...)
-#     lines!(ax, dim.x, wave)
-#     return fig, ax
-# end
-
-# function plot_wave(dim::OneDim, wave::AbstractMatrix{Float32}; kwargs...)
-#     return plot_wave(dim, wave[:, 1]; kwargs...)
-# end
-
-# function plot_wave(dim::TwoDim, wave::AbstractMatrix{Float32})
-#     fig = Figure()
-#     ax = Axis(fig[1, 1], aspect = 1.0)
-#     heatmap!(ax, dim.x, dim.y, wave, colormap = :ice)
-#     return fig, ax
-# end
-
-# function plot_wave(dim::TwoDim, wave::AbstractArray{Float32, 3})
-#     return plot_wave(dim, wave[:, :, 1])
-# end
-
-# function plot_episode_data!(episode_data::EpisodeData; cols::Int, path::String)
-
-#     fig = Figure(resolution = (1920, 1080))
-
-#     for i in axes(episode_data.states, 1)
-#         dim = episode_data.states[i].dim
-#         wave = episode_data.states[i].wave_total
-#         design = episode_data.states[i].design
-
-#         row = (i - 1) ÷ cols
-#         col = (i - 1) % cols + 1
-
-#         ax = Axis(fig[row, col], aspect = 1.0f0)
-#         heatmap!(ax, dim.x, dim.y, wave[:, :, 1], colormap = :ice)
-#         mesh!(ax, design)
-#     end
-
-#     save(path, fig)
-#     return nothing
-# end
-
 function plot_sigma!(episode::EpisodeData; path::String)
     fig = Figure()
     ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
@@ -62,64 +17,10 @@ function plot_sigma!(episode::EpisodeData; path::String)
     return nothing
 end
 
-# function plot_sigma!(model::WaveControlModel, episode::EpisodeData; path::String)
-#     pred_sigmas = cpu([model(gpu(s), gpu(a)) for (s, a) in zip(episode.states, episode.actions)])
-
-#     fig = Figure()
-#     ax = Axis(fig[1, 1])
-
-#     for i in 1:length(episode)
-#         lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
-#         lines!(ax, episode.tspans[i], pred_sigmas[i], color = :orange)
-#     end
-
-#     # lines!(ax, vcat(episode.tspans...), vcat(episode.sigmas...), color = :blue)
-#     # lines!(ax, vcat(episode.tspans...), vcat(pred_sigmas...), color = :orange)
-#     save(path, fig)
-#     return nothing
-# end
-
-# function plot_sigma!(
-#         model::WaveControlModel, 
-#         s::WaveEnvState, 
-#         a::Vector{<: AbstractDesign}, 
-#         tspan::AbstractMatrix{Float32},
-#         sigma::AbstractMatrix{Float32};
-#         path::String)
-
-#     sigma_pred = model(s, a)
-
-#     fig = Figure()
-#     ax = Axis(fig[1, 1])
-
-#     for i in axes(sigma, 2)
-#         lines!(ax, cpu(tspan[:, i]), cpu(sigma[:, i]), color = :blue)
-#         lines!(ax, cpu(tspan[:, i]), cpu(sigma_pred[:, i]), color = :orange)
-#     end
-
-#     save(path, fig)
-# end
-
-# function plot_action_distribution!(
-#     model::WaveControlModel,
-#     policy::RandomDesignPolicy, 
-#     env::WaveEnv; path::String)
-
-#     fig = Figure()
-#     ax = Axis(fig[1, 1])
-
-#     for _ in 1:10
-#         lines!(ax, cpu(model(state(env), gpu(policy(env)))))
-#     end
-
-#     save(path, fig)
-# end
-
 function render!(;
         dim::TwoDim, 
         tspan::Vector{Float32}, 
-        u_scattered::Extrapolation, 
-        u_incident::Union{Extrapolation, Nothing} = nothing, 
+        u_total::Extrapolation, 
         design::Union{Extrapolation, Nothing} = nothing, 
         seconds::Float32 = 1.0f0,
         minimum_value = -1.0f0,
@@ -128,26 +29,17 @@ function render!(;
 
     fig = Figure()
 
-    ax1 = Axis(fig[1, 1], aspect = 1.0f0, title = "Total Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
-
-    if !isnothing(u_incident)
-        ax2 = Axis(fig[1, 2], aspect = 1.0f0, title = "Incident Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
-    end
+    ax = Axis(fig[1, 1], aspect = 1.0f0, title = "Total Field", xlabel = "Distance (m)", ylabel = "Distance (m)")
 
     frames = Int(round(FRAMES_PER_SECOND * seconds))
     tspan = range(tspan[1], tspan[end], frames)
 
     CairoMakie.record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
-        empty!(ax1)
-        heatmap!(ax1, dim.x, dim.y, u_scattered(t), colormap = :ice, colorrange = (minimum_value, maximum_value))
-
-        if !isnothing(u_incident)
-            empty!(ax2)
-            heatmap!(ax2, dim.x, dim.y, u_incident(t), colormap = :ice)
-        end
+        empty!(ax)
+        heatmap!(ax, dim.x, dim.y, u_total(t), colormap = :ice, colorrange = (minimum_value, maximum_value))
         
         if !isnothing(design)
-            mesh!(ax1, design(t))
+            mesh!(ax, design(t))
         end
     end
 
@@ -156,7 +48,7 @@ end
 
 function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
 
-    reset!(env)
+    RLBase.reset!(env)
 
     design_times = [time(env)]
     designs = [cpu(env.total_dynamics.design(time(env)))]
@@ -185,8 +77,6 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     u_scattered = vcat(sol[:scattered]...)
     u_total = u_incident .+ u_scattered
 
-    # return u_total
-
     design_times = vcat(design_times...)
     designs = vcat(designs...)
     
@@ -196,8 +86,7 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
     render!(
         dim = cpu(env.dim), 
         tspan = tspans, 
-        u_scattered = u_total,#u_scattered, 
-        # u_incident = u_incident,
+        u_total = u_total,
         design = d; 
         kwargs...)
 end
@@ -223,8 +112,3 @@ function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
         lines!(ax, dim.x, u[:, 1, i], color = :blue)
     end
 end
-
-# function render_latent_wave!(dim::OneDim, model::WaveControlModel, s::WaveEnvState, action::AbstractDesign; path::String)
-#     z = cpu(model.iter(encode(model, s, action)))
-#     render!(dim, z, path = path)
-# end

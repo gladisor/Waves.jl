@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=9.4.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/yaml-0.2.5-h7f98852_2",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/yaml-0.2.5-h7f98852_2",
     "files": [
         "include/yaml.h",
         "lib/libyaml-0.so.2",
@@ -20,12 +20,12 @@
     "fn": "yaml-0.2.5-h7f98852_2.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/yaml-0.2.5-h7f98852_2",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/yaml-0.2.5-h7f98852_2",
         "type": 1
     },
     "md5": "4cb3ad778ec2d5a7acbdf254eb1c42ae",
     "name": "yaml",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/yaml-0.2.5-h7f98852_2.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/yaml-0.2.5-h7f98852_2.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -65,7 +65,7 @@
                 "_path": "lib/pkgconfig/yaml-0.1.pc",
                 "path_type": "hardlink",
                 "sha256": "3f04f271a11b9bbf72a568d0fce22ffe03cb843c0e207dc52cc0d2ba3234a038",
-                "sha256_in_prefix": "7782705b41afcf05720059a992410647ac4af646f2782168445c5d02b0d835cc",
+                "sha256_in_prefix": "5dd4ffc3c15ebe36e1ef07830b0846f375e504e2c3ff221f319a13dd55fbf303",
                 "size_in_bytes": 463
             }
         ],

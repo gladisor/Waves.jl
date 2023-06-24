@@ -8,7 +8,7 @@
         "libgfortran-ng 13.1.0"
     ],
     "depends": [],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran5-13.1.0-h15d22d2_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran5-13.1.0-h15d22d2_0",
     "files": [
         "lib/libgfortran.so",
         "lib/libgfortran.so.5",
@@ -18,12 +18,12 @@
     "fn": "libgfortran5-13.1.0-h15d22d2_0.conda",
     "license": "GPL-3.0-only WITH GCC-exception-3.1",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran5-13.1.0-h15d22d2_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran5-13.1.0-h15d22d2_0",
         "type": 1
     },
     "md5": "afb656a334c409dd9805508af1c89c7a",
     "name": "libgfortran5",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran5-13.1.0-h15d22d2_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran5-13.1.0-h15d22d2_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

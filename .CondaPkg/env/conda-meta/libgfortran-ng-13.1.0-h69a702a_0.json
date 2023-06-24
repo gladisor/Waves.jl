@@ -8,17 +8,17 @@
     "depends": [
         "libgfortran5 13.1.0 h15d22d2_0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran-ng-13.1.0-h69a702a_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran-ng-13.1.0-h69a702a_0",
     "files": [],
     "fn": "libgfortran-ng-13.1.0-h69a702a_0.conda",
     "license": "GPL-3.0-only WITH GCC-exception-3.1",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran-ng-13.1.0-h69a702a_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran-ng-13.1.0-h69a702a_0",
         "type": 1
     },
     "md5": "506dc07710dd5b0ba63cbf134897fc10",
     "name": "libgfortran-ng",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran-ng-13.1.0-h69a702a_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libgfortran-ng-13.1.0-h69a702a_0.tar.bz2",
     "paths_data": {
         "paths": [],
         "paths_version": 1

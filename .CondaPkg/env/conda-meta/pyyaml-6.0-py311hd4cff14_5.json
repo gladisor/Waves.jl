@@ -11,7 +11,7 @@
         "python_abi 3.11.* *_cp311",
         "yaml >=0.2.5,<0.3.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pyyaml-6.0-py311hd4cff14_5",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pyyaml-6.0-py311hd4cff14_5",
     "files": [
         "lib/python3.11/site-packages/PyYAML-6.0.dist-info/INSTALLER",
         "lib/python3.11/site-packages/PyYAML-6.0.dist-info/LICENSE",
@@ -63,12 +63,12 @@
     "license": "MIT",
     "license_family": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pyyaml-6.0-py311hd4cff14_5",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pyyaml-6.0-py311hd4cff14_5",
         "type": 1
     },
     "md5": "da8769492e423103c59f469f4f17f8d9",
     "name": "pyyaml",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pyyaml-6.0-py311hd4cff14_5.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/pyyaml-6.0-py311hd4cff14_5.tar.bz2",
     "paths_data": {
         "paths": [
             {

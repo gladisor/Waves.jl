@@ -14,7 +14,7 @@
         "libopenblas >=0.3.23,<0.3.24.0a0",
         "libopenblas >=0.3.23,<1.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libblas-3.9.0-17_linux64_openblas",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libblas-3.9.0-17_linux64_openblas",
     "files": [
         "lib/libblas.so",
         "lib/libblas.so.3"
@@ -22,12 +22,12 @@
     "fn": "libblas-3.9.0-17_linux64_openblas.conda",
     "license": "BSD-3-Clause",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libblas-3.9.0-17_linux64_openblas",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libblas-3.9.0-17_linux64_openblas",
         "type": 1
     },
     "md5": "57fb44770b1bc832fb2dbefa1bd502de",
     "name": "libblas",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libblas-3.9.0-17_linux64_openblas.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libblas-3.9.0-17_linux64_openblas.tar.bz2",
     "paths_data": {
         "paths": [
             {

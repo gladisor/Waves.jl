@@ -16,7 +16,7 @@
         "xz >=5.2.6,<6.0a0",
         "zstd >=1.5.2,<1.6.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libtiff-4.5.1-h8b53f26_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libtiff-4.5.1-h8b53f26_0",
     "files": [
         "bin/fax2ps",
         "bin/fax2tiff",
@@ -52,12 +52,12 @@
     "fn": "libtiff-4.5.1-h8b53f26_0.conda",
     "license": "HPND",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libtiff-4.5.1-h8b53f26_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libtiff-4.5.1-h8b53f26_0",
         "type": 1
     },
     "md5": "8ad377fb60abab446a9f02c62b3c2190",
     "name": "libtiff",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libtiff-4.5.1-h8b53f26_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libtiff-4.5.1-h8b53f26_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -263,7 +263,7 @@
                 "_path": "lib/pkgconfig/libtiff-4.pc",
                 "path_type": "hardlink",
                 "sha256": "72bf31de98c1d40a5d3d12c25b736736f8dc0668b2de4826fbf20b5dcc938ab6",
-                "sha256_in_prefix": "39be190dddb3765b2896997309f0758fbce64e55bafc736d959e601b9862b562",
+                "sha256_in_prefix": "4722d35292b372c936a9c037060ca3ac455e8b1b398519f3c5f5c025c48c5543",
                 "size_in_bytes": 606
             }
         ],

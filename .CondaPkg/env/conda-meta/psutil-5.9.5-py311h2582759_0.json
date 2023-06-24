@@ -10,7 +10,7 @@
         "python >=3.11,<3.12.0a0",
         "python_abi 3.11.* *_cp311"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/psutil-5.9.5-py311h2582759_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/psutil-5.9.5-py311h2582759_0",
     "files": [
         "lib/python3.11/site-packages/psutil-5.9.5.dist-info/INSTALLER",
         "lib/python3.11/site-packages/psutil-5.9.5.dist-info/LICENSE",
@@ -83,12 +83,12 @@
     "license": "BSD-3-Clause",
     "license_family": "BSD",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/psutil-5.9.5-py311h2582759_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/psutil-5.9.5-py311h2582759_0",
         "type": 1
     },
     "md5": "a90f8e278c1cd7064b2713e6b7db87e6",
     "name": "psutil",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/psutil-5.9.5-py311h2582759_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/psutil-5.9.5-py311h2582759_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

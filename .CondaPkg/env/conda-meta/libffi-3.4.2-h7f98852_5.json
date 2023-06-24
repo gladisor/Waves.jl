@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=9.4.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libffi-3.4.2-h7f98852_5",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libffi-3.4.2-h7f98852_5",
     "files": [
         "include/ffi.h",
         "include/ffitarget.h",
@@ -26,12 +26,12 @@
     "fn": "libffi-3.4.2-h7f98852_5.tar.bz2",
     "license": "MIT",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libffi-3.4.2-h7f98852_5",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libffi-3.4.2-h7f98852_5",
         "type": 1
     },
     "md5": "d645c6d2ac96843a2bfaccd2d62b3ac3",
     "name": "libffi",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libffi-3.4.2-h7f98852_5.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libffi-3.4.2-h7f98852_5.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -78,7 +78,7 @@
                 "_path": "lib/pkgconfig/libffi.pc",
                 "path_type": "hardlink",
                 "sha256": "7dbc2dc2e410e440313804207ab135c3283ff4b7572eb562623e6dccc384d7c4",
-                "sha256_in_prefix": "0b3fee88cdaaff74f7169116d0d025237b139dc36e8bd67d5f3ab00fb3242b25",
+                "sha256_in_prefix": "63466c898217756b2a6e6a029b2461c09da9193d6b21bd6c798c6c004fcc5bac",
                 "size_in_bytes": 756
             },
             {

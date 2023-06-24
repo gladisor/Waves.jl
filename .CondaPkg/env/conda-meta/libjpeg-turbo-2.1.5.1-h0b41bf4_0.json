@@ -10,7 +10,7 @@
     "depends": [
         "libgcc-ng >=12"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libjpeg-turbo-2.1.5.1-h0b41bf4_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libjpeg-turbo-2.1.5.1-h0b41bf4_0",
     "files": [
         "bin/cjpeg",
         "bin/djpeg",
@@ -55,12 +55,12 @@
     "fn": "libjpeg-turbo-2.1.5.1-h0b41bf4_0.conda",
     "license": "IJG, modified 3-clause BSD and zlib",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libjpeg-turbo-2.1.5.1-h0b41bf4_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libjpeg-turbo-2.1.5.1-h0b41bf4_0",
         "type": 1
     },
     "md5": "1edd9e67bdb90d78cea97733ff6b54e6",
     "name": "libjpeg-turbo",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libjpeg-turbo-2.1.5.1-h0b41bf4_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libjpeg-turbo-2.1.5.1-h0b41bf4_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -158,14 +158,14 @@
                 "_path": "lib/cmake/libjpeg-turbo/libjpeg-turboTargets-release.cmake",
                 "path_type": "hardlink",
                 "sha256": "deb073066cbd87ffcb1ddde51665682dec101052ebf3d177f99b8f20861fc899",
-                "sha256_in_prefix": "7d0224fa69ad19e124f63df32d47272762af1636a88b5564ab33d039bd46edb8",
+                "sha256_in_prefix": "a37cdca9846cab9673b33e4e563413835643e465fefc11dbc46e4839b1a9342f",
                 "size_in_bytes": 4395
             },
             {
                 "_path": "lib/cmake/libjpeg-turbo/libjpeg-turboTargets.cmake",
                 "path_type": "hardlink",
                 "sha256": "559bee019c2ac5c9143321d1a2762541e9ad946975b6e83d5fa7b28ec5010f3e",
-                "sha256_in_prefix": "abb5c804c21e573bc055bcf78de975c345a8cb6fe3063d6af544d22dfe7def25",
+                "sha256_in_prefix": "47b63e2648beac79c0d51b7fffcc4f59c485e4ea5087d6bdb843d65fe92c0577",
                 "size_in_bytes": 4659
             },
             {
@@ -224,14 +224,14 @@
                 "_path": "lib/pkgconfig/libjpeg.pc",
                 "path_type": "hardlink",
                 "sha256": "f53a5a461576f9956673613cebbdaaa91547672860669cef98764cbafc40d76a",
-                "sha256_in_prefix": "5d667641fcdee005a7e6fc0640f8a3af37ac446c35b352b89b6665cf705a399e",
+                "sha256_in_prefix": "5e2b7ca3bdfd72263251eb003e49fc3a64d6b5b0b0a1bd9b9ab6d36bd7adae6e",
                 "size_in_bytes": 1227
             },
             {
                 "_path": "lib/pkgconfig/libturbojpeg.pc",
                 "path_type": "hardlink",
                 "sha256": "f06a38e56da2b43164046e3a4c37e25044e9759e942d25b844e7b66595a8af85",
-                "sha256_in_prefix": "ec124603f2b345a9468d4cfdd3a10622d108ecb49af5a332aed44db44e6ba406",
+                "sha256_in_prefix": "6022787df298d93ca592b4cf0b4c7794bd163caf3ebf258239a176e4c197ba78",
                 "size_in_bytes": 1239
             },
             {

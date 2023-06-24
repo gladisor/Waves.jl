@@ -6,7 +6,7 @@
     "channel": "https://conda.anaconda.org/conda-forge/linux-64",
     "constrains": [],
     "depends": [],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ca-certificates-2023.5.7-hbcca054_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ca-certificates-2023.5.7-hbcca054_0",
     "files": [
         "ssl/cacert.pem",
         "ssl/cert.pem"
@@ -14,12 +14,12 @@
     "fn": "ca-certificates-2023.5.7-hbcca054_0.conda",
     "license": "ISC",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ca-certificates-2023.5.7-hbcca054_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ca-certificates-2023.5.7-hbcca054_0",
         "type": 1
     },
     "md5": "f5c65075fc34438d5b456c7f3f5ab695",
     "name": "ca-certificates",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ca-certificates-2023.5.7-hbcca054_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/ca-certificates-2023.5.7-hbcca054_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

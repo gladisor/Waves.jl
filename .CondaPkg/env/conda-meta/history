@@ -1,5 +1,5 @@
-==> 2023-06-21 08:44:31 <==
-# cmd: /home/012761749/.julia/artifacts/a7fe6379eb776b1ec5b4ee1ddb8da76446d3f735/bin/micromamba -r /home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root create -y -p /lts/home/012761749/Waves.jl/.CondaPkg/env --override-channels --no-channel-priority numpy[version='*'] pillow[version='*'] protobuf[version='=3'] python[version='>=3.7,<4',channel='conda-forge',build='*cpython*'] python[version='>=3.9'] wandb[version='>=0.13'] -c conda-forge
+==> 2023-06-22 15:31:45 <==
+# cmd: /home/012761749/.julia/artifacts/a7fe6379eb776b1ec5b4ee1ddb8da76446d3f735/bin/micromamba -r /home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root create -y -p /home/012761749/Waves.jl/.CondaPkg/env --override-channels --no-channel-priority numpy[version='*'] pillow[version='*'] protobuf[version='=3'] python[version='>=3.7,<4',channel='conda-forge',build='*cpython*'] python[version='>=3.9'] wandb[version='>=0.13'] -c conda-forge
 # conda version: 3.8.0
 +https://conda.anaconda.org/conda-forge/linux-64::_libgcc_mutex-0.1-conda_forge
 +https://conda.anaconda.org/conda-forge/linux-64::ld_impl_linux-64-2.40-h41732ed_0

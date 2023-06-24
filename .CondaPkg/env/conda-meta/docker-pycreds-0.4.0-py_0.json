@@ -9,7 +9,7 @@
         "python",
         "six >=1.4.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/docker-pycreds-0.4.0-py_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/docker-pycreds-0.4.0-py_0",
     "files": [
         "lib/python3.11/site-packages/docker_pycreds-0.4.0.dist-info/INSTALLER",
         "lib/python3.11/site-packages/docker_pycreds-0.4.0.dist-info/LICENSE",
@@ -34,13 +34,13 @@
     "license": "Apache-2.0",
     "license_family": "Apache",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/docker-pycreds-0.4.0-py_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/docker-pycreds-0.4.0-py_0",
         "type": 1
     },
     "md5": "c69f19038efee4eb534623610d0c2053",
     "name": "docker-pycreds",
     "noarch": "python",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/docker-pycreds-0.4.0-py_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/docker-pycreds-0.4.0-py_0.tar.bz2",
     "paths_data": {
         "paths": [
             {

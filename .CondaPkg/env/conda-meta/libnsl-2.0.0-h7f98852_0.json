@@ -8,7 +8,7 @@
     "depends": [
         "libgcc-ng >=9.4.0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libnsl-2.0.0-h7f98852_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libnsl-2.0.0-h7f98852_0",
     "files": [
         "include/rpcsvc/yp.h",
         "include/rpcsvc/yp.x",
@@ -26,12 +26,12 @@
     "license": "GPL-2.0-only",
     "license_family": "GPL",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libnsl-2.0.0-h7f98852_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libnsl-2.0.0-h7f98852_0",
         "type": 1
     },
     "md5": "39b1328babf85c7c3a61636d9cd50206",
     "name": "libnsl",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libnsl-2.0.0-h7f98852_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libnsl-2.0.0-h7f98852_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
@@ -106,7 +106,7 @@
                 "_path": "lib/pkgconfig/libnsl.pc",
                 "path_type": "hardlink",
                 "sha256": "5da9341e4f29187fb0e62223318270840eeea8aa77854e363a4318181f127bb0",
-                "sha256_in_prefix": "eae5594ce3222b836d09efbcaa14ee9160931ab0fbd89006b85a3cd2f15099b4",
+                "sha256_in_prefix": "4c6c82977aa5974b9939f191cde472090c6bdba81295fa8939b902351f667b24",
                 "size_in_bytes": 533
             }
         ],

@@ -9,7 +9,7 @@
         "libgcc-ng >=12",
         "libzlib >=1.2.13,<1.3.0a0"
     ],
-    "extracted_package_dir": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libpng-1.6.39-h753d276_0",
+    "extracted_package_dir": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libpng-1.6.39-h753d276_0",
     "files": [
         "bin/libpng-config",
         "bin/libpng16-config",
@@ -36,25 +36,25 @@
     "fn": "libpng-1.6.39-h753d276_0.conda",
     "license": "zlib-acknowledgement",
     "link": {
-        "source": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libpng-1.6.39-h753d276_0",
+        "source": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libpng-1.6.39-h753d276_0",
         "type": 1
     },
     "md5": "e1c890aebdebbfbf87e2c917187b4416",
     "name": "libpng",
-    "package_tarball_full_path": "/lts/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libpng-1.6.39-h753d276_0.tar.bz2",
+    "package_tarball_full_path": "/home/012761749/.julia/scratchspaces/0b3b1443-0f03-428d-bdfb-f27f9c1191ea/root/pkgs/libpng-1.6.39-h753d276_0.tar.bz2",
     "paths_data": {
         "paths": [
             {
                 "_path": "bin/libpng-config",
                 "path_type": "softlink",
-                "sha256_in_prefix": "2962fc6fe68dc18a89420aa49ff833e601a8d9ca0376e40bdec414cb0d29e076",
+                "sha256_in_prefix": "302e0c082ef610ecf9afea3f1374eac45cf1fe17e1c248ef5b6d32ed3352fb3d",
                 "size_in_bytes": 2572
             },
             {
                 "_path": "bin/libpng16-config",
                 "path_type": "hardlink",
                 "sha256": "3108827847faab849f68da88b8ff0ca216b3e3be3e98acc8786db802763c0aec",
-                "sha256_in_prefix": "2962fc6fe68dc18a89420aa49ff833e601a8d9ca0376e40bdec414cb0d29e076",
+                "sha256_in_prefix": "302e0c082ef610ecf9afea3f1374eac45cf1fe17e1c248ef5b6d32ed3352fb3d",
                 "size_in_bytes": 2572
             },
             {
@@ -151,14 +151,14 @@
             {
                 "_path": "lib/pkgconfig/libpng.pc",
                 "path_type": "softlink",
-                "sha256_in_prefix": "2d48f09e059ed1e0ba054a498743651edf0fca73eccb363118aa7ff523aca2a5",
+                "sha256_in_prefix": "095266f6d82975118e45fced2e9014aa64d59217a98be888c015ba01f07320ee",
                 "size_in_bytes": 518
             },
             {
                 "_path": "lib/pkgconfig/libpng16.pc",
                 "path_type": "hardlink",
                 "sha256": "a45dea66559bbb57f39970f2089cb9d77d87923b768fe0cb56e4645fed0344c8",
-                "sha256_in_prefix": "2d48f09e059ed1e0ba054a498743651edf0fca73eccb363118aa7ff523aca2a5",
+                "sha256_in_prefix": "095266f6d82975118e45fced2e9014aa64d59217a98be888c015ba01f07320ee",
                 "size_in_bytes": 518
             },
             {

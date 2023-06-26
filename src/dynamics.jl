@@ -50,7 +50,7 @@ function (iter::Integrator)(ui::AbstractArray{Float32})
 end
 
 function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32, 3}
-    println("adjoint_sensitivity")
+    # println("adjoint_sensitivity")
 
     tspan = build_tspan(iter.ti, iter.dt, iter.steps)
 
@@ -76,18 +76,18 @@ function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: Abstract
     return a, tangent
 end
 
-# function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32})
-#     println("rrule")
-#     u = iter(ui)
+function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32})
+    # println("rrule")
+    u = iter(ui)
 
-#     function Integrator_back(adj::AbstractArray{Float32, 3})
-#         a, tangent = adjoint_sensitivity(iter, u, adj)
-#         iter_tangent = Tangent{Integrator}(;dynamics = tangent)
-#         return iter_tangent, a
-#     end
+    function Integrator_back(adj::AbstractArray{Float32, 3})
+        a, tangent = adjoint_sensitivity(iter, u, adj)
+        iter_tangent = Tangent{Integrator}(;dynamics = tangent)
+        return iter_tangent, a
+    end
 
-#     return u, Integrator_back
-# end
+    return u, Integrator_back
+end
 
 struct WaveDynamics <: AbstractDynamics
     ambient_speed::Float32

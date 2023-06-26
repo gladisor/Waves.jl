@@ -13,67 +13,7 @@ Flux.CUDA.allowscalar(false)
 include("improved_model.jl")
 include("plot.jl")
 
-function latent_consistency_data(episode::EpisodeData, horizon::Int)
-    states = Vector{WaveEnvState}[]
-    actions = Vector{<:AbstractDesign}[]
-    tspans = AbstractMatrix{Float32}[]
-    sigmas = AbstractMatrix{Float32}[]
-
-    n = horizon - 1
-
-    for i in 1:(length(episode) - n - 1)
-        boundary = i + n
-        
-        push!(states, episode.states[i:boundary + 1])
-        push!(actions, episode.actions[i:boundary])
-        push!(tspans, hcat(episode.tspans[i:boundary]...))
-        push!(sigmas, hcat(episode.sigmas[i:boundary]...))
-    end
-
-    return (states, actions, tspans, sigmas)
-end
-
-function latent_consistency_data(data::Vector{EpisodeData}, horizon::Int)
-    return vcat.(latent_consistency_data.(data, horizon)...)
-end
-
-function latent_consistency_and_reconstruction_loss(model::ScatteredEnergyModel, s::Vector{WaveEnvState}, a::DesignSequence, sigma::AbstractMatrix)
-
-    uvf = model.wave_encoder(s)
-    c = model.design_encoder(s[1], a)
-    z = flatten_repeated_last_dim(generate_latent_solution(model, uvf[:, :, 1], c))
-
-    z_pred = uvf[:, [1, 2], 2:end]
-    z_true = z[:, [1, 2], 2:model.iter.steps:end]
-
-    l_con_numerator = sqrt.(
-        sum((z_pred .- z_true) .^ 2, ## sum of squares
-        dims = (1, 2) ## sum along spacial and channel dimention, leave sequence un-summed
-        )
-    )
-
-    ## adding a small epsilon to denominator to prevent zero division
-    l_con_denominator = sqrt.(sum(z_true .^ 2, dims = (1, 2))) .+ 1f-5
-    l_con = sum(l_con_numerator ./ l_con_denominator)
-
-    sigma_pred = vec(model.mlp(Flux.unsqueeze(z, dims = ndims(z) + 1)))
-    sigma_true = flatten_repeated_last_dim(sigma)
-
-    l_rec = Flux.mse(sigma_pred, sigma_true)
-
-    return l_rec + l_con 
-end
-
-function latent_consistency_and_reconstruction_loss(model::ScatteredEnergyModel, states::Vector{Vector{WaveEnvState}}, actions::Vector{<: DesignSequence}, sigmas::Vector{<: AbstractArray})
-    return Flux.mean(latent_consistency_and_reconstruction_loss.([model], states, actions, sigmas))
-end
-
-function reconstruction_loss(model::ScatteredEnergyModel, s, a, sigma)
-    y = flatten_repeated_last_dim(sigma)
-    return Flux.mse(model(s, a,), y)
-end
-
-Flux.device!(0)
+Flux.device!(1)
 
 main_path = "/scratch/cmpe299-fa22/tristan/data/design_space=build_triple_ring_design_space_freq=1000.0"
 data_path = joinpath(main_path, "episodes")
@@ -85,28 +25,43 @@ reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 
 println("Load Data") ## full dataset (too big)
-# @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:1])
-# @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 2:3])
+@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:100])
+@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 101:120])
+
+# @time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
+# @time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
+
+
+"""
+General comments:
+
+- Using information about wave and also about wavespeed function in the decoder is
+critical to ensure smooth solution.
+
+- Need a high enough number of frequencies
+
+"""
 
 println("Declaring Hyperparameters")
-nfreq = 50
-h_size = 256 ## try increase (memory issues :( sad)
+nfreq = 200
+h_size = 256
 activation = leakyrelu
 latent_grid_size = 15.0f0
 latent_elements = 512
-horizon = 2
+horizon = 5
 wave_input_layer = TotalWaveInput()
 batchsize = 5
+
 pml_width = 10.0f0
 pml_scale = 10000.0f0
 lr = 1e-4
 decay_rate = 1.0f0
-k_size = 2
+k_size = 4
 steps = 20
-epochs = 200
+epochs = 500
 loss_func = Flux.mse
 
-MODEL_PATH = mkpath(joinpath(main_path, "models/gs=$(latent_grid_size)_ele=$(latent_elements)_horizon=$(horizon)_width=$(pml_width)_lr=$(lr)"))
+MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV4/horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
 println(MODEL_PATH)
 
 println("Initializing Model Components")
@@ -115,7 +70,7 @@ wave_encoder = build_split_hypernet_wave_encoder(latent_dim = latent_dim, input_
 design_encoder = HypernetDesignEncoder(env.design_space, action_space(env), nfreq, h_size, activation, latent_dim)
 dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
 iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
-mlp = Chain(reshape_latent_solution, build_full_cnn_decoder(latent_elements, h_size, k_size, activation))
+mlp = build_scattered_wave_decoder(latent_elements, h_size, k_size, activation)
 println("Constructing Model")
 model = gpu(ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter, env.design_space, mlp))
 
@@ -124,41 +79,53 @@ train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, bat
 val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize)
 
 opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(lr))
-states, actions, tspans, sigmas = gpu(first(train_loader))
-s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]
-overfit(model, states, actions, tspans, sigmas, 100, opt = opt, path = "coefs")
+# states, actions, tspans, sigmas = gpu(first(train_loader))
+# s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]
 
-# model.design_encoder(s, a)
-# visualize!(model, s, a, t, sigma, path = "")
+# uvf = model.wave_encoder(s)[:, :, 1]
+# c = model.design_encoder(s, a)
 
-# y = cpu(model.wave_encoder(s))
+# z, back1 = Flux.pullback((_uvf, _c) -> flatten_repeated_last_dim(generate_latent_solution(model, _uvf, _c))[:, :, :, :], uvf, c)
+# y_hat, back2 = Flux.pullback(_z -> model.mlp(_z), z)
+
+# z = cpu(generate_latent_solution(model, s, a))
+# render!(latent_dim, z[:, 1, :] .- z[:, 2, :], path = "vid.mp4")
+
+# states, actions, tspans, sigmas = prepare_data(train_data, horizon)
+# s, a, t, sigma = gpu((states[50], actions[50], tspans[50], sigmas[50]))
+
+# z = generate_latent_solution(model, s, a)
+# t = cpu(flatten_repeated_last_dim(t))
+# pml_energy = cpu(vec(sum(z[:, 1, :] .^ 2, dims = 1)))
 
 # fig = Figure()
-# ax1 = Axis(fig[1, 1])
-# ax2 = Axis(fig[1, 2])
-# ax3 = Axis(fig[2, 1])
-# # ax4 = Axis(fig[2, 2])
+# ax = Axis(fig[1, 1])
+# lines!(ax, t, pml_energy)
+# save("energy.png", fig)
+# render!(latent_dim, cpu(z[:, :, :, 1]), path = "vid.mp4")
+# overfit(model, states, actions, tspans, sigmas, 100, opt = opt, path = "")
+# model(states, actions)
 
-# lines!(ax1, latent_dim.x, y[:, 1])
-# lines!(ax2, latent_dim.x, y[:, 2])
-# lines!(ax3, latent_dim.x, y[:, 3])
-# # lines!(ax3, latent_dim.x, y[:, 4])
-# save("n.png", fig)
+# x = collect(1:size(y, 1))
+# # weight = gpu(exp.(-(x .- 1.0f0) ./ 100.0f0))
+# weight = gpu(1.0f0 / ((x/100.0f0) .+ 1.0f0))
+# loss, back = Flux.pullback(m -> Flux.mean(weight .* Flux.mse(m(s, a), y, agg = identity)), model);
+# gs = back(one(loss))[1]
 
-# println("Training")
-# train_loop(
-#     model,
-#     loss_func = loss_func,
-#     train_steps = steps,
-#     train_loader = train_loader,
-#     val_steps = steps,
-#     val_loader = val_loader,
-#     epochs = epochs,
-#     lr = lr,
-#     decay_rate = decay_rate,
-#     latent_dim = latent_dim,
-#     evaluation_samples = 1,
-#     checkpoint_every = 10,
-#     path = MODEL_PATH,
-#     opt = opt
-#     )
+println("Training")
+train_loop(
+    model,
+    loss_func = loss_func,
+    train_steps = steps,
+    train_loader = train_loader,
+    val_steps = steps,
+    val_loader = val_loader,
+    epochs = epochs,
+    lr = lr,
+    decay_rate = decay_rate,
+    latent_dim = latent_dim,
+    evaluation_samples = 1,
+    checkpoint_every = 10,
+    path = MODEL_PATH,
+    opt = opt
+    )

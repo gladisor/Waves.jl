@@ -22,7 +22,9 @@ Flux.@functor ResidualBlock
 
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
-        Conv(k, in_channels => out_channels, activation, pad = SamePad()),
+        Conv(k, in_channels => out_channels, pad = SamePad()),
+        BatchNorm(out_channels),
+        activation,
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -94,6 +96,7 @@ function (hypernet::Hypernet)(x::AbstractMatrix{Float32})
     return cat([hypernet.domain(m) for m in models]..., dims = ndims(x) + 1)
 end
 
+## forier learning
 struct SinWaveEmbedder
     frequencies::AbstractMatrix{Float32}
 end
@@ -108,11 +111,17 @@ function SinWaveEmbedder(dim::OneDim, nfreq::Int)
 
     n = Float32.(collect(1:nfreq))
     frequencies = (pi * n .* (dim.x' .- C)) / L
-    return SinWaveEmbedder(sin.(frequencies))
+    return SinWaveEmbedder(permutedims(sin.(frequencies), (2, 1)))
 end
 
-function (embedder::SinWaveEmbedder)(x)
-    return permutedims(permutedims(x, (2, 1)) * embedder.frequencies, (2, 1)) ./ sum(abs, x, dims = 1) ## not adding normalization allows for large outuputs
+function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
+    x_norm = x ./ sum(abs, x, dims = 1)
+    return (embedder.frequencies * x_norm)
+end
+
+function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
+    x_norm = x ./ sum(abs, x, dims = 1)
+    return batched_mul(embedder.frequencies, x_norm)
 end
 
 struct NonTrainableScale
@@ -133,12 +142,22 @@ end
 Flux.@functor LatentWaveNormalization
 Flux.trainable(::LatentWaveNormalization) = (;)
 
-function LatentWaveNormalization(dim::OneDim, C::Float32)
-    u_weight = ones(Float32, size(dim, 1))
-    v_weight = ones(Float32, size(dim, 1)) ./ C
-    f_weight = ((cos.(pi * dim.x ./ 15.0f0) .+ 1) / 2.0f0) .^ 2 ## hardcoded boundary
+sigmoid_step(x, l) = sigmoid.(-5.0f0 * (x .- l)) - sigmoid.(-5.0f0 * (x .+ l))
 
-    return LatentWaveNormalization(hcat(u_weight, v_weight, f_weight)[:, :, :])
+function LatentWaveNormalization(dim::OneDim, C::Float32)
+
+    u_weight = dim.x .^ 0.0f0
+    f_weight = sigmoid_step(dim.x, dim.x[end] - 5.0f0)
+
+    return LatentWaveNormalization(
+        hcat(
+            u_weight, 
+            u_weight, 
+            u_weight ./ C, 
+            u_weight ./ C, 
+            f_weight
+            )[:, :, :]
+        )
 end
 
 function (n::LatentWaveNormalization)(x)
@@ -153,14 +172,6 @@ function build_split_hypernet_wave_encoder(;
         input_layer::WaveInputLayer,
         )
 
-    # embedder = Chain(
-    #     Dense(2 * nfreq, h_size, activation),
-    #     Dense(h_size, h_size, activation),
-    #     Dense(h_size, h_size, activation),
-    #     Dense(h_size, h_size, activation),
-    #     Dense(h_size, 1, tanh)
-    # )
-
     latent_elements = size(latent_dim, 1)
 
     ## zero out forces in pml
@@ -169,29 +180,17 @@ function build_split_hypernet_wave_encoder(;
         MeanPool((4, 4)),
         ResidualBlock((3, 3), 3, 32, activation),
         ResidualBlock((3, 3), 32, 64, activation),
-        ResidualBlock((3, 3), 64, 128, activation),
+        ResidualBlock((3, 3), 64, h_size, activation),
         GlobalMaxPool(),
         flatten,
-        Dense(128, 3 * nfreq), ## output frequencies for all fields (u, v, f)
-        b -> tanh.(reshape(b, nfreq, :)), ## reshape into a block where dims = (nfreq x fields*batchsize)
+
+        # Dense(h_size, 3 * nfreq, tanh), ## output frequencies for all fields (u, v, f)
+        # b -> reshape(b, nfreq, 3, :),
+        Dense(h_size, 5 * nfreq, tanh),
+        b -> reshape(b, nfreq, 5, :),
+
         SinWaveEmbedder(latent_dim, nfreq), ## embed into sine wave
-        b -> reshape(b, latent_elements, 3, :), ## reshape to dims = (elements x fields x batch)
         LatentWaveNormalization(latent_dim, WATER)
-
-        # z -> permutedims(z, (2, 1, 3)), ## normalize the fields dimention
-        # NonTrainableScale([1.0f0, 1.0f0/WATER, 0.50f0]),
-        # z -> permutedims(z, (2, 1, 3))
-
-        # NormalizedDense(128, h_size, activation),
-        # Parallel(
-        #     vcat,
-        #     Chain(Dense(128, nfreq), SinWaveEmbedder(latent_dim, nfreq)),
-        #     Chain(Dense(128, nfreq), SinWaveEmbedder(latent_dim, nfreq)),
-        #     Chain(Dense(128, nfreq), SinWaveEmbedder(latent_dim, nfreq))
-        #     # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        #     # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        #     # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        # ),
     )
 
     return model
@@ -213,15 +212,6 @@ function HypernetDesignEncoder(
         activation::Function,
         latent_dim::OneDim)
 
-    # embedder = Chain(
-    #     Dense(2 * nfreq, h_size, activation),
-    #     Dense(h_size, h_size, activation),
-    #     Dense(h_size, h_size, activation),
-    #     Dense(h_size, h_size, activation),
-    #     Dense(h_size, 1),
-    #     c -> sigmoid.(c) .+ 0.20f0 ## need to set some sort of floor on the minimum wavespeed
-    #     )
-
     in_size = length(vec(design_space.low))
 
     layers = Chain(
@@ -230,14 +220,9 @@ function HypernetDesignEncoder(
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
-        Dense(h_size, nfreq),
-        c -> tanh.(c),
+        Dense(h_size, nfreq, tanh),
         SinWaveEmbedder(latent_dim, nfreq),
-        c -> sigmoid.(c) .+ 0.20f0
-
-        # NormalizedDense(h_size, h_size, activation),
-        # Hypernet(h_size, embedder, FrequencyDomain(latent_dim, nfreq)),
-        # c -> permutedims(c, (2, 1))
+        c -> sigmoid.(c .+ 0.5f0) .+ 0.20f0
     )
 
     return HypernetDesignEncoder(design_space, action_space, layers)
@@ -302,22 +287,52 @@ function LatentDynamics(dim::OneDim; ambient_speed, freq, pml_width, pml_scale)
     return LatentDynamics(ambient_speed, freq, pml, grad, bc)
 end
 
+# function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
+#     u = wave[:, 1]
+#     v = wave[:, 2]
+#     f = wave[:, 3]
+#     c = wave[:, 4]
+#     dc = wave[:, 5]
+
+#     force = f * sin(2.0f0 * pi * dyn.freq * t)
+#     du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
+#     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
+
+#     return hcat(
+#         du .* dyn.bc, ## remeber to turn bc off when using pml
+#         dv,
+#         f * 0.0f0,
+#         dc, 
+#         dc * 0.0f0
+#         )
+# end
+
 function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u = wave[:, 1]
-    v = wave[:, 2]
-    f = wave[:, 3]
-    c = wave[:, 4]
-    dc = wave[:, 5]
+    u_inc = wave[:, 1]
+    u_tot = wave[:, 2]
+    v_inc = wave[:, 3]
+    v_tot = wave[:, 4]
+    f = wave[:, 5]
+
+    c = wave[:, 6]
+    dc = wave[:, 7]
 
     force = f * sin(2.0f0 * pi * dyn.freq * t)
-    du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
-    dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
+
+    du_inc = dyn.C0 ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
+    du_tot = dyn.C0 ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
+
+    dv_inc = (dyn.grad * (u_inc .+ force)) .- dyn.pml .* v_inc
+    dv_tot = (dyn.grad * (u_tot .+ force)) .- dyn.pml .* v_tot
 
     return hcat(
-        du .* dyn.bc, ## remeber to turn bc off when using pml
-        dv,
+        du_inc .* dyn.bc,
+        du_tot .* dyn.bc,
+        dv_inc,
+        dv_tot,
         f * 0.0f0,
-        dc, 
+
+        dc,
         dc * 0.0f0
         )
 end
@@ -336,7 +351,8 @@ Flux.@functor ScatteredEnergyModel
 function (model::ScatteredEnergyModel)(latent_state::AbstractMatrix{Float32}, c_dc::AbstractMatrix{Float32})
     zi = hcat(latent_state, c_dc)
     z = model.iter(zi)
-    return (z[:, [1, 2, 3], end], z)
+    # return (z[:, [1, 2, 3], end], z) ## For latent dynamics
+    return (z[:, 1:end-2, end], z)
 end
 
 function flatten_repeated_last_dim(x::AbstractArray{Float32})
@@ -420,14 +436,16 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     fig = Figure(resolution = (1920, 1080), fontsize = 30)
     z_grid = fig[1, 1] = GridLayout()
 
-    ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan, z[:, 1, :], colormap = :ice)
+    # ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan, z[:, 1, :], colormap = :ice)
+    ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan, z[:, 2, :] .- z[:, 1, :], colormap = :ice)
     Colorbar(z_grid[1, 2], hm1)
     ax1.title = "Displacement"
     ax1.ylabel = "Time (s)"
     ax1.xticklabelsvisible = false
     ax1.xticksvisible = false
 
-    ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan, z[:, 2, :], colormap = :ice)
+    # ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan, z[:, 2, :], colormap = :ice)
+    ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan, z[:, 4, :] .- z[:, 3, :], colormap = :ice)
     Colorbar(z_grid[1, 4], hm2)
     ax2.title = "Velocity"
     ax2.xticklabelsvisible = false
@@ -435,7 +453,8 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     ax2.yticklabelsvisible = false
     ax2.yticksvisible = false
 
-    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 3, :], colormap = :ice, colorrange = (-1.0, 1.0))
+    # ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 3, :], colormap = :ice, colorrange = (-1.0, 1.0))
+    ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 5, :], colormap = :ice, colorrange = (-1.0, 1.0))
     Colorbar(z_grid[2, 2], hm3)
     ax3.title = "Force"
     ax3.xlabel = "Distance (m)"
@@ -445,7 +464,8 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
         z_grid[2, 3], 
         dim.x, 
         tspan, 
-        z[:, 4, :], 
+        # z[:, 4, :], 
+        z[:, 6, :],
         colormap = :ice, 
         colorrange = (0.0, 1.2)
         )
@@ -465,7 +485,10 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     axislegend(p_axis, position = :rb)
 
     save(joinpath(path, "latent.png"), fig)
-    render!(dim, cpu(z), path = joinpath(path, "vid.mp4"))
+
+    z_sc = z[:, 2, :] .- z[:, 1, :]
+    # z_sc = z[:, 1, :]
+    render!(dim, cpu(z_sc), path = joinpath(path, "vid.mp4"))
     return nothing
 end
 
@@ -506,6 +529,8 @@ function train_loop(
 
         trainmode!(model)
         for (j, batch) in enumerate(train_loader)
+            print(i)
+            print(" ")
             states, actions, tspans, sigmas = gpu(batch)
             
             # loss, back = Flux.pullback(m -> loss_func(m, states, actions, sigmas), model)
@@ -582,6 +607,38 @@ function train_loop(
     # close(lg)
 end
 
+function compute_manual_gradient(model::ScatteredEnergyModel, s::WaveEnvState, a::DesignSequence, sigma::AbstractMatrix{Float32})
+
+    y = flatten_repeated_last_dim(sigma)
+
+    uvf, back_wave_enc = Flux.pullback(m -> m(s)[:, :, 1], model.wave_encoder)
+    c, back_design_enc = Flux.pullback(m -> m(s, a), model.design_encoder)
+    
+    z, back_latent_dynamics = Flux.pullback(
+        (m, _uvf, _c) -> flatten_repeated_last_dim(generate_latent_solution(m, _uvf, _c))[:, :, :, :],
+        model, uvf, c)
+    
+    y_hat, back_mlp = Flux.pullback((m, _z) -> m(_z), model.mlp, z)
+    
+    loss, back_loss = Flux.pullback(_y_hat -> Flux.mse(_y_hat, y), y_hat)
+
+    loss_adj = back_loss(one(loss))[1]
+    mlp_adj = back_mlp(loss_adj)
+
+    latent_dynamics_adj = back_latent_dynamics(mlp_adj[2] ./ (model.iter.steps * length(a)))
+
+    gs = (
+        mlp = mlp_adj[1],
+        iter = latent_dynamics_adj[1].iter,
+        latent_dim = nothing,
+        design_space = nothing,
+        design_encoder = back_design_enc(latent_dynamics_adj[3])[1],
+        wave_encoder = back_wave_enc(latent_dynamics_adj[2])[1]
+        )
+
+    return loss, gs
+end
+
 function overfit(
         model::ScatteredEnergyModel, 
         s::Union{WaveEnvState, Vector{WaveEnvState}},
@@ -599,8 +656,11 @@ function overfit(
     trainmode!(model)
 
     for i in 1:n
+
         loss, back = Flux.pullback(m -> Flux.mse(m(s, a), y), model)
         gs = back(one(loss))[1]
+
+        # loss, gs = compute_manual_gradient(model, s[1], a[1], sigma[1])
         println("Update: $i, Loss: $loss")
         opt_state, model = Optimisers.update(opt_state, model, gs)
     end
@@ -629,10 +689,11 @@ function test_design_encoder(model::ScatteredEnergyModel, s::WaveEnvState, a::Ve
     display(c2 ≈ z[:, 4, end])
 end
 
-function reshape_latent_solution(z::AbstractArray{Float32})
-    z = z[:, [1, 2, 3, 4], :, :]
-    return reshape(z, (size(z, 1) * size(z, 2), :, size(z, ndims(z))))
-end
+# function reshape_latent_solution(z::AbstractArray{Float32})
+#     z = z[:, [1, 2, 3, 4], :, :]
+#     # z = z[:, 1:end-1, :, :]
+#     return reshape(z, (size(z, 1) * size(z, 2), :, size(z, ndims(z))))
+# end
 
 function build_mlp_decoder(latent_elements::Int, h_size::Int, activation::Function)
     return Chain(
@@ -646,33 +707,57 @@ function build_mlp_decoder(latent_elements::Int, h_size::Int, activation::Functi
     )
 end
 
-function build_full_cnn_decoder(latent_elements::Int, h_size::Int, k_size::Int, activation::Function)
+function build_scattered_wave_decoder(latent_elements::Int, h_size::Int, k_size::Int, activation::Function)
     return Chain(
+
+        x -> vcat(
+            x[:, 2, :, :] .- x[:, 1, :, :], 
+            x[:, 4, :, :] .- x[:, 3, :, :],
+            x[:, end-1, :, :]),
+            
         x -> permutedims(x, (2, 1, 3)),
 
         x -> pad_reflect(x, (k_size - 1, 0)),
+        Conv((k_size,), 3 * latent_elements => h_size, activation),
+
+        x -> pad_reflect(x, (k_size - 1, 0)),
+        Conv((k_size,), h_size => h_size, activation),
+
+        x -> pad_reflect(x, (k_size - 1, 0)),
+        Conv((k_size,), h_size => h_size, activation),
+
+        x -> pad_reflect(x, (k_size - 1, 0)),
+        Conv((k_size,), h_size => h_size, activation),
+
+        x -> pad_reflect(x, (k_size - 1, 0)),
+        Conv((k_size,), h_size => h_size, activation),
+
+        Conv((1,), h_size => 1),
+        flatten
+    )
+end
+
+function build_full_cnn_decoder(latent_elements::Int, h_size::Int, k_size::Int, activation::Function)
+    return Chain(
+        x -> permutedims(x, (2, 1, 3)),
+        x -> pad_reflect(x, (k_size - 1, 0)),
         Conv((k_size,), 4 * latent_elements => h_size),
-        # BatchNorm(h_size),
         activation,
 
         x -> pad_reflect(x, (k_size - 1, 0)),
         Conv((k_size,), h_size => h_size),
-        # BatchNorm(h_size),
         activation,
 
         x -> pad_reflect(x, (k_size - 1, 0)),
         Conv((k_size,), h_size => h_size),
-        # BatchNorm(h_size),
         activation,
 
         x -> pad_reflect(x, (k_size - 1, 0)),
         Conv((k_size,), h_size => h_size),
-        # BatchNorm(h_size),
         activation,
 
         x -> pad_reflect(x, (k_size - 1, 0)),
         Conv((k_size,), h_size => h_size),
-        # BatchNorm(h_size),
         activation,
 
         Conv((1,), h_size => 1),

@@ -5,8 +5,8 @@
 #SBATCH -p gpu
 #SBATCH -N 1
 #SBATCH -n 1
-# SBATCH -t 4-00:00:00
-## SBATCH -w cs001
+#SBATCH -t 4-00:00:00
+#SBATCH -w cs001
 
 #SBATCH -o logs/log-%j.out
 #SBATCH --mail-user=tristan.shah@sjsu.edu

@@ -25,6 +25,7 @@ function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, 
         Conv(k, in_channels => out_channels, pad = SamePad()),
         BatchNorm(out_channels),
         activation,
+        # Dropout(0.1),
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -145,19 +146,10 @@ Flux.trainable(::LatentWaveNormalization) = (;)
 sigmoid_step(x, l) = sigmoid.(-5.0f0 * (x .- l)) - sigmoid.(-5.0f0 * (x .+ l))
 
 function LatentWaveNormalization(dim::OneDim, C::Float32)
-
     u_weight = dim.x .^ 0.0f0
     f_weight = sigmoid_step(dim.x, dim.x[end] - 5.0f0)
-
-    return LatentWaveNormalization(
-        hcat(
-            u_weight, 
-            u_weight, 
-            u_weight ./ C, 
-            u_weight ./ C, 
-            f_weight
-            )[:, :, :]
-        )
+    # return LatentWaveNormalization(hcat(u_weight, u_weight, u_weight ./ C, u_weight ./ C, f_weight)[:, :, :])
+    return LatentWaveNormalization(hcat(f_weight, f_weight, f_weight ./ C, f_weight ./ C, f_weight)[:, :, :])
 end
 
 function (n::LatentWaveNormalization)(x)
@@ -179,8 +171,11 @@ function build_split_hypernet_wave_encoder(;
         input_layer,
         MeanPool((4, 4)),
         ResidualBlock((3, 3), 3, 32, activation),
+        # Dropout(0.1),
         ResidualBlock((3, 3), 32, 64, activation),
+        # Dropout(0.1),
         ResidualBlock((3, 3), 64, h_size, activation),
+        # Dropout(0.1),
         GlobalMaxPool(),
         flatten,
 
@@ -215,14 +210,17 @@ function HypernetDesignEncoder(
     in_size = length(vec(design_space.low))
 
     layers = Chain(
-        x -> x[:, :],
         Dense(in_size, h_size, activation),
+        # Dropout(0.1),
         Dense(h_size, h_size, activation),
+        # Dropout(0.1),
         Dense(h_size, h_size, activation),
+        # Dropout(0.1),
         Dense(h_size, h_size, activation),
+        # Dropout(0.1),
         Dense(h_size, nfreq, tanh),
         SinWaveEmbedder(latent_dim, nfreq),
-        c -> sigmoid.(c .+ 0.5f0) .+ 0.20f0
+        sigmoid
     )
 
     return HypernetDesignEncoder(design_space, action_space, layers)
@@ -242,8 +240,12 @@ action. Produces the wavespeed representation for the new design.
 """
 function (model::HypernetDesignEncoder)(d1::AbstractDesign, a::AbstractDesign)
     d2 = model.design_space(d1, a)
-    c = model.layers(normalize(d2, model.design_space))
-    return (d2, c)
+    return (d2, d2)
+end
+
+function (model::HypernetDesignEncoder)(d1::Vector{<: AbstractDesign}, a::Vector{<: AbstractDesign})
+    d2 = model.design_space.(d1, a)
+    return (d2, d2)
 end
 
 """
@@ -252,13 +254,44 @@ action.
 """
 function (model::HypernetDesignEncoder)(d::AbstractDesign, a::DesignSequence)
     recur = Recur(model, d)
-    return hcat(
-        model.layers(normalize(d, model.design_space)),
-        [recur(action) for action in a]...
-        )
+    design_sequence = vcat(d, [recur(action) for action in a])
+    x = hcat(normalize.(design_sequence, [model.design_space])...)[:, :, :]
+    return model.layers(x)
 end
 
 (model::HypernetDesignEncoder)(s::WaveEnvState, a::DesignSequence) = model(s.design, a)
+(model::HypernetDesignEncoder)(states::Vector{WaveEnvState}, actions::Vector{<: DesignSequence}) = model(
+    [s.design for s in states], 
+    hcat(actions...)
+    )
+
+function (model::HypernetDesignEncoder)(d::Vector{<: AbstractDesign}, a::Matrix{<: AbstractDesign})
+    recur = Recur(model, d)
+
+    design_sequences = hcat(d, [recur(a[i, :]) for i in axes(a, 1)]...)
+    x = normalize.(design_sequences, [model.design_space])
+    x_batch = cat([hcat(x[i, :]...) for i in axes(x, 1)]..., dims = 3)
+    return model.layers(x_batch)
+    # cat([hcat(x[:, i]...) for i in axes(x, 2)]..., dims = 3)
+
+    # model.layers(hcat(normalize.(recur(a[1, :]), [model.design_space])...))
+
+    # design_sequence = hcat(d, [recur(a[i, :]) for i in axes(a, 1)]...)
+
+    # normalize.(design_sequence, [model.design_space])
+
+
+    # design_sequence = permutedims(
+    #     hcat(
+    #         d, 
+    #         [recur(a[i, :]) for i in axes(a, 1)]...
+    #         ), 
+    #         (2, 1))
+
+    # x = hcat(normalize.(design_sequence, [model.design_space])...)
+    # x_batch = reshape(x, (:, size(a, 1) + 1, size(a, 2)))
+    # return model.layers(x_batch)
+end
 
 """
 Converts a sequence of wavespeed fields into an array of (elements x steps x 2) where the 
@@ -267,6 +300,20 @@ last dimention contains the initial wavespeed field and dwavespeed/dt.
 function build_wavespeed_fields(c::AbstractMatrix{Float32})
     dc = diff(c, dims = 2) ./ 1.0f-3 ## hardcoded for now
     return cat(c[:, 1:size(c, ndims(c))-1], dc, dims = 3)
+end
+
+"""
+Batchwise implementation
+"""
+function build_wavespeed_fields(c::AbstractArray{Float32, 3})
+
+    dc = diff(c, dims = 2) ./ 1.0f-3 ## hardcoded for now
+
+    return cat(
+        Flux.unsqueeze(c[:, 1:end-1, :], dims = 3),
+        Flux.unsqueeze(dc, dims = 3),
+        dims = 3
+        )
 end
 
 struct LatentDynamics <: AbstractDynamics
@@ -337,6 +384,35 @@ function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
         )
 end
 
+## batch implementation
+function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
+    u_inc = wave[:, 1, :]
+    u_tot = wave[:, 2, :]
+    v_inc = wave[:, 3, :]
+    v_tot = wave[:, 4, :]
+    f = wave[:, 5, :]
+    c = wave[:, 6, :]
+    dc = wave[:, 7, :]
+
+    force = f * sin(2.0f0 * pi * dyn.freq * t)
+
+    du_inc = dyn.C0 ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
+    du_tot = dyn.C0 ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
+
+    dv_inc = (dyn.grad * (u_inc .+ force)) .- dyn.pml .* v_inc
+    dv_tot = (dyn.grad * (u_tot .+ force)) .- dyn.pml .* v_tot
+
+    return hcat(
+        Flux.unsqueeze(du_inc .* dyn.bc, dims = 2),
+        Flux.unsqueeze(du_tot .* dyn.bc, dims = 2),
+        Flux.unsqueeze(dv_inc, dims = 2),
+        Flux.unsqueeze(dv_tot, dims = 2),
+        Flux.unsqueeze(f * 0.0f0, dims = 2),
+        Flux.unsqueeze(dc, dims = 2),
+        Flux.unsqueeze(dc * 0.0f0, dims = 2)
+        )
+end
+
 struct ScatteredEnergyModel
     wave_encoder::Chain
     design_encoder::HypernetDesignEncoder
@@ -347,13 +423,6 @@ struct ScatteredEnergyModel
 end
 
 Flux.@functor ScatteredEnergyModel
-
-function (model::ScatteredEnergyModel)(latent_state::AbstractMatrix{Float32}, c_dc::AbstractMatrix{Float32})
-    zi = hcat(latent_state, c_dc)
-    z = model.iter(zi)
-    # return (z[:, [1, 2, 3], end], z) ## For latent dynamics
-    return (z[:, 1:end-2, end], z)
-end
 
 function flatten_repeated_last_dim(x::AbstractArray{Float32})
 
@@ -372,35 +441,42 @@ function flatten_repeated_last_dim(x::Vector{<:AbstractMatrix{Float32}})
     return hcat(flatten_repeated_last_dim.(x)...)
 end
 
-function generate_latent_solution(model::ScatteredEnergyModel, latent_state::AbstractMatrix{Float32}, c::AbstractMatrix{Float32})
-    c_dc = build_wavespeed_fields(c)
-    recur = Recur(model, latent_state)
-    return cat([recur(c_dc[:, i, :]) for i in axes(c_dc, 2)]..., dims = 4)
+mutable struct CustomRecur{T,S}
+    cell::T
+    state::S
 end
 
-function generate_latent_solution(model::ScatteredEnergyModel, s::WaveEnvState, a::DesignSequence)
-    latent_state = model.wave_encoder(s)[:, :, 1]
-    c = model.design_encoder(s.design, a)
-    z = flatten_repeated_last_dim(generate_latent_solution(model, latent_state, c))
-    return Flux.unsqueeze(z, dims = ndims(z) + 1)
+function (m::CustomRecur)(x)
+    m.state, y = m.cell(m.state, x)
+    return y
 end
 
-function generate_latent_solution(model::ScatteredEnergyModel, s::Vector{WaveEnvState}, a::Vector{<: DesignSequence})
-    latent_state = Flux.unbatch(model.wave_encoder(s))
-    c = model.design_encoder.(s, a)
-    z = cat(flatten_repeated_last_dim.(generate_latent_solution.([model], latent_state, c))..., dims = 4)
-    return z
+Flux.@functor CustomRecur
+trainable(a::CustomRecur) = (; cell = a.cell)
+
+function (model::ScatteredEnergyModel)(latent_state::AbstractArray{Float32, 3}, c_dc::AbstractArray{Float32, 3})
+    zi = hcat(latent_state, c_dc)
+    z = model.iter(zi)
+    next_latent_state = z[:, 1:end-2, :, end]
+    return (next_latent_state, z)
+end
+
+function generate_latent_solution(model::ScatteredEnergyModel, s, a)
+    uvf = model.wave_encoder(s)
+    c_dc = build_wavespeed_fields(model.design_encoder(s, a))
+    recur = CustomRecur(model, uvf)
+    z = flatten_repeated_last_dim(cat([recur(c_dc[:, i, :, :]) for i in axes(c_dc, 2)]..., dims = 5))
+    return permutedims(z, (1, 2, 4, 3))
 end
 
 function (model::ScatteredEnergyModel)(
         s::Union{WaveEnvState, Vector{WaveEnvState}}, 
         a::Union{
             DesignSequence, 
-            Vector{<: DesignSequence}
-            }
-        )
-    
+            Vector{<: DesignSequence}})
+
     z = generate_latent_solution(model, s, a)
+
     return model.mlp(z)
 end
 
@@ -425,13 +501,9 @@ end
 function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
 
     tspan = cpu(flatten_repeated_last_dim(tspan))
-
-    latent_state = model.wave_encoder(s)[:, :, 1]
-    design = s.design
-
-    z = cpu(flatten_repeated_last_dim(generate_latent_solution(model, s, a)))
+    z = cpu(generate_latent_solution(model, s, a)[:, :, :, 1])
     dim = cpu(model.latent_dim)
-    pred_sigma = cpu(model(s, a))[:, 1]
+    pred_sigma = cpu(vec(model(s, a)))
 
     fig = Figure(resolution = (1920, 1080), fontsize = 30)
     z_grid = fig[1, 1] = GridLayout()
@@ -529,12 +601,8 @@ function train_loop(
 
         trainmode!(model)
         for (j, batch) in enumerate(train_loader)
-            print(i)
-            print(" ")
+            print("#")
             states, actions, tspans, sigmas = gpu(batch)
-            
-            # loss, back = Flux.pullback(m -> loss_func(m, states, actions, sigmas), model)
-            # gs = back(one(loss))[1]
 
             y = flatten_repeated_last_dim(sigmas)
             loss, back = Flux.pullback(m -> loss_func(m(states, actions), y), model)
@@ -548,6 +616,8 @@ function train_loop(
             end
         end
 
+        println("")
+
         opt_state = Optimisers.adjust(opt_state, lr * decay_rate ^ i)
 
         push!(metrics[:train_loss], sum(epoch_loss) / train_steps)
@@ -555,24 +625,27 @@ function train_loop(
         epoch_path = mkpath(joinpath(path, "epoch_$i"))
 
         testmode!(model)
+
+        k = 1
+
         for (j, batch) in enumerate(val_loader)
             states, actions, tspans, sigmas = gpu(batch)
 
-            # loss = loss_func(model, states, actions, sigmas)
             y = flatten_repeated_last_dim(sigmas)
             loss = loss_func(model(states, actions), y)
 
             push!(epoch_loss, loss)
 
-            if j <= evaluation_samples
-                latent_path = mkpath(joinpath(epoch_path, "latent_$j"))
+            eval_path = mkpath(joinpath(epoch_path, "eval"))
 
+            if k <= evaluation_samples
                 for (i, (s, a, tspan, sigma)) in enumerate(zip(states, actions, tspans, sigmas))
-                    try
-                        ## change this back s versus s[1]
-                        @time visualize!(model, s, a, tspan, sigma, path = mkpath(joinpath(latent_path, "$i")))
-                    catch e
-                        println(e)
+
+                    @time visualize!(model, s, a, tspan, sigma, path = mkpath(joinpath(eval_path, "$k")))
+
+                    k += 1
+                    if k >= evaluation_samples
+                        break
                     end
                 end
             end
@@ -599,8 +672,8 @@ function train_loop(
 
         if i % checkpoint_every == 0 || i == epochs
             println("Checkpointing")
-
             BSON.bson(joinpath(epoch_path, "model.bson"), model = cpu(model))
+            BSON.bson(joinpath(epoch_path, "opt_state.bson"), opt_state = cpu(opt_state))
         end
     end
 
@@ -667,7 +740,11 @@ function overfit(
 
     testmode!(model)
 
-    visualize!(model, s, a, t, sigma, path = path)
+    # visualize!(model, s, a, t, sigma, path = path)
+
+    visualize!(model, s[1], a[1], t[1], sigma[1], path = mkpath("1"))
+    visualize!(model, s[2], a[2], t[2], sigma[2], path = mkpath("2"))
+    visualize!(model, s[3], a[3], t[3], sigma[3], path = mkpath("3"))
     return model
 end
 
@@ -714,7 +791,7 @@ function build_scattered_wave_decoder(latent_elements::Int, h_size::Int, k_size:
             x[:, 2, :, :] .- x[:, 1, :, :], 
             x[:, 4, :, :] .- x[:, 3, :, :],
             x[:, end-1, :, :]),
-            
+
         x -> permutedims(x, (2, 1, 3)),
 
         x -> pad_reflect(x, (k_size - 1, 0)),

@@ -25,7 +25,6 @@ function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, 
         Conv(k, in_channels => out_channels, pad = SamePad()),
         BatchNorm(out_channels),
         activation,
-        # Dropout(0.1),
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
 
@@ -148,7 +147,11 @@ sigmoid_step(x, l) = sigmoid.(-5.0f0 * (x .- l)) - sigmoid.(-5.0f0 * (x .+ l))
 function LatentWaveNormalization(dim::OneDim, C::Float32)
     u_weight = dim.x .^ 0.0f0
     f_weight = sigmoid_step(dim.x, dim.x[end] - 5.0f0)
+
+    ## only constraining the force term to the smaller area
     # return LatentWaveNormalization(hcat(u_weight, u_weight, u_weight ./ C, u_weight ./ C, f_weight)[:, :, :])
+
+    ## constraining all fields to small area
     return LatentWaveNormalization(hcat(f_weight, f_weight, f_weight ./ C, f_weight ./ C, f_weight)[:, :, :])
 end
 
@@ -178,9 +181,6 @@ function build_split_hypernet_wave_encoder(;
         # Dropout(0.1),
         GlobalMaxPool(),
         flatten,
-
-        # Dense(h_size, 3 * nfreq, tanh), ## output frequencies for all fields (u, v, f)
-        # b -> reshape(b, nfreq, 3, :),
         Dense(h_size, 5 * nfreq, tanh),
         b -> reshape(b, nfreq, 5, :),
 
@@ -272,25 +272,6 @@ function (model::HypernetDesignEncoder)(d::Vector{<: AbstractDesign}, a::Matrix{
     x = normalize.(design_sequences, [model.design_space])
     x_batch = cat([hcat(x[i, :]...) for i in axes(x, 1)]..., dims = 3)
     return model.layers(x_batch)
-    # cat([hcat(x[:, i]...) for i in axes(x, 2)]..., dims = 3)
-
-    # model.layers(hcat(normalize.(recur(a[1, :]), [model.design_space])...))
-
-    # design_sequence = hcat(d, [recur(a[i, :]) for i in axes(a, 1)]...)
-
-    # normalize.(design_sequence, [model.design_space])
-
-
-    # design_sequence = permutedims(
-    #     hcat(
-    #         d, 
-    #         [recur(a[i, :]) for i in axes(a, 1)]...
-    #         ), 
-    #         (2, 1))
-
-    # x = hcat(normalize.(design_sequence, [model.design_space])...)
-    # x_batch = reshape(x, (:, size(a, 1) + 1, size(a, 2)))
-    # return model.layers(x_batch)
 end
 
 """
@@ -354,35 +335,35 @@ end
 #         )
 # end
 
-function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u_inc = wave[:, 1]
-    u_tot = wave[:, 2]
-    v_inc = wave[:, 3]
-    v_tot = wave[:, 4]
-    f = wave[:, 5]
+# function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
+#     u_inc = wave[:, 1]
+#     u_tot = wave[:, 2]
+#     v_inc = wave[:, 3]
+#     v_tot = wave[:, 4]
+#     f = wave[:, 5]
 
-    c = wave[:, 6]
-    dc = wave[:, 7]
+#     c = wave[:, 6]
+#     dc = wave[:, 7]
 
-    force = f * sin(2.0f0 * pi * dyn.freq * t)
+#     force = f * sin(2.0f0 * pi * dyn.freq * t)
 
-    du_inc = dyn.C0 ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
-    du_tot = dyn.C0 ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
+#     du_inc = dyn.C0 ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
+#     du_tot = dyn.C0 ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
 
-    dv_inc = (dyn.grad * (u_inc .+ force)) .- dyn.pml .* v_inc
-    dv_tot = (dyn.grad * (u_tot .+ force)) .- dyn.pml .* v_tot
+#     dv_inc = (dyn.grad * (u_inc .+ force)) .- dyn.pml .* v_inc
+#     dv_tot = (dyn.grad * (u_tot .+ force)) .- dyn.pml .* v_tot
 
-    return hcat(
-        du_inc .* dyn.bc,
-        du_tot .* dyn.bc,
-        dv_inc,
-        dv_tot,
-        f * 0.0f0,
+#     return hcat(
+#         du_inc .* dyn.bc,
+#         du_tot .* dyn.bc,
+#         dv_inc,
+#         dv_tot,
+#         f * 0.0f0,
 
-        dc,
-        dc * 0.0f0
-        )
-end
+#         dc,
+#         dc * 0.0f0
+#         )
+# end
 
 ## batch implementation
 function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
@@ -454,13 +435,21 @@ end
 Flux.@functor CustomRecur
 trainable(a::CustomRecur) = (; cell = a.cell)
 
+
+"""
+Inputs to this function are the latent state containing displacement, velocity and force fields
+and also the c_dc which is the current design state and the rate at which the design changes.
+"""
 function (model::ScatteredEnergyModel)(latent_state::AbstractArray{Float32, 3}, c_dc::AbstractArray{Float32, 3})
     zi = hcat(latent_state, c_dc)
     z = model.iter(zi)
-    next_latent_state = z[:, 1:end-2, :, end]
+    next_latent_state = z[:, 1:end-2, :, end] ## (features x fields x batch x sequence)
     return (next_latent_state, z)
 end
 
+"""
+Propagates the latent solutions batchwise. Outputs a tensor: (features x fields x sequence x batch)
+"""
 function generate_latent_solution(model::ScatteredEnergyModel, s, a)
     uvf = model.wave_encoder(s)
     c_dc = build_wavespeed_fields(model.design_encoder(s, a))
@@ -480,35 +469,13 @@ function (model::ScatteredEnergyModel)(
     return model.mlp(z)
 end
 
-"""
-Computes the gradient of the model parameters with respect to the loss function on a batch of
-data.
-"""
-function compute_gradient(
-        model::ScatteredEnergyModel, 
-        states::Vector{WaveEnvState}, 
-        actions::Vector{<: DesignSequence},
-        sigmas::Vector{<: AbstractArray{Float32}}, 
-        loss_func::Function)
+function plot_latent_simulation_and_scattered_energy!(model::ScatteredEnergyModel, tspan::Vector, z::Array{Float32, 3}, sigma_pred::Vector, sigma_true::Vector; path::String)
 
-    y = hcat(flatten_repeated_last_dim.(sigmas)...)
-    loss, back = Flux.pullback(m -> loss_func(m(states, actions), y), model)
-    gs = back(one(loss))[1]
-
-    return loss, gs
-end
-
-function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String)
-
-    tspan = cpu(flatten_repeated_last_dim(tspan))
-    z = cpu(generate_latent_solution(model, s, a)[:, :, :, 1])
     dim = cpu(model.latent_dim)
-    pred_sigma = cpu(vec(model(s, a)))
 
     fig = Figure(resolution = (1920, 1080), fontsize = 30)
     z_grid = fig[1, 1] = GridLayout()
 
-    # ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan, z[:, 1, :], colormap = :ice)
     ax1, hm1 = heatmap(z_grid[1, 1], dim.x, tspan, z[:, 2, :] .- z[:, 1, :], colormap = :ice)
     Colorbar(z_grid[1, 2], hm1)
     ax1.title = "Displacement"
@@ -516,7 +483,6 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     ax1.xticklabelsvisible = false
     ax1.xticksvisible = false
 
-    # ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan, z[:, 2, :], colormap = :ice)
     ax2, hm2 = heatmap(z_grid[1, 3], dim.x, tspan, z[:, 4, :] .- z[:, 3, :], colormap = :ice)
     Colorbar(z_grid[1, 4], hm2)
     ax2.title = "Velocity"
@@ -525,23 +491,13 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
     ax2.yticklabelsvisible = false
     ax2.yticksvisible = false
 
-    # ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 3, :], colormap = :ice, colorrange = (-1.0, 1.0))
     ax3, hm3 = heatmap(z_grid[2, 1], dim.x, tspan, z[:, 5, :], colormap = :ice, colorrange = (-1.0, 1.0))
     Colorbar(z_grid[2, 2], hm3)
     ax3.title = "Force"
     ax3.xlabel = "Distance (m)"
     ax3.ylabel = "Time (s)"
 
-    ax4, hm4 = heatmap(
-        z_grid[2, 3], 
-        dim.x, 
-        tspan, 
-        # z[:, 4, :], 
-        z[:, 6, :],
-        colormap = :ice, 
-        colorrange = (0.0, 1.2)
-        )
-
+    ax4, hm4 = heatmap(z_grid[2, 3], dim.x, tspan, z[:, 6, :], colormap = :ice, colorrange = (0.0, 1.2))
     Colorbar(z_grid[2, 4], hm4)
     ax4.title = "Wave Speed"
     ax4.xlabel = "Distance (m)"
@@ -550,24 +506,25 @@ function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan:
 
     p_grid = fig[1, 2] = GridLayout()
     p_axis = Axis(p_grid[1, 1], title = "Prediction of Scattered Energy Versus Ground Truth", xlabel = "Time (s)", ylabel = "Scattered Energy (σ)")
-
-    sigma = cpu(flatten_repeated_last_dim(sigma))
-    lines!(p_axis, tspan, sigma, color = :blue, label = "True")
-    lines!(p_axis, tspan, pred_sigma, color = :orange, label = "Predicted")
+    lines!(p_axis, tspan, sigma_true, color = :blue, label = "True")
+    lines!(p_axis, tspan, sigma_pred, color = :orange, label = "Predicted")
     axislegend(p_axis, position = :rb)
-
-    save(joinpath(path, "latent.png"), fig)
-
-    z_sc = z[:, 2, :] .- z[:, 1, :]
-    # z_sc = z[:, 1, :]
-    render!(dim, cpu(z_sc), path = joinpath(path, "vid.mp4"))
-    return nothing
+    save(path, fig)
 end
 
-function visualize!(model::ScatteredEnergyModel, states::Vector{WaveEnvState}, actions::Vector{<: DesignSequence}, tspans::Vector{<: AbstractMatrix{Float32}}, sigmas::Vector{<: AbstractMatrix{Float32}}; path::String)
+function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String, render::Bool = false)
+    z = generate_latent_solution(model, s, a)
     
-    for i in axes(states, 1)
-        visualize!(model, states[i], actions[i], tspans[i], sigmas[i], path = mkpath(joinpath(path, "$i")))
+    tspan = cpu(flatten_repeated_last_dim(tspan))
+    sigma_pred = vec(cpu(model.mlp(z[:, :, :, [1]])))
+    sigma_true = cpu(flatten_repeated_last_dim(sigma))
+
+    plot_latent_simulation_and_scattered_energy!(model, tspan, cpu(z[:, :, :, 1]), sigma_pred, sigma_true, path = joinpath(path, "latent.png"))
+
+    z_sc = cpu(z[:, 2, :] .- z[:, 1, :])
+    
+    if render
+        render!(cpu(model.latent_dim), z_sc, path = joinpath(path, "vid.mp4"))
     end
 
     return nothing
@@ -583,15 +540,11 @@ function train_loop(
         epochs::Int,
         lr::AbstractFloat,
         decay_rate::Float32,
-        latent_dim::OneDim,
         evaluation_samples::Int,
         checkpoint_every::Int,
         path::String,
         opt,
         )
-
-    # lg = WandbLogger(;project = "Waves.jl")
-    # global_logger(lg)
 
     opt_state = Optimisers.setup(opt, model)
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
@@ -668,48 +621,12 @@ function train_loop(
         val_loss = metrics[:val_loss][end]
         println("Epoch: $i, Train Loss: $train_loss, Val Loss: $val_loss")
 
-        # Wandb.log(lg, Dict("Epoch" => i, "Train Loss" => train_loss, "Val Loss" => val_loss))
-
         if i % checkpoint_every == 0 || i == epochs
             println("Checkpointing")
             BSON.bson(joinpath(epoch_path, "model.bson"), model = cpu(model))
             BSON.bson(joinpath(epoch_path, "opt_state.bson"), opt_state = cpu(opt_state))
         end
     end
-
-    # close(lg)
-end
-
-function compute_manual_gradient(model::ScatteredEnergyModel, s::WaveEnvState, a::DesignSequence, sigma::AbstractMatrix{Float32})
-
-    y = flatten_repeated_last_dim(sigma)
-
-    uvf, back_wave_enc = Flux.pullback(m -> m(s)[:, :, 1], model.wave_encoder)
-    c, back_design_enc = Flux.pullback(m -> m(s, a), model.design_encoder)
-    
-    z, back_latent_dynamics = Flux.pullback(
-        (m, _uvf, _c) -> flatten_repeated_last_dim(generate_latent_solution(m, _uvf, _c))[:, :, :, :],
-        model, uvf, c)
-    
-    y_hat, back_mlp = Flux.pullback((m, _z) -> m(_z), model.mlp, z)
-    
-    loss, back_loss = Flux.pullback(_y_hat -> Flux.mse(_y_hat, y), y_hat)
-
-    loss_adj = back_loss(one(loss))[1]
-    mlp_adj = back_mlp(loss_adj)
-
-    latent_dynamics_adj = back_latent_dynamics(mlp_adj[2] ./ (model.iter.steps * length(a)))
-
-    gs = (
-        mlp = mlp_adj[1],
-        iter = latent_dynamics_adj[1].iter,
-        latent_dim = nothing,
-        design_space = nothing,
-        design_encoder = back_design_enc(latent_dynamics_adj[3])[1],
-        wave_encoder = back_wave_enc(latent_dynamics_adj[2])[1]
-        )
-
-    return loss, gs
 end
 
 function overfit(
@@ -723,7 +640,6 @@ function overfit(
         path::String = "")
 
     y = flatten_repeated_last_dim(sigma)
-
     opt_state = Optimisers.setup(opt, model)
 
     trainmode!(model)
@@ -732,45 +648,17 @@ function overfit(
 
         loss, back = Flux.pullback(m -> Flux.mse(m(s, a), y), model)
         gs = back(one(loss))[1]
-
-        # loss, gs = compute_manual_gradient(model, s[1], a[1], sigma[1])
         println("Update: $i, Loss: $loss")
         opt_state, model = Optimisers.update(opt_state, model, gs)
     end
 
     testmode!(model)
 
-    # visualize!(model, s, a, t, sigma, path = path)
-
     visualize!(model, s[1], a[1], t[1], sigma[1], path = mkpath("1"))
     visualize!(model, s[2], a[2], t[2], sigma[2], path = mkpath("2"))
     visualize!(model, s[3], a[3], t[3], sigma[3], path = mkpath("3"))
     return model
 end
-
-function test_design_encoder(model::ScatteredEnergyModel, s::WaveEnvState, a::Vector{<: AbstractDesign})
-    
-    d1 = s.design
-    d2 = model.design_space(d1, a[1])
-    
-    c1 = model.design_encoder.layers(normalize(d1, model.design_space))
-    c2 = model.design_encoder.layers(normalize(d2, model.design_space))
-    
-    uvf = model.wave_encoder(s)[:, :, 1]
-    c = model.design_encoder(s.design, a[1])
-    z = model.iter(hcat(uvf, c))
-    
-    display(c1 ≈ c2)
-    display(z[:, 4, 1] ≈ z[:, 4, end])
-    display(c1 ≈ z[:, 4, 1])
-    display(c2 ≈ z[:, 4, end])
-end
-
-# function reshape_latent_solution(z::AbstractArray{Float32})
-#     z = z[:, [1, 2, 3, 4], :, :]
-#     # z = z[:, 1:end-1, :, :]
-#     return reshape(z, (size(z, 1) * size(z, 2), :, size(z, ndims(z))))
-# end
 
 function build_mlp_decoder(latent_elements::Int, h_size::Int, activation::Function)
     return Chain(
@@ -808,34 +696,6 @@ function build_scattered_wave_decoder(latent_elements::Int, h_size::Int, k_size:
 
         x -> pad_reflect(x, (k_size - 1, 0)),
         Conv((k_size,), h_size => h_size, activation),
-
-        Conv((1,), h_size => 1),
-        flatten
-    )
-end
-
-function build_full_cnn_decoder(latent_elements::Int, h_size::Int, k_size::Int, activation::Function)
-    return Chain(
-        x -> permutedims(x, (2, 1, 3)),
-        x -> pad_reflect(x, (k_size - 1, 0)),
-        Conv((k_size,), 4 * latent_elements => h_size),
-        activation,
-
-        x -> pad_reflect(x, (k_size - 1, 0)),
-        Conv((k_size,), h_size => h_size),
-        activation,
-
-        x -> pad_reflect(x, (k_size - 1, 0)),
-        Conv((k_size,), h_size => h_size),
-        activation,
-
-        x -> pad_reflect(x, (k_size - 1, 0)),
-        Conv((k_size,), h_size => h_size),
-        activation,
-
-        x -> pad_reflect(x, (k_size - 1, 0)),
-        Conv((k_size,), h_size => h_size),
-        activation,
 
         Conv((1,), h_size => 1),
         flatten

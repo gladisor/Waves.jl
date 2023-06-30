@@ -108,9 +108,6 @@ function RLBase.reset!(env::WaveEnv)
     push!(env.wave_total, env.reset_wave(z))
     push!(env.wave_incident, env.reset_wave(z))
 
-    # env.wave_total = gpu(env.reset_wave(env.wave_total))
-    # env.wave_incident = gpu(env.reset_wave(env.wave_incident))
-
     design = DesignInterpolator(rand(env.design_space))
 
     env.total_dynamics = WaveDynamics(
@@ -135,16 +132,10 @@ function (env::WaveEnv)(action::AbstractDesign)
     env.total_dynamics = update_design(env.total_dynamics, interp)
 
     total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
-    # u_total = unbatch(total_iter(env.wave_total))
-    # env.wave_total = u_total[end]
-
     u_total = unbatch(total_iter(env.wave_total[end]))
     push!(env.wave_total, u_total[end])
 
     incident_iter = Integrator(runge_kutta, env.incident_dynamics, ti, env.dt, env.integration_steps)
-    # u_incident = unbatch(incident_iter(env.wave_incident))
-    # env.wave_incident = u_incident[end]
-
     u_incident = unbatch(incident_iter(env.wave_incident[end]))
     push!(env.wave_incident, u_incident[end])
 

@@ -64,7 +64,7 @@ action_speed = 500.0f0
 freq = 1000.0f0
 pml_width = 5.0f0
 pml_scale = 10000.0f0
-actions = 100
+actions = 200 #100
 integration_steps = 100
 ## point source settings
 pulse_x = -10.0f0
@@ -74,7 +74,7 @@ pulse_intensity = 10.0f0
 episodes = 1000
 ## declaring name of dataset
 design_space_func = build_triple_ring_design_space
-name = "design_space=$(design_space_func)_freq=$(freq)"
+name = "actions=$(actions)_design_space=$(design_space_func)_freq=$(freq)"
 
 ## building FEM grid
 dim = TwoDim(grid_size, elements)
@@ -105,8 +105,8 @@ data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
 BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
 
 # rendering a sample animation
-println("Rendering Example")
-@time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.2f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+# println("Rendering Example")
+# @time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 
 # starting data generation loop
 println("Generating Data")

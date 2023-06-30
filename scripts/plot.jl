@@ -1,20 +1,28 @@
-# export plot_episode_data!, plot_sigma!, render!
 using Interpolations
 using Interpolations: Extrapolation
 using CairoMakie
 
 const FRAMES_PER_SECOND = 24
 
-function plot_sigma!(episode::EpisodeData; path::String)
-    fig = Figure()
-    ax = Axis(fig[1, 1], title = "Total Scattered Energy During Episode", xlabel = "Time (s)", ylabel = "Total Scattered Energy")
+function render!(dim::OneDim, u::AbstractMatrix{Float32}; path::String)
 
-    for i in 1:length(episode)
-        lines!(ax, episode.tspans[i], episode.sigmas[i], color = :blue)
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Latent Wave Displacement Animation", xlabel = "Space (m)", ylabel = "Displacement (m)")
+    xlims!(ax, dim.x[1], dim.x[end])
+
+    min_u = minimum(u)
+    max_u = maximum(u)
+
+    if max_u ≈ min_u
+        ylims!(ax, -0.10f0, 0.10f0)
+    else
+        ylims!(ax, min_u, max_u)
     end
 
-    save(path, fig)
-    return nothing
+    CairoMakie.record(fig, path, axes(u, 2), framerate = 60) do i
+        empty!(ax)
+        lines!(ax, dim.x, u[:, i], color = :blue)
+    end
 end
 
 function render!(;
@@ -89,31 +97,4 @@ function render!(policy::AbstractPolicy, env::WaveEnv; kwargs...)
         u_total = u_total,
         design = d; 
         kwargs...)
-end
-
-# function render!(dim::OneDim, u::AbstractArray{Float32, 3}; path::String)
-function render!(dim::OneDim, u::AbstractMatrix{Float32}; path::String)
-
-    fig = Figure()
-    ax = Axis(fig[1, 1], title = "Latent Wave Displacement Animation", xlabel = "Space (m)", ylabel = "Displacement (m)")
-
-    xlims!(ax, dim.x[1], dim.x[end])
-
-    # min_u = minimum(u[:, 1, :])
-    # max_u = maximum(u[:, 1, :])
-    min_u = minimum(u)
-    max_u = maximum(u)
-
-    if max_u ≈ min_u
-        ylims!(ax, -0.10f0, 0.10f0)
-    else
-        ylims!(ax, min_u, max_u)
-    end
-
-    # CairoMakie.record(fig, path, axes(u, 3), framerate = 60) do i
-    CairoMakie.record(fig, path, axes(u, 2), framerate = 60) do i
-        empty!(ax)
-        # lines!(ax, dim.x, u[:, 1, i], color = :blue)
-        lines!(ax, dim.x, u[:, i], color = :blue)
-    end
 end

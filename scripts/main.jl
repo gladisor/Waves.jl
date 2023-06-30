@@ -15,11 +15,11 @@ include("plot.jl")
 
 Flux.device!(0)
 
-main_path = "/scratch/cmpe299-fa22/tristan/data/design_space=build_triple_ring_design_space_freq=1000.0"
+main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
 data_path = joinpath(main_path, "episodes")
 
 println("Loading Environment")
-env = BSON.load(joinpath(data_path, "env.bson"))[:env] |> gpu
+env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
 dim = cpu(env.dim)
 reset!(env)
 policy = RandomDesignPolicy(action_space(env))
@@ -42,10 +42,10 @@ latent_grid_size = 15.0f0
 latent_elements = 512
 horizon = 20
 wave_input_layer = TotalWaveInput()
-batchsize = 64
+batchsize = 32
 
 pml_width = 10.0f0
-pml_scale = 0.0f0 #10000.0f0
+pml_scale = 10000.0f0
 lr = 1e-4
 decay_rate = 1.0f0
 k_size = 2
@@ -53,7 +53,7 @@ steps = 20
 epochs = 500
 loss_func = Flux.mse
 
-MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV9/dropout_horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
+MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV9/horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
 println(MODEL_PATH)
 
 println("Initializing Model Components")
@@ -68,8 +68,8 @@ model = gpu(ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter,
 
 println("Initializing DataLoaders")
 @time begin
-    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:180])
-    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 181:200])
+    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:70])
+    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 71:75])
     # train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
     # val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
     train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
@@ -77,19 +77,46 @@ println("Initializing DataLoaders")
 end
 
 opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(lr))
+states, actions, tspans, sigmas = gpu(first(train_loader))
+
+# visualize!(model, states[1], actions[1], tspans[1], sigmas[1], path = "")
+
+# plot_latent_simulation_and_scattered_energy!(model, tspans[1], )
+
+# z_nopml = generate_latent_solution(model, states, actions)
+# z_pml = generate_latent_solution(model, states, actions)
+
+# pml_energy = cpu(vec(sum((z_pml[:, 2, :, 1] .- z_pml[:, 1, :, 1]) .^ 2, dims = 1)))
+# nopml_energy = cpu(vec(sum((z_nopml[:, 2, :, 1] .- z_nopml[:, 1, :, 1]) .^ 2, dims = 1)))
+
+# pml_energy = cpu(vec(sum((z_pml[:, 2, :, 1]) .^ 2, dims = 1)))
+# nopml_energy = cpu(vec(sum((z_nopml[:, 2, :, 1]) .^ 2, dims = 1)))
+
+# t = cpu(flatten_repeated_last_dim(tspans[1]))
+# fig = Figure()
+# ax = Axis(
+#     fig[1, 1],
+#     title = "Comparison of Scattered Energy During Latent Simulation",
+#     xlabel = "Time (s)",
+#     ylabel = "Sum of Squared Displacement"
+#     )
+
+# lines!(ax, t, nopml_energy, color = :blue, label = "No PML")
+# lines!(ax, t, pml_energy, color = :orange, label = "PML")
+# axislegend(ax)
+# save("total_energy.png", fig)
 
 println("Training")
 train_loop(
     model,
     loss_func = loss_func,
     train_steps = steps,
-    train_loader = train_loader,
     val_steps = steps,
+    train_loader = train_loader,
     val_loader = val_loader,
     epochs = epochs,
     lr = lr,
     decay_rate = decay_rate,
-    latent_dim = latent_dim,
     evaluation_samples = 15,
     checkpoint_every = 10,
     path = MODEL_PATH,

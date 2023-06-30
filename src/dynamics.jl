@@ -4,7 +4,7 @@ export WaveDynamics
 export ForceLatentDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
-    return collect(range(ti, ti + steps * dt, steps + 1))
+    return range(ti, ti + steps * dt, steps + 1)
 end
 
 function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32, dt::Float32)
@@ -44,40 +44,48 @@ function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
 end
 
 function (iter::Integrator)(ui::AbstractArray{Float32})
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
+    tspan = @ignore_derivatives build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
     recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
 end
 
-function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32, 3}
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps)
+function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32}
+    tspan = build_tspan(iter.ti, iter.dt, iter.steps) .+ iter.dt
 
-    a = adj[:, :, end]
-    wave = u[:, :, end]
-    _, back = pullback(_iter -> _iter(wave, tspan[end]), iter)
+    a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
+    a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
+
+    wave = selectdim(u, ndims(u), size(u, ndims(u)))
+    wave = u[parentindices(wave)...] ## getting non-view version
+
+    _, back = Flux.pullback(_iter -> _iter(wave, tspan[end]), iter)
 
     gs = back(a)[1]
-    tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...)
+    tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...) * 0.0f0 ## starting gradient accumulation at zero
 
-    for i in reverse(1:size(u, 3))
+    for i in reverse(1:size(u, ndims(u)))
 
-        wave = u[:, :, i]
-        adjoint_state = adj[:, :, i]
-        _, back = pullback((_iter, _wave) -> _iter(_wave, tspan[i]), iter, wave)
-        
-        dparams, dwave = back(adjoint_state)
+        wave = selectdim(u, ndims(u), i) ## current wave state
+        wave = u[parentindices(wave)...] ## getting non-view version
 
-        a .+= adjoint_state .+ dwave
-        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
+        adjoint_state = selectdim(adj, ndims(adj), i) ## current adjoint state
+        adjoint_state = adj[parentindices(adjoint_state)...] ## getting non-view version
+
+        _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i]), iter, wave)
+        dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
+
+        a .+= adjoint_state .+ dwave * iter.dt
+        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...) * iter.dt
     end
 
     return a, tangent
 end
 
-function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractMatrix{Float32})
+function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32})
+
     u = iter(ui)
 
-    function Integrator_back(adj::AbstractArray{Float32, 3})
+    function Integrator_back(adj::AbstractArray{Float32})
         a, tangent = adjoint_sensitivity(iter, u, adj)
         iter_tangent = Tangent{Integrator}(;dynamics = tangent)
         return iter_tangent, a

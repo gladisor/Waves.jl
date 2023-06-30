@@ -2,6 +2,7 @@ export ALUMINIUM, COPPER, BRASS, AIR, WATER
 export DesignSpace, DesignInterpolator
 export NoDesign, Cylinders, AdjustableRadiiScatterers, AdjustablePositionScatterers, Cloak
 export speed, build_action_space
+export DesignSequence
 
 # https://www.rshydro.co.uk/sound-speeds/
 const ALUMINIUM = 3100.0f0
@@ -10,6 +11,8 @@ const BRASS = 2120.0f0
 # https://www.sfu.ca/sonic-studio-webdav/handbook/Speed__Of_Sound.html
 const AIR = 344.0f0
 const WATER = 1531.0f0
+
+const DesignSequence = Vector{<: AbstractDesign}
 
 """
 Constrans the upper and lower bound of a design vector space.

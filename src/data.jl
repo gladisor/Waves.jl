@@ -54,8 +54,8 @@ function prepare_data(episode::EpisodeData, horizon::Int)
 
     n = horizon - 1
 
-    for i in 1:length(episode)
-        boundary = min(i+n, length(episode))
+    for i in 1:(length(episode) - n)
+        boundary = i + n
         
         push!(states, episode.states[i])
         push!(actions, episode.actions[i:boundary])
@@ -86,4 +86,57 @@ function EpisodeData(;path::String)
     tspans = file[:tspans]
     sigmas = file[:sigmas]
     return EpisodeData(states, actions, tspans, sigmas)
+end
+
+
+get_step_number(path::String) = parse(Int, split(split(path, "step_")[end], ".bson")[1])
+
+function convert_to_observations(episode_paths::Vector{String}, horizon::Int)
+    sorted_episode_paths = sort(episode_paths, by = get_step_number)
+
+    observations = Vector{String}[]
+
+    for i in 1:(length(sorted_episode_paths) - horizon + 1)
+
+        push!(
+            observations, 
+            sorted_episode_paths[i:(i + horizon - 1)]
+            )
+    end
+
+    return observations
+end
+
+function convert_to_datapoint(steps::Vector{String})
+    steps = BSON.load.(steps)
+
+    s = steps[1][:state]
+    a = [step[:action] for step in steps]
+    t = hcat([step[:tspan] for step in steps]...)
+    sigma = hcat([step[:sigma] for step in steps]...)
+
+    return (s, a, t, sigma)
+end
+
+struct EpisodeDataset
+    observations::Vector{Vector{String}}
+end
+
+function EpisodeDataset(path::String, horizon::Int)
+    episode_paths = readdir.(readdir(path, join = true), join = true)
+    observations = vcat(convert_to_observations.(episode_paths, horizon)...)
+    return EpisodeDataset(observations)
+end
+
+function Flux.numobs(data::EpisodeDataset)
+    return length(data.observations)
+end
+
+function Flux.getobs(data::EpisodeDataset, idx::Int)
+    return convert_to_datapoint(data.observations[idx])
+end
+
+function Flux.getobs(data::EpisodeDataset, idx::Vector{Int})
+    states, actions, tspans, sigmas = zip(Flux.getobs.([data], idx)...)
+    return ([states...], [actions...], [tspans...], [sigmas...])
 end

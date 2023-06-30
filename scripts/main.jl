@@ -1,3 +1,4 @@
+println("Importing Packages")
 using BSON
 using Flux
 using Flux: flatten, destructure, Scale, Recur, DataLoader
@@ -6,110 +7,118 @@ using FileIO
 using CairoMakie
 using Optimisers
 using Waves
+
+Flux.CUDA.allowscalar(false)
+
 include("improved_model.jl")
 include("plot.jl")
 
-Flux.device!(2)
-main_path = "/scratch/cmpe299-fa22/tristan/data/single_cylinder_dataset"
+Flux.device!(0)
+
+main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
 data_path = joinpath(main_path, "episodes")
 
-env = BSON.load(joinpath(main_path, "env.bson"))[:env] |> gpu
+println("Loading Environment")
+env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
 dim = cpu(env.dim)
 reset!(env)
-
 policy = RandomDesignPolicy(action_space(env))
 
-println("Load Train Data")
-@time train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:150
-    ])
+"""
+General comments:
 
-println("Load Val Data")
-@time val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 151:200
-    ])
+- Using information about wave and also about wavespeed function in the decoder is
+critical to ensure smooth solution.
 
-nfreq = 6
+- Need a high enough number of frequencies
+
+"""
+
+println("Declaring Hyperparameters")
+nfreq = 200
 h_size = 256
 activation = leakyrelu
-latent_grid_size = 30.0f0
+latent_grid_size = 15.0f0
 latent_elements = 512
-horizon = 5
+horizon = 20
 wave_input_layer = TotalWaveInput()
-batchsize = 10
+batchsize = 32
 
-pml_width = 5.0f0
-pml_scale = 0.0f0#10000.0f0
-lr = 5e-6
+pml_width = 10.0f0
+pml_scale = 10000.0f0
+lr = 1e-4
 decay_rate = 1.0f0
-MODEL_PATH = mkpath(joinpath(main_path, "models/CNNREGRESSOR/nfreq=$(nfreq)_hsize=$(h_size)_act=$(activation)_gs=$(latent_grid_size)_ele=$(latent_elements)_hor=$(horizon)_in=$(wave_input_layer)_bs=$(batchsize)_pml=$(pml_scale)_lr=$(lr)_decay=$(decay_rate)"))
-println(MODEL_PATH)
+k_size = 2
 steps = 20
-epochs = 1000
+epochs = 500
+loss_func = Flux.mse
 
+MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV9/horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
+println(MODEL_PATH)
+
+println("Initializing Model Components")
 latent_dim = OneDim(latent_grid_size, latent_elements)
-wave_encoder = build_hypernet_wave_encoder(latent_dim = latent_dim, input_layer = wave_input_layer, nfreq = nfreq, h_size = h_size, activation = activation)
+wave_encoder = build_split_hypernet_wave_encoder(latent_dim = latent_dim, input_layer = wave_input_layer, nfreq = nfreq, h_size = h_size, activation = activation)
 design_encoder = HypernetDesignEncoder(env.design_space, action_space(env), nfreq, h_size, activation, latent_dim)
 dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
 iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
+mlp = build_scattered_wave_decoder(latent_elements, h_size, k_size, activation)
+println("Constructing Model")
+model = gpu(ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter, env.design_space, mlp))
 
-mlp = Chain( ## normalization in these layers seems to harm?
-    flatten,
-    ## transient wavespeed
-    # Dense(5 * size(latent_dim, 1), h_size, activation),
-    ## static wavespeed
-    Dense(4 * size(latent_dim, 1), h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, 1),
-    vec)
+println("Initializing DataLoaders")
+@time begin
+    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:70])
+    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 71:75])
+    # train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
+    # val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
+    train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
+    val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
+end
 
-# mlp = Chain(
-#     flatten,
-#     Dense(4 * latent_elements, h_size, activation),
-#     Dense(h_size, h_size, activation),
-#     x -> x[:, :, :],
-#     x -> permutedims(x, (2, 1, 3)),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     x -> pad_reflect(x, (2, 0)),
-#     Conv((3,), h_size => h_size, activation),
-#     Conv((1,), h_size => 1),
-#     vec
-# )
+opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(lr))
+states, actions, tspans, sigmas = gpu(first(train_loader))
 
-model = ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter, env.design_space, mlp) |> gpu
-train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize)
-val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize)
+# visualize!(model, states[1], actions[1], tspans[1], sigmas[1], path = "")
 
-# investigate further if i can only include u and v fields in mlp
-# states, actions, tspans, sigmas = gpu(first(train_loader))
-# s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]
-# # zi = hcat(model.wave_encoder(s), model.design_encoder(s.design, a[1]))
-# # z = model.iter(zi)
-# # y = model.mlp(z)
+# plot_latent_simulation_and_scattered_energy!(model, tspans[1], )
 
-# # fig = Figure()
-# # ax = Axis(fig[1, 1])
-# # lines!(ax, cpu(y))
-# # save("sigma.png", fig)
-# overfit!(model, states, actions, tspans, sigmas, lr, 500)
+# z_nopml = generate_latent_solution(model, states, actions)
+# z_pml = generate_latent_solution(model, states, actions)
 
+# pml_energy = cpu(vec(sum((z_pml[:, 2, :, 1] .- z_pml[:, 1, :, 1]) .^ 2, dims = 1)))
+# nopml_energy = cpu(vec(sum((z_nopml[:, 2, :, 1] .- z_nopml[:, 1, :, 1]) .^ 2, dims = 1)))
+
+# pml_energy = cpu(vec(sum((z_pml[:, 2, :, 1]) .^ 2, dims = 1)))
+# nopml_energy = cpu(vec(sum((z_nopml[:, 2, :, 1]) .^ 2, dims = 1)))
+
+# t = cpu(flatten_repeated_last_dim(tspans[1]))
+# fig = Figure()
+# ax = Axis(
+#     fig[1, 1],
+#     title = "Comparison of Scattered Energy During Latent Simulation",
+#     xlabel = "Time (s)",
+#     ylabel = "Sum of Squared Displacement"
+#     )
+
+# lines!(ax, t, nopml_energy, color = :blue, label = "No PML")
+# lines!(ax, t, pml_energy, color = :orange, label = "PML")
+# axislegend(ax)
+# save("total_energy.png", fig)
+
+println("Training")
 train_loop(
     model,
-    loss_func = Flux.mse,
+    loss_func = loss_func,
     train_steps = steps,
-    train_loader = train_loader,
     val_steps = steps,
+    train_loader = train_loader,
     val_loader = val_loader,
     epochs = epochs,
     lr = lr,
     decay_rate = decay_rate,
-    latent_dim = latent_dim,
-    evaluation_samples = 1,
+    evaluation_samples = 15,
     checkpoint_every = 10,
-    path = MODEL_PATH
+    path = MODEL_PATH,
+    opt = opt
     )

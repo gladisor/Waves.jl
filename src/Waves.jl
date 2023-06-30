@@ -17,7 +17,18 @@ using Interpolations
 using Interpolations: Extrapolation
 
 using Flux
-using Flux: flatten, Recur, batch, unbatch, pullback, withgradient, trainable, mean, norm, mse, huber_loss, DataLoader
+using Flux: 
+    CUDA,
+    flatten, 
+    Recur, 
+    batch, 
+    unbatch, 
+    pullback, 
+    trainable, 
+    mean, 
+    norm, 
+    mse, 
+    DataLoader
 
 using ChainRulesCore
 using Optimisers
@@ -26,6 +37,7 @@ using ProgressMeter: @showprogress
 using BSON
 using FileIO
 import LinearAlgebra
+using DataStructures: CircularBuffer
 
 abstract type AbstractDim end
 
@@ -51,5 +63,4 @@ include("dynamics.jl")                      ## Defines the dynamics of the wave 
 include("env.jl")
 
 include("data.jl")
-include("models.jl")                        ## modeling
 end

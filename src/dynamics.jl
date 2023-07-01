@@ -43,14 +43,20 @@ function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
     return (u′, u′)
 end
 
+"""
+Need to define a variant of this function which accepts a timespan 
+"""
 function (iter::Integrator)(ui::AbstractArray{Float32})
     tspan = @ignore_derivatives build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
     recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
 end
 
+"""
+Need to define a variant of this function which accepts a timespan
+"""
 function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32}
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps) .+ iter.dt
+    tspan = build_tspan(iter.ti, iter.dt, iter.steps)
 
     a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
     a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero

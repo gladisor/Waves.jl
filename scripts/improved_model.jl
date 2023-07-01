@@ -96,7 +96,6 @@ function (hypernet::Hypernet)(x::AbstractMatrix{Float32})
     return cat([hypernet.domain(m) for m in models]..., dims = ndims(x) + 1)
 end
 
-## forier learning
 struct SinWaveEmbedder
     frequencies::AbstractMatrix{Float32}
 end
@@ -145,13 +144,7 @@ Flux.trainable(::LatentWaveNormalization) = (;)
 sigmoid_step(x, l) = sigmoid.(-5.0f0 * (x .- l)) - sigmoid.(-5.0f0 * (x .+ l))
 
 function LatentWaveNormalization(dim::OneDim, C::Float32)
-    u_weight = dim.x .^ 0.0f0
     f_weight = sigmoid_step(dim.x, dim.x[end] - 5.0f0)
-
-    ## only constraining the force term to the smaller area
-    # return LatentWaveNormalization(hcat(u_weight, u_weight, u_weight ./ C, u_weight ./ C, f_weight)[:, :, :])
-
-    ## constraining all fields to small area
     return LatentWaveNormalization(hcat(f_weight, f_weight, f_weight ./ C, f_weight ./ C, f_weight)[:, :, :])
 end
 
@@ -314,56 +307,6 @@ function LatentDynamics(dim::OneDim; ambient_speed, freq, pml_width, pml_scale)
     bc = dirichlet(dim)
     return LatentDynamics(ambient_speed, freq, pml, grad, bc)
 end
-
-# function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-#     u = wave[:, 1]
-#     v = wave[:, 2]
-#     f = wave[:, 3]
-#     c = wave[:, 4]
-#     dc = wave[:, 5]
-
-#     force = f * sin(2.0f0 * pi * dyn.freq * t)
-#     du = dyn.C0 ^ 2 * c .* (dyn.grad * v) .- dyn.pml .* u
-#     dv = (dyn.grad * (u .+ force)) .- dyn.pml .* v
-
-#     return hcat(
-#         du .* dyn.bc, ## remeber to turn bc off when using pml
-#         dv,
-#         f * 0.0f0,
-#         dc, 
-#         dc * 0.0f0
-#         )
-# end
-
-# function (dyn::LatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-#     u_inc = wave[:, 1]
-#     u_tot = wave[:, 2]
-#     v_inc = wave[:, 3]
-#     v_tot = wave[:, 4]
-#     f = wave[:, 5]
-
-#     c = wave[:, 6]
-#     dc = wave[:, 7]
-
-#     force = f * sin(2.0f0 * pi * dyn.freq * t)
-
-#     du_inc = dyn.C0 ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
-#     du_tot = dyn.C0 ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
-
-#     dv_inc = (dyn.grad * (u_inc .+ force)) .- dyn.pml .* v_inc
-#     dv_tot = (dyn.grad * (u_tot .+ force)) .- dyn.pml .* v_tot
-
-#     return hcat(
-#         du_inc .* dyn.bc,
-#         du_tot .* dyn.bc,
-#         dv_inc,
-#         dv_tot,
-#         f * 0.0f0,
-
-#         dc,
-#         dc * 0.0f0
-#         )
-# end
 
 ## batch implementation
 function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)

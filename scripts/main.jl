@@ -13,7 +13,7 @@ Flux.CUDA.allowscalar(false)
 include("improved_model.jl")
 include("plot.jl")
 
-Flux.device!(0)
+Flux.device!(2)
 
 main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
 data_path = joinpath(main_path, "episodes")
@@ -45,7 +45,7 @@ wave_input_layer = TotalWaveInput()
 batchsize = 32
 
 pml_width = 10.0f0
-pml_scale = 10000.0f0
+pml_scale = 0.0f0 #10000.0f0
 lr = 1e-4
 decay_rate = 1.0f0
 k_size = 2

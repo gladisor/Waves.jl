@@ -153,13 +153,13 @@ function RLBase.state(env::WaveEnv)
         dims = 4,
         )
 
-    d = cpu(x[:, :, 1, :])
+    d = cpu(x[:, :, 1, :]) ## displacement field of 2d membrane
 
     return env.sensor(WaveEnvState(
         cpu(env.dim),
-        build_tspan(env),
+        build_tspan(env), ## forward looking tspan
         d,
-        cpu(env.total_dynamics.design(time(env)))
+        cpu(env.total_dynamics.design(time(env))) ## getting the current design
         )
     )
 end

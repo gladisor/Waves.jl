@@ -309,7 +309,7 @@ function LatentDynamics(dim::OneDim; ambient_speed, freq, pml_width, pml_scale)
 end
 
 ## batch implementation
-function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
+function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::AbstractVector{Float32})
     u_inc = wave[:, 1, :]
     u_tot = wave[:, 2, :]
     v_inc = wave[:, 3, :]
@@ -318,8 +318,7 @@ function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     c = wave[:, 6, :]
     dc = wave[:, 7, :]
 
-    force = f * sin(2.0f0 * pi * dyn.freq * t)
-
+    force = f .* sin.(2.0f0 * pi * dyn.freq * permutedims(t))
     du_inc = dyn.C0 ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
     du_tot = dyn.C0 ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
 
@@ -370,8 +369,8 @@ mutable struct CustomRecur{T,S}
     state::S
 end
 
-function (m::CustomRecur)(x)
-    m.state, y = m.cell(m.state, x)
+function (m::CustomRecur)(x...)
+    m.state, y = m.cell(m.state, x...)
     return y
 end
 
@@ -383,21 +382,45 @@ trainable(a::CustomRecur) = (; cell = a.cell)
 Inputs to this function are the latent state containing displacement, velocity and force fields
 and also the c_dc which is the current design state and the rate at which the design changes.
 """
-function (model::ScatteredEnergyModel)(latent_state::AbstractArray{Float32, 3}, c_dc::AbstractArray{Float32, 3})
+function (model::ScatteredEnergyModel)(latent_state::AbstractArray{Float32, 3}, c_dc::AbstractArray{Float32, 3}, t::AbstractMatrix{Float32})
     zi = hcat(latent_state, c_dc)
-    z = model.iter(zi)
+    z = model.iter(zi, t)
     next_latent_state = z[:, 1:end-2, :, end] ## (features x fields x batch x sequence)
     return (next_latent_state, z)
 end
 
+function preprocess_times(t::AbstractMatrix{Float32})
+    return t[:, :, :]
+end
+
+function preprocess_times(t::Vector{<: AbstractMatrix{Float32}})
+    return cat(t..., dims = 3)
+end
+
 """
-Propagates the latent solutions batchwise. Outputs a tensor: (features x fields x sequence x batch)
+Propagates the latent solutions batchwise. Outputs a tensor: (elements x fields x sequence x batch)
 """
-function generate_latent_solution(model::ScatteredEnergyModel, s, a)
+function generate_latent_solution(model::ScatteredEnergyModel, s, a, t)
+
+    ## uvf is a tensor of shape (elements x fields x batch)
     uvf = model.wave_encoder(s)
+
+    ## c_dc is a tensor of shape (elements x sequence x 2 x batch)
+    ## the first of the third dimention is the starting wavespeed field
+    ## the second of the third dimention is the time derivative of the starting wavespeed field
     c_dc = build_wavespeed_fields(model.design_encoder(s, a))
+
+    ## times are a stack of (timesteps x sequence x batch)
+    t = preprocess_times(t)
+
     recur = CustomRecur(model, uvf)
-    z = flatten_repeated_last_dim(cat([recur(c_dc[:, i, :, :]) for i in axes(c_dc, 2)]..., dims = 5))
+
+    z = flatten_repeated_last_dim(
+        cat(
+            [recur(c_dc[:, i, :, :], t[:, i, :]) for i in axes(c_dc, 2)]..., 
+            dims = 5)
+            )
+
     return permutedims(z, (1, 2, 4, 3))
 end
 
@@ -405,10 +428,12 @@ function (model::ScatteredEnergyModel)(
         s::Union{WaveEnvState, Vector{WaveEnvState}}, 
         a::Union{
             DesignSequence, 
-            Vector{<: DesignSequence}})
+            Vector{<: DesignSequence}},
+        t::Union{
+            <: AbstractMatrix{Float32}, 
+            Vector{<: AbstractMatrix{Float32}}})
 
-    z = generate_latent_solution(model, s, a)
-
+    z = generate_latent_solution(model, s, a, t)
     return model.mlp(z)
 end
 
@@ -456,7 +481,7 @@ function plot_latent_simulation_and_scattered_energy!(model::ScatteredEnergyMode
 end
 
 function visualize!(model, s::WaveEnvState, a::Vector{<: AbstractDesign}, tspan::AbstractMatrix, sigma::AbstractMatrix; path::String, render::Bool = false)
-    z = generate_latent_solution(model, s, a)
+    z = generate_latent_solution(model, s, a, tspan)
     
     tspan = cpu(flatten_repeated_last_dim(tspan))
     sigma_pred = vec(cpu(model.mlp(z[:, :, :, [1]])))
@@ -486,11 +511,12 @@ function train_loop(
         evaluation_samples::Int,
         checkpoint_every::Int,
         path::String,
-        opt,
-        )
+        opt)
 
     opt_state = Optimisers.setup(opt, model)
-    metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
+    metrics = Dict(
+        :train_loss => Vector{Float32}(), 
+        :val_loss => Vector{Float32}())
 
     for i in 1:epochs
         epoch_loss = Vector{Float32}()
@@ -501,7 +527,7 @@ function train_loop(
             states, actions, tspans, sigmas = gpu(batch)
 
             y = flatten_repeated_last_dim(sigmas)
-            loss, back = Flux.pullback(m -> loss_func(m(states, actions), y), model)
+            loss, back = Flux.pullback(m -> loss_func(m(states, actions, tspans), y), model)
             gs = back(one(loss))[1]
 
             push!(epoch_loss, loss)
@@ -528,7 +554,7 @@ function train_loop(
             states, actions, tspans, sigmas = gpu(batch)
 
             y = flatten_repeated_last_dim(sigmas)
-            loss = loss_func(model(states, actions), y)
+            loss = loss_func(model(states, actions, tspans), y)
 
             push!(epoch_loss, loss)
 

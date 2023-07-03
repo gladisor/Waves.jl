@@ -7,11 +7,11 @@ function build_tspan(ti::Float32, dt::Float32, steps::Int)
     return range(ti, ti + steps * dt, steps + 1)
 end
 
-function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t::Float32, dt::Float32)
+function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t, dt::Float32)
     k1 = f(u, t)
-    k2 = f(u .+ 0.5f0 * dt * k1, t + 0.5f0 * dt)
-    k3 = f(u .+ 0.5f0 * dt * k2, t + 0.5f0 * dt)
-    k4 = f(u .+ dt * k3,         t + dt)
+    k2 = f(u .+ 0.5f0 * dt * k1, t .+ 0.5f0 * dt)
+    k3 = f(u .+ 0.5f0 * dt * k2, t .+ 0.5f0 * dt)
+    k4 = f(u .+ dt * k3,         t .+ dt)
     du = 1/6f0 * (k1 .+ 2 * k2 .+ 2 * k3 .+ k4)
     return du * dt
 end
@@ -34,7 +34,14 @@ function Base.reverse(iter::Integrator)
     return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
 end
 
-function (iter::Integrator)(u::AbstractArray{Float32}, t::Float32)
+"""
+Works with a time (Float32) or a batch of times (Vector)
+"""
+function (iter::Integrator)(
+        u::AbstractArray{Float32}, 
+        t::Union{Float32, <: AbstractVector{Float32}}
+        )
+
     return iter.integration_function(iter.dynamics, u, t, iter.dt)
 end
 
@@ -44,7 +51,7 @@ function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
 end
 
 """
-Need to define a variant of this function which accepts a timespan 
+For a single (shared) starting time
 """
 function (iter::Integrator)(ui::AbstractArray{Float32})
     tspan = @ignore_derivatives build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
@@ -53,18 +60,31 @@ function (iter::Integrator)(ui::AbstractArray{Float32})
 end
 
 """
-Need to define a variant of this function which accepts a timespan
-"""
-function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: AbstractArray{Float32}
-    tspan = build_tspan(iter.ti, iter.dt, iter.steps)
+For a batch of predefined time sequences.
 
+Takes in an initial condition ui and a tspan matrix
+
+tspan: (timesteps x batch)
+"""
+function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Float32})
+
+    recur = Recur(ui) do _u, _t
+        du = iter(_u, _t)
+        u_prime = _u .+ du
+        return u_prime, u_prime
+    end
+
+    return cat(ui, [recur(tspan[i, :]) for i in 1:(size(tspan, 1) - 1)]..., dims = ndims(ui) + 1)
+end
+
+function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
     a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
     a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
 
     wave = selectdim(u, ndims(u), size(u, ndims(u)))
     wave = u[parentindices(wave)...] ## getting non-view version
 
-    _, back = Flux.pullback(_iter -> _iter(wave, tspan[end]), iter)
+    _, back = Flux.pullback(_iter -> _iter(wave, tspan[end, :]), iter)
 
     gs = back(a)[1]
     tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...) * 0.0f0 ## starting gradient accumulation at zero
@@ -77,24 +97,24 @@ function adjoint_sensitivity(iter::Integrator, u::A, adj::A) where A <: Abstract
         adjoint_state = selectdim(adj, ndims(adj), i) ## current adjoint state
         adjoint_state = adj[parentindices(adjoint_state)...] ## getting non-view version
 
-        _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i]), iter, wave)
+        _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i, :]), iter, wave)
         dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
 
-        a .+= adjoint_state .+ dwave * iter.dt
-        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...) * iter.dt
+        a .+= adjoint_state .+ dwave# * iter.dt
+        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)# * iter.dt
     end
 
     return a, tangent
 end
 
-function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32})
+function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32}, t::AbstractMatrix{Float32})
 
-    u = iter(ui)
+    u = iter(ui, t)
 
     function Integrator_back(adj::AbstractArray{Float32})
-        a, tangent = adjoint_sensitivity(iter, u, adj)
+        a, tangent = adjoint_sensitivity(iter, u, t, adj)
         iter_tangent = Tangent{Integrator}(;dynamics = tangent)
-        return iter_tangent, a
+        return iter_tangent, a, nothing
     end
 
     return u, Integrator_back
@@ -160,41 +180,6 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-# function update_design(dyn::WaveDynamics, tspan::Vector{Float32}, action::AbstractDesign)
-#     initial = dyn.design(tspan[1])
-#     design = DesignInterpolator(initial, action, tspan[1], tspan[end])
-#     return WaveDynamics(dyn.ambient_speed, design, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
-# end
-
 function update_design(dyn::WaveDynamics, interp::DesignInterpolator)
     return WaveDynamics(dyn.ambient_speed, interp, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
-end
-
-struct ForceLatentDynamics <: AbstractDynamics
-    ambient_speed::Float32
-    pml_scale::Float32
-
-    grad::AbstractMatrix{Float32}
-    pml::AbstractVector{Float32}
-    bc::AbstractVector{Float32}
-end
-
-Flux.@functor ForceLatentDynamics
-Flux.trainable(dyn::ForceLatentDynamics) = (;)
-
-function (dyn::ForceLatentDynamics)(wave::AbstractMatrix{Float32}, t::Float32)
-    u = wave[:, 1]
-    v = wave[:, 2]
-    f = wave[:, 3]
-    c = wave[:, 4]
-
-    b = dyn.ambient_speed .^ 2 .* c
-    σ = dyn.pml * dyn.pml_scale
-
-    du = b .* (dyn.grad * v) .- σ .* u
-    dv = dyn.grad * u .- σ .* v .+ f .* (u .+ v)
-    df = f * 0.0f0
-    dc = c * 0.0f0
-
-    return hcat(dyn.bc .* du, dv, df, dc)
 end

@@ -13,7 +13,7 @@ Flux.CUDA.allowscalar(false)
 include("improved_model.jl")
 include("plot.jl")
 
-Flux.device!(2)
+Flux.device!(1)
 
 main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
 data_path = joinpath(main_path, "episodes")
@@ -23,16 +23,6 @@ env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
 dim = cpu(env.dim)
 reset!(env)
 policy = RandomDesignPolicy(action_space(env))
-
-"""
-General comments:
-
-- Using information about wave and also about wavespeed function in the decoder is
-critical to ensure smooth solution.
-
-- Need a high enough number of frequencies
-
-"""
 
 println("Declaring Hyperparameters")
 nfreq = 200
@@ -45,7 +35,8 @@ wave_input_layer = TotalWaveInput()
 batchsize = 32
 
 pml_width = 10.0f0
-pml_scale = 0.0f0 #10000.0f0
+pml_scale = 0.0f0
+# pml_scale = 10000.0f0
 lr = 1e-4
 decay_rate = 1.0f0
 k_size = 2
@@ -53,7 +44,7 @@ steps = 20
 epochs = 500
 loss_func = Flux.mse
 
-MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV9/horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
+MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV11/horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
 println(MODEL_PATH)
 
 println("Initializing Model Components")
@@ -68,8 +59,8 @@ model = gpu(ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter,
 
 println("Initializing DataLoaders")
 @time begin
-    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:70])
-    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 71:75])
+    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:100])
+    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 101:120])
     # train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
     # val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
     train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
@@ -77,34 +68,28 @@ println("Initializing DataLoaders")
 end
 
 opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(lr))
-states, actions, tspans, sigmas = gpu(first(train_loader))
+# states, actions, tspans, sigmas = gpu(first(train_loader))
 
-# visualize!(model, states[1], actions[1], tspans[1], sigmas[1], path = "")
+# z = generate_latent_solution(model, states, actions, tspans)
 
-# plot_latent_simulation_and_scattered_energy!(model, tspans[1], )
+# times = preprocess_times(tspans)
+# # Waves.adjoint_sensitivity(model.iter, z, times, z)
 
-# z_nopml = generate_latent_solution(model, states, actions)
-# z_pml = generate_latent_solution(model, states, actions)
+# uvf = model.wave_encoder(states)
+# c = build_wavespeed_fields(model.design_encoder(states, actions))
 
-# pml_energy = cpu(vec(sum((z_pml[:, 2, :, 1] .- z_pml[:, 1, :, 1]) .^ 2, dims = 1)))
-# nopml_energy = cpu(vec(sum((z_nopml[:, 2, :, 1] .- z_nopml[:, 1, :, 1]) .^ 2, dims = 1)))
+# zi = hcat(uvf, c[:, 1, :, :])
+# z = model.iter(zi, times[:, 1, :])
 
-# pml_energy = cpu(vec(sum((z_pml[:, 2, :, 1]) .^ 2, dims = 1)))
-# nopml_energy = cpu(vec(sum((z_nopml[:, 2, :, 1]) .^ 2, dims = 1)))
+# sigma_true = preprocess_times(sigmas)
 
-# t = cpu(flatten_repeated_last_dim(tspans[1]))
-# fig = Figure()
-# ax = Axis(
-#     fig[1, 1],
-#     title = "Comparison of Scattered Energy During Latent Simulation",
-#     xlabel = "Time (s)",
-#     ylabel = "Sum of Squared Displacement"
-#     )
+# loss, back = Flux.pullback(z) do _z
+#     _z = permutedims(_z, (1, 2, 4, 3))
+#     Flux.mse(sigma_true[:, 1, :], model.mlp(_z))
+# end
 
-# lines!(ax, t, nopml_energy, color = :blue, label = "No PML")
-# lines!(ax, t, pml_energy, color = :orange, label = "PML")
-# axislegend(ax)
-# save("total_energy.png", fig)
+# adj = back(one(loss))[1]
+# a, _ = Waves.adjoint_sensitivity(model.iter, z, times[:, 1, :], adj)
 
 println("Training")
 train_loop(

@@ -56,8 +56,35 @@ function optimise_actions(model::ScatteredEnergyModel, s::WaveEnvState, a::Desig
     return a_star
 end
 
-function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, n::Int)
-    return [policy(env) for i in 1:n]
+function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
+    return [policy(env) for i in 1:horizon]
+end
+
+function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int, shots::Int)
+    return [build_action_sequence(policy, env, horizon) for i in 1:shots]
+end
+
+function Waves.build_tspan(ti::Float32, dt::Float32, steps::Int, horizon::Int)
+
+    tspans = []
+
+    for i in 1:horizon
+        tspan = build_tspan(ti, dt, steps)
+        push!(tspans, tspan)
+        ti = tspan[end]
+    end
+
+    return hcat(tspans...)
+end
+
+function random_shooting(model::ScatteredEnergyModel, policy::AbstractPolicy, env::AbstractEnv, horizon::Int, shots::Int)
+    s = state(env)
+    states = gpu(fill(s, shots))
+    actions = gpu(build_action_sequence(policy, env, horizon, shots))
+    tspan = build_tspan(time(env), model.iter.dt, model.iter.steps, horizon)
+    tspans = gpu(fill(tspan, shots))
+
+    sigma_pred = model(states, actions, tspans)
 end
 
 struct MPC <: AbstractPolicy
@@ -82,8 +109,8 @@ pml_model_path = joinpath(main_path, "models/SinWaveEmbedderV11/horizon=20_nfreq
 no_pml_model_path = joinpath(main_path, "models/SinWaveEmbedderV11/horizon=20_nfreq=200_pml=0.0_lr=0.0001_batchsize=32/epoch_90/model.bson")
 data_path = joinpath(main_path, "episodes")
 
-horizon = 20
 batchsize = 32
+horizons = collect(20:10:200)
 
 println("Loading Environment")
 env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
@@ -91,16 +118,63 @@ dim = cpu(env.dim)
 reset!(env)
 policy = RandomDesignPolicy(action_space(env))
 
+println("Preparing Data")
+train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 961:1000])
 
-train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 998:1000])
-train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
-states, actions, tspans, sigmas = gpu(first(train_loader))
-# s, a, t, sigma = states[1], actions[1], tspans[1], sigmas[1]
-
+println("Loading Models")
 pml_model = gpu(BSON.load(pml_model_path)[:model])
 no_pml_model = gpu(BSON.load(no_pml_model_path)[:model])
 testmode!(pml_model)
 testmode!(no_pml_model)
+
+loss = Dict(
+    :pml => [],
+    :nopml => [],
+)
+
+# for h in horizons
+#     train_loader = DataLoader(prepare_data(train_data, h), shuffle = true, batchsize = batchsize, partial = false)
+#     states, actions, tspans, sigmas = gpu(first(train_loader))
+
+#     println("Evaluating on Batch")
+#     @time begin
+#         pml_sigmas = pml_model(states, actions, tspans)
+#         no_pml_sigmas = no_pml_model(states, actions, tspans)
+#     end
+
+#     y = flatten_repeated_last_dim(sigmas)
+#     pml_loss = Flux.mse(pml_sigmas, y)
+#     no_pml_loss = Flux.mse(no_pml_sigmas, y)
+
+#     push!(loss[:pml], pml_loss)
+#     push!(loss[:nopml], no_pml_loss)
+#     println("PML Loss: $(pml_loss)")
+#     println("NO PML Loss: $(no_pml_loss)")
+# end
+
+# using CSV
+# using DataFrames
+
+# data = DataFrame(
+#     horizon = horizons,
+#     pml_loss = loss[:pml],
+#     nopml_loss = loss[:nopml])
+# CSV.write("generalization.csv", data)
+
+# fig = Figure()
+# ax = Axis(fig[1, 1],
+#     title = "Effect of Increased Planning Horizon on Validation Loss",
+#     xlabel = "Horizon",
+#     ylabel = "Validation Loss")
+
+# scatter!(ax, horizons, Float32.(data[!, :pml_loss]), label = "PML", color = :blue)
+# scatter!(ax, horizons, Float32.(data[!, :nopml_loss]), label = "No PML", color = :red)
+# axislegend(ax, position = :lt)
+# save("generalization.png", fig)
+
+horizon = 40
+train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
+states, actions, tspans, sigmas = gpu(first(train_loader))
 
 pml_sigmas = pml_model(states, actions, tspans)
 no_pml_sigmas = no_pml_model(states, actions, tspans)
@@ -108,28 +182,20 @@ no_pml_sigmas = no_pml_model(states, actions, tspans)
 y = flatten_repeated_last_dim(sigmas)
 pml_loss = Flux.mse(pml_sigmas, y)
 no_pml_loss = Flux.mse(no_pml_sigmas, y)
-
 println("PML Loss: $(pml_loss)")
 println("NO PML Loss: $(no_pml_loss)")
 
 ts = flatten_repeated_last_dim(tspans)
-
 fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, cpu(ts[:, 1]), cpu(pml_sigmas[:, 1]), label = "PML", color = :orange)
-lines!(ax, cpu(ts[:, 1]), cpu(no_pml_sigmas[:, 1]), label = "NO PML", color = :green)
-lines!(ax, cpu(ts[:, 1]), cpu(y[:, 1]), label = "True", color = :blue)
-axislegend(ax)
-save("sigma.png", fig)
+ax1 = Axis(fig[1, 1])
+ax2 = Axis(fig[1, 2])
 
+lines!(ax1, cpu(ts[:, 1]), cpu(pml_sigmas[:, 1]), label = "PML", color = :orange)
+lines!(ax1, cpu(ts[:, 1]), cpu(y[:, 1]), label = "True", color = :blue)
 
+lines!(ax2, cpu(ts[:, 1]), cpu(y[:, 1]), label = "True", color = :blue)
+lines!(ax2, cpu(ts[:, 1]), cpu(no_pml_sigmas[:, 1]), label = "NO PML", color = :green)
 
-# opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(1e-3))
-# mpc = MPC(policy, pml_model, opt, 20, 50)
-
-# @time episode1 = generate_episode_data(mpc, env)
-# save(episode1, "pml_mpc_episode1.bson")
-# @time episode2 = generate_episode_data(mpc, env)
-# save(episode2, "pml_mpc_episode2.bson")
-# @time episode3 = generate_episode_data(mpc, env)
-# save(episode3, "pml_mpc_episode3.bson")
+axislegend(ax1)
+axislegend(ax2)
+save("results/sigma$(horizon).png", fig)

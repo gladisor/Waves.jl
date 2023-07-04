@@ -65,6 +65,8 @@ For a batch of predefined time sequences.
 Takes in an initial condition ui and a tspan matrix
 
 tspan: (timesteps x batch)
+
+This method is specifically for propagating the dynamics for the predefined number of steps.
 """
 function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Float32})
 
@@ -74,7 +76,10 @@ function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Fl
         return u_prime, u_prime
     end
 
-    return cat(ui, [recur(tspan[i, :]) for i in 1:(size(tspan, 1) - 1)]..., dims = ndims(ui) + 1)
+    return cat(
+        ui, 
+        [recur(tspan[i, :]) for i in 1:(size(tspan, 1) - 1)]..., 
+        dims = ndims(ui) + 1)
 end
 
 function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
@@ -107,6 +112,10 @@ function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float
     return a, tangent
 end
 
+
+"""
+Replaces the default autodiff method with a custom adjoint sensitivity method.
+"""
 function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32}, t::AbstractMatrix{Float32})
 
     u = iter(ui, t)

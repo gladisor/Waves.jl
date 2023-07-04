@@ -37,22 +37,6 @@ function (block::ResidualBlock)(x::AbstractArray{Float32})
     return (block.main(x) .+ block.skip(x)) |> block.activation |> block.pool
 end
 
-struct NormalizedDense
-    dense::Dense
-    norm::LayerNorm
-    act::Function
-end
-
-function NormalizedDense(in_size::Int, out_size::Int, act::Function; kwargs...)
-    return NormalizedDense(Dense(in_size, out_size; kwargs...), LayerNorm(out_size), act)
-end
-
-Flux.@functor NormalizedDense
-
-function (dense::NormalizedDense)(x)
-    return x |> dense.dense |> dense.norm |> dense.act
-end
-
 struct FrequencyDomain
     domain::AbstractMatrix{Float32}
 end
@@ -144,8 +128,8 @@ Flux.trainable(::LatentWaveNormalization) = (;)
 sigmoid_step(x, l) = sigmoid.(-5.0f0 * (x .- l)) - sigmoid.(-5.0f0 * (x .+ l))
 
 function LatentWaveNormalization(dim::OneDim, C::Float32)
-    f_weight = sigmoid_step(dim.x, dim.x[end] - 5.0f0)
-    return LatentWaveNormalization(hcat(f_weight, f_weight, f_weight ./ C, f_weight ./ C, f_weight)[:, :, :])
+    damper = sigmoid_step(dim.x, dim.x[end] - 5.0f0)
+    return LatentWaveNormalization(hcat(damper, damper, damper ./ C, damper ./ C, damper)[:, :, :])
 end
 
 function (n::LatentWaveNormalization)(x)
@@ -156,27 +140,21 @@ function build_split_hypernet_wave_encoder(;
         latent_dim::OneDim,
         nfreq::Int,
         h_size::Int,
-        activation::Function,
-        input_layer::WaveInputLayer,
-        )
+        activation::Function)
 
     latent_elements = size(latent_dim, 1)
 
     ## zero out forces in pml
     model = Chain(
-        input_layer,
+        TotalWaveInput(),
         MeanPool((4, 4)),
         ResidualBlock((3, 3), 3, 32, activation),
-        # Dropout(0.1),
         ResidualBlock((3, 3), 32, 64, activation),
-        # Dropout(0.1),
         ResidualBlock((3, 3), 64, h_size, activation),
-        # Dropout(0.1),
         GlobalMaxPool(),
         flatten,
         Dense(h_size, 5 * nfreq, tanh),
         b -> reshape(b, nfreq, 5, :),
-
         SinWaveEmbedder(latent_dim, nfreq), ## embed into sine wave
         LatentWaveNormalization(latent_dim, WATER)
     )
@@ -204,13 +182,9 @@ function HypernetDesignEncoder(
 
     layers = Chain(
         Dense(in_size, h_size, activation),
-        # Dropout(0.1),
         Dense(h_size, h_size, activation),
-        # Dropout(0.1),
         Dense(h_size, h_size, activation),
-        # Dropout(0.1),
         Dense(h_size, h_size, activation),
-        # Dropout(0.1),
         Dense(h_size, nfreq, tanh),
         SinWaveEmbedder(latent_dim, nfreq),
         sigmoid
@@ -281,6 +255,7 @@ Batchwise implementation
 """
 function build_wavespeed_fields(c::AbstractArray{Float32, 3})
 
+    ## currently the 1.0f-3 constant is computed by (steps - 1) * dt
     dc = diff(c, dims = 2) ./ 1.0f-3 ## hardcoded for now
 
     return cat(
@@ -336,6 +311,10 @@ function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::AbstractVecto
         )
 end
 
+function build_embedder(::LatentDynamics)
+
+end
+
 struct ScatteredEnergyModel
     wave_encoder::Chain
     design_encoder::HypernetDesignEncoder
@@ -385,6 +364,8 @@ and also the c_dc which is the current design state and the rate at which the de
 function (model::ScatteredEnergyModel)(latent_state::AbstractArray{Float32, 3}, c_dc::AbstractArray{Float32, 3}, t::AbstractMatrix{Float32})
     zi = hcat(latent_state, c_dc)
     z = model.iter(zi, t)
+
+    ## last two fields are always wavespeed fields. c and dc
     next_latent_state = z[:, 1:end-2, :, end] ## (features x fields x batch x sequence)
     return (next_latent_state, z)
 end

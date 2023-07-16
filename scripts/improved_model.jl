@@ -1,3 +1,8 @@
+using Flux
+using Flux: DataLoader
+using Optimisers
+using ReinforcementLearning
+
 const EPSILON = Float32(1e-3)
 
 """

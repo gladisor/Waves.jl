@@ -24,7 +24,7 @@ end
 @time _, random_avg = load_and_average_sigma([joinpath(data_path, "episode$i/episode.bson") for i in 1:6])
 @time t, pml_horizon_20_sigma_avg = load_and_average_sigma(["mpc_results/mpc_episode$i.bson" for i in 1:6])
 @time t, no_pml_horizon_20_sigma_avg = load_and_average_sigma(["mpc_results/no_pml_mpc_episode_horizon=20_$i.bson" for i in 1:4])
-@time t, pml_horizon_30_sigma_avg = load_and_average_sigma(["mpc_results/mpc_episode_horizon=30_$i.bson" for i in 1:6])
+@time t, pml_horizon_50_sigma_avg = load_and_average_sigma(["mpc_results/pml_mpc_episode_horizon=50_$i.bson" for i in 1:2])
 
 fig = Figure()
 ax = Axis(
@@ -33,8 +33,8 @@ ax = Axis(
     xlabel = "Time (s)",
     ylabel = "Scattered Energy")
 
-lines!(ax, flattened_t, random_avg, label = "Random")
-lines!(ax, flattened_t, pml_horizon_20_sigma_avg, label = "Horizon = 20")
-lines!(ax, flattened_t, pml_horizon_30_sigma_avg, label = "Horizon = 30")
+lines!(ax, t, random_avg, label = "Random")
+lines!(ax, t, pml_horizon_20_sigma_avg, label = "Horizon = 20")
+lines!(ax, t, pml_horizon_50_sigma_avg, label = "Horizon = 50")
 axislegend(ax, position = :rb)
 save("random.png", fig)

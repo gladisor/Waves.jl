@@ -78,7 +78,7 @@ function (mpc::RandomShooting)(env::WaveEnv)
     return a[idx][1]
 end
 
-Flux.device!(0)
+Flux.device!(1)
 main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
 pml_model_path = joinpath(main_path, "models/SinWaveEmbedderV11/horizon=20_nfreq=200_pml=10000.0_lr=0.0001_batchsize=32/epoch_90/model.bson")
 no_pml_model_path = joinpath(main_path, "models/SinWaveEmbedderV11/horizon=20_nfreq=200_pml=0.0_lr=0.0001_batchsize=32/epoch_90/model.bson")
@@ -96,42 +96,41 @@ no_pml_model = gpu(BSON.load(no_pml_model_path)[:model])
 testmode!(pml_model)
 testmode!(no_pml_model)
 
-episode = EpisodeData(path = joinpath(data_path, "episode1/episode.bson"))
-s, a, t, sigma = prepare_data(episode, length(episode))
+# episode = EpisodeData(path = joinpath(data_path, "episode1/episode.bson"))
+# s, a, t, sigma = prepare_data(episode, length(episode))
 
-horizon = 200
+# horizon = 200
 reset!(env)
-s = gpu(state(env))
-a = gpu(build_action_sequence(policy, env, horizon))
-t = gpu(build_tspan(time(env), env.dt, env.integration_steps, horizon))
+# s = gpu(state(env))
+# a = gpu(build_action_sequence(policy, env, horizon))
+# t = gpu(build_tspan(time(env), env.dt, env.integration_steps, horizon))
 
 # s = gpu(s[1])
 # a = gpu(a[1])
 # t = gpu(t[1])
 
-tspan = cpu(flatten_repeated_last_dim(t))
+# tspan = cpu(flatten_repeated_last_dim(t))
 # sigma = flatten_repeated_last_dim(sigma[1])
-pml_pred_sigma = cpu(vec(pml_model(s, a, t)))
-no_pml_pred_sigma = cpu(vec(no_pml_model(s, a, t)))
+# pml_pred_sigma = cpu(vec(pml_model(s, a, t)))
+# no_pml_pred_sigma = cpu(vec(no_pml_model(s, a, t)))
 
-fig = Figure()
-ax = Axis(fig[1, 1], 
-    title = "Scattered Energy With Random Control",
-    xlabel = "Time (s)",
-    ylabel = "Scattered Energy", 
-    )
+# fig = Figure()
+# ax = Axis(fig[1, 1], 
+#     title = "Scattered Energy With Random Control",
+#     xlabel = "Time (s)",
+#     ylabel = "Scattered Energy", 
+#     )
 
-lines!(ax, tspan, sigma, label = "True Sigma", color = (:blue, 1.0))
-lines!(ax, tspan, pml_pred_sigma, label = "PML", color = (:orange, 0.5))
-lines!(ax, tspan, no_pml_pred_sigma, label = "No PML", color = (:green, 0.5))
-axislegend(ax, position = :rb)
-save("sigma.png", fig)
+# lines!(ax, tspan, sigma, label = "True Sigma", color = (:blue, 1.0))
+# lines!(ax, tspan, pml_pred_sigma, label = "PML", color = (:orange, 0.5))
+# lines!(ax, tspan, no_pml_pred_sigma, label = "No PML", color = (:green, 0.5))
+# axislegend(ax, position = :rb)
+# save("sigma.png", fig)
 
-
-
-# shots = 256
-# beta = 1.0f0
-# mpc = RandomShooting(policy, pml_model, horizon, shots, beta)
+horizon = 50
+shots = 128
+beta = 1.0f0
+mpc = RandomShooting(policy, pml_model, horizon, shots, beta)
 # env.actions = 100
 # render!(mpc, env, path = "vid.mp4", seconds = env.actions * 0.5f0)
 
@@ -140,12 +139,10 @@ save("sigma.png", fig)
 # t = gpu(build_tspan(time(env), env.dt, env.integration_steps, mpc.horizon))
 
 # @time begin
-        
 #     cost, back = Flux.pullback(a) do _a
 #         pred_sigma = mpc.model(s, _a, t)
 #         return sum(pred_sigma) .+ mpc.beta * compute_action_penalty(_a)
 #     end
-
 #     gs = back(one(cost))[1]
 # end
 
@@ -153,10 +150,9 @@ save("sigma.png", fig)
 # ax = Axis(fig[1, 1])
 # lines!(ax, cpu(vec(pred_sigma)))
 # save("pred_sigma.png", fig)
-
 # gs = back(one(cost))
 
-# for i in 1:6
-#     episode = generate_episode_data(mpc, env)
-#     save(episode, "mpc_results/mpc_episode_horizon=$(horizon)_$(i).bson")
-# end
+for i in 1:6
+    episode = generate_episode_data(mpc, env)
+    save(episode, "mpc_results/pml_mpc_episode_horizon=$(horizon)_$(i).bson")
+end

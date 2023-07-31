@@ -28,7 +28,7 @@ println("Declaring Hyperparameters")
 nfreq = 200
 h_size = 256
 activation = leakyrelu
-latent_grid_size = 15.0f0
+latent_grid_size = 30.0f0 #15.0f0
 latent_elements = 512
 horizon = 20
 batchsize = 32
@@ -42,8 +42,8 @@ steps = 20
 epochs = 500
 loss_func = Flux.mse
 
-# MODEL_PATH = mkpath(joinpath(main_path, "models/SinWaveEmbedderV11/horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
-# println(MODEL_PATH)
+MODEL_PATH = mkpath(joinpath(main_path, "models/RERUN/latent_gs=$(latent_grid_size)_horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
+println(MODEL_PATH)
 
 println("Initializing Model Components")
 latent_dim = OneDim(latent_grid_size, latent_elements)
@@ -57,10 +57,10 @@ model = gpu(ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter,
 
 println("Initializing DataLoaders")
 @time begin
-    # train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:100])
-    # val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 101:120])
-    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
-    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
+    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:100])
+    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 101:120])
+    # train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
+    # val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
     train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
     val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
 end
@@ -68,21 +68,19 @@ end
 opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(lr))
 states, actions, tspans, sigmas = gpu(first(train_loader))
 
-model(states, actions, tspans)
-
-# println("Training")
-# train_loop(
-#     model,
-#     loss_func = loss_func,
-#     train_steps = steps,
-#     val_steps = steps,
-#     train_loader = train_loader,
-#     val_loader = val_loader,
-#     epochs = epochs,
-#     lr = lr,
-#     decay_rate = decay_rate,
-#     evaluation_samples = 15,
-#     checkpoint_every = 10,
-#     path = MODEL_PATH,
-#     opt = opt
-#     )
+println("Training")
+train_loop(
+    model,
+    loss_func = loss_func,
+    train_steps = steps,
+    val_steps = steps,
+    train_loader = train_loader,
+    val_loader = val_loader,
+    epochs = epochs,
+    lr = lr,
+    decay_rate = decay_rate,
+    evaluation_samples = 15,
+    checkpoint_every = 10,
+    path = MODEL_PATH,
+    opt = opt
+    )

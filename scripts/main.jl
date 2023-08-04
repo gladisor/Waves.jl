@@ -29,7 +29,7 @@ nfreq = 200
 h_size = 256
 activation = leakyrelu
 latent_grid_size = 30.0f0 #15.0f0
-latent_elements = 512
+latent_elements = 700 #512
 horizon = 20
 batchsize = 32
 
@@ -42,7 +42,7 @@ steps = 20
 epochs = 500
 loss_func = Flux.mse
 
-MODEL_PATH = mkpath(joinpath(main_path, "models/RERUN/latent_gs=$(latent_grid_size)_horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
+MODEL_PATH = mkpath(joinpath(main_path, "models/RERUN/latent_gs=$(latent_grid_size)_latent_elements=$(latent_elements)_horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
 println(MODEL_PATH)
 
 println("Initializing Model Components")

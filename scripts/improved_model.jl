@@ -361,7 +361,6 @@ end
 Flux.@functor CustomRecur
 trainable(a::CustomRecur) = (; cell = a.cell)
 
-
 """
 Inputs to this function are the latent state containing displacement, velocity and force fields
 and also the c_dc which is the current design state and the rate at which the design changes.

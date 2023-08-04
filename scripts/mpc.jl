@@ -99,27 +99,71 @@ testmode!(pml_model)
 testmode!(no_pml_model)
 
 episode = EpisodeData(path = joinpath(data_path, "episode900/episode.bson"))
-s, a, t, sigma = prepare_data(episode, length(episode))
+s, a, t, sigma = prepare_data(episode, 2)#length(episode))
 
-s = gpu(s[1])
-a = gpu(a[1])
-t = gpu(t[1])
+idx = 20
+s = gpu(s[idx])
+a = gpu(a[idx])
+t = gpu(t[idx])
+
+# fig = Figure(resolution = (1920, 1080), fontsize = 45)
+# ax = Axis(fig[1, 1], aspect = 1.0, xlabel = "Space (m)", ylabel = "Space (m)", title = "Wave State at Time = $(cpu(t)[1]) (s)")
+# xlims!(ax, dim.x[1], dim.x[end])
+# ylims!(ax, dim.y[1], dim.y[end])
+
+# heatmap!(ax, dim.x, dim.y, cpu(s.wave_total[:, :, end]), colormap = :ice)
+# mesh!(ax, cpu(s.design))
+# save("design.png", fig)
 
 latent_dim = cpu(pml_model.latent_dim)
 tspan = cpu(flatten_repeated_last_dim(t))
 
-# z = cpu(generate_latent_solution(pml_model, s, a, t))
+z = cpu(generate_latent_solution(pml_model, s, a, t))
 # pml_z = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
+
+u = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
+c = permutedims(z[:, 6, :, 1] * pml_model.iter.dynamics.C0)
+
+fig = Figure(resolution = (1920, 1080), fontsize = 45)
+ax1 = Axis(fig[1, 1], ylabel = "Space (m)", title = L"u_{sc}^z(x, t)")
+hm1 = heatmap!(ax1, tspan, latent_dim.x, u, colormap = :ice)
+ax1.xticklabelsvisible = false
+ax1.xticksvisible = false
+ax1.titlesize =  60
+
+Colorbar(fig[1, 2], hm1, label = L"m")
+ax2 = Axis(fig[2, 1], xlabel = "Time (s)", ylabel = "Space (m)", title = L"c^z(x, t)")
+ax2.titlesize =  60
+hm2 = heatmap!(ax2, tspan, latent_dim.x, c, colormap = :turbid)
+Colorbar(fig[2, 2], hm2, label = L"m/s")
+save("c.png", fig)
+
+# fig = Figure(resolution = (1920, 1080))
+
+# ax1 = Axis(
+#     fig[1, 1], #, aspect = (1, 5, 1),
+#     title = "Displacement"
+# )
+# heatmap!(ax1, tspan, latent_dim.x, u, colormap = :ice)
+
+# ax2 = Axis(
+#     fig[2, 1], #aspect = (1, 5, 1),
+#     title = "Wave Speed"
+#     )
+# # zlims!(ax2, 0.0f0, pml_model.iter.dynamics.C0)
+# heatmap!(ax2, tspan, latent_dim.x, c, colormap = :delta)
+# save("c.png", fig)
+
 # z = cpu(generate_latent_solution(no_pml_model, s, a, t))
 # no_pml_z = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
 
-fig = Figure(fontsize = 30)
-ax1 = Axis(fig[1, 1], ylabel = "Space (m)", title = "PML")
-ax1.xticklabelsvisible = false
-heatmap!(ax1, tspan, latent_dim.x, pml_z, colorrange = )
-ax2 = Axis(fig[2, 1], xlabel = "Time (s)", ylabel = "Space (m)", title = "No PML")
-heatmap!(ax2, tspan, latent_dim.x, no_pml_z)
-save("latent.png", fig)
+# fig = Figure(fontsize = 30)
+# ax1 = Axis(fig[1, 1], ylabel = "Space (m)", title = "PML")
+# ax1.xticklabelsvisible = false
+# heatmap!(ax1, tspan, latent_dim.x, pml_z, colorrange = )
+# ax2 = Axis(fig[2, 1], xlabel = "Time (s)", ylabel = "Space (m)", title = "No PML")
+# heatmap!(ax2, tspan, latent_dim.x, no_pml_z)
+# save("latent.png", fig)
 
 # horizon = 200
 # s = gpu(state(env))

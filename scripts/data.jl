@@ -53,7 +53,7 @@ function build_triple_ring_design_space()
 end
 
 ## selecting gpu
-Flux.device!(1)
+Flux.device!(0)
 ## setting discretization in space and time
 grid_size = 15.0f0
 elements = 512
@@ -64,7 +64,7 @@ action_speed = 500.0f0
 freq = 1000.0f0
 pml_width = 5.0f0
 pml_scale = 10000.0f0
-actions = 200 #100
+actions = 10 #200 #100
 integration_steps = 100
 ## point source settings
 pulse_x = -10.0f0
@@ -101,18 +101,20 @@ env = WaveEnv(
 policy = RandomDesignPolicy(action_space(env))
 
 ## saving environment
-data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
-BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
+# data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
+# BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
 
 # rendering a sample animation
 # println("Rendering Example")
-# @time render!(policy, env, path = joinpath(data_path, "vid.mp4"), seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+# @time render!(policy, env, path = joinpath(data_path, "test_vid.mp4"), seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+@time render!(policy, env, path = "test_vid.mp4", seconds = env.actions * 0.5f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 
-# starting data generation loop
-println("Generating Data")
-for i in 1:episodes
-    path = mkpath(joinpath(data_path, "episode$i"))
-    @time episode = generate_episode_data(policy, env)
-    save(episode, joinpath(path, "episode.bson"))
-    plot_sigma!(episode, path = joinpath(path, "sigma.png"))
-end
+
+# # starting data generation loop
+# println("Generating Data")
+# for i in 1:episodes
+#     path = mkpath(joinpath(data_path, "episode$i"))
+#     @time episode = generate_episode_data(policy, env)
+#     save(episode, joinpath(path, "episode.bson"))
+#     plot_sigma!(episode, path = joinpath(path, "sigma.png"))
+# end

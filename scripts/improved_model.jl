@@ -151,13 +151,14 @@ function build_split_hypernet_wave_encoder(;
 
     ## zero out forces in pml
     model = Chain(
-        TotalWaveInput(),
-        MeanPool((4, 4)),
+        # TotalWaveInput(),
+        # MeanPool((4, 4)),
+        w -> w .+ 1.0f-5,
         ResidualBlock((3, 3), 3, 32, activation),
         ResidualBlock((3, 3), 32, 64, activation),
         ResidualBlock((3, 3), 64, h_size, activation),
         GlobalMaxPool(),
-        flatten,
+        Flux.flatten,
         Dense(h_size, 5 * nfreq, tanh),
         b -> reshape(b, nfreq, 5, :),
         SinWaveEmbedder(latent_dim, nfreq), ## embed into sine wave
@@ -225,7 +226,7 @@ Generates a sequence of wavespeed functions by evaluating the design after apply
 action.
 """
 function (model::HypernetDesignEncoder)(d::AbstractDesign, a::DesignSequence)
-    recur = Recur(model, d)
+    recur = Flux.Recur(model, d)
     design_sequence = vcat(d, [recur(action) for action in a])
     x = hcat(normalize.(design_sequence, [model.design_space])...)[:, :, :]
     return model.layers(x)
@@ -316,37 +317,16 @@ function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::AbstractVecto
         )
 end
 
-function build_embedder(::LatentDynamics)
-
-end
-
-struct ScatteredEnergyModel
+struct ScatteredEnergyModel{D <: AbstractDynamics}
     wave_encoder::Chain
     design_encoder::HypernetDesignEncoder
     latent_dim::OneDim
-    iter::Integrator
+    iter::Integrator{D}
     design_space::DesignSpace
     mlp::Chain
 end
 
 Flux.@functor ScatteredEnergyModel
-
-function flatten_repeated_last_dim(x::AbstractArray{Float32})
-
-    last_dim = size(x, ndims(x))
-    first_component = selectdim(x, ndims(x), 1)
-    second_component = selectdim(selectdim(x, ndims(x) - 1, 2:size(x, ndims(x) - 1)), ndims(x), 2:last_dim)
-    new_dims = (size(second_component)[1:end-2]..., prod(size(second_component)[end-1:end]))
-
-    return cat(
-        first_component,
-        reshape(second_component, new_dims),
-        dims = ndims(x) - 1)
-end
-
-function flatten_repeated_last_dim(x::Vector{<:AbstractMatrix{Float32}})
-    return hcat(flatten_repeated_last_dim.(x)...)
-end
 
 mutable struct CustomRecur{T,S}
     cell::T
@@ -388,7 +368,8 @@ Propagates the latent solutions batchwise. Outputs a tensor: (elements x fields 
 function generate_latent_solution(model::ScatteredEnergyModel, s, a, t)
 
     ## uvf is a tensor of shape (elements x fields x batch)
-    uvf = model.wave_encoder(s)
+    # uvf = model.wave_encoder(s)
+    uvf = encode_wave(model, s)
 
     ## c_dc is a tensor of shape (elements x sequence x 2 x batch)
     ## the first of the third dimention is the starting wavespeed field
@@ -419,7 +400,9 @@ function (model::ScatteredEnergyModel)(
             Vector{<: AbstractMatrix{Float32}}})
 
     z = generate_latent_solution(model, s, a, t)
-    return model.mlp(z)
+
+    return decode_signal(model, z)
+    # return model.mlp(z)
 end
 
 function plot_latent_simulation_and_scattered_energy!(model::ScatteredEnergyModel, tspan::Vector, z::Array{Float32, 3}, sigma_pred::Vector, sigma_true::Vector; path::String)
@@ -652,6 +635,6 @@ function build_scattered_wave_decoder(latent_elements::Int, h_size::Int, k_size:
         Conv((k_size,), h_size => h_size, activation),
 
         Conv((1,), h_size => 1),
-        flatten
+        # Flux.flatten
     )
 end

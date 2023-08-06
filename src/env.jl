@@ -17,7 +17,7 @@ end
 
 struct WaveEnvState
     dim::TwoDim
-    tspan::Vector{Float32}
+    tspan::AbstractVector{Float32}
     wave_total::AbstractArray{Float32, 3}
     design::AbstractDesign
 end

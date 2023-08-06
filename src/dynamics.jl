@@ -16,9 +16,9 @@ function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t, dt::Floa
     return du * dt
 end
 
-struct Integrator
+struct Integrator{D <: AbstractDynamics}
     integration_function::Function
-    dynamics::AbstractDynamics
+    dynamics::D
     ti::Float32
     dt::Float32
     steps::Int

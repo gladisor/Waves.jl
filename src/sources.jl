@@ -9,6 +9,7 @@ struct Source <: AbstractSource
 end
 
 Flux.@functor Source
+Flux.trainable(::Source) = (;)
 
 Source(source::AbstractArray{Float32}; freq::Float32) = Source(source, freq)
 

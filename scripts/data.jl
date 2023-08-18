@@ -3,9 +3,9 @@ using Flux
 using BSON
 using FileIO
 using Waves
-include("plot.jl")
+# include("plot.jl")
 
-const STORAGE_PATH = "/scratch/cmpe299-fa22/tristan/data"
+STORAGE_PATH = "..."
 
 function build_simple_radii_design_space()
     pos = [0.0f0 0.0f0]
@@ -53,7 +53,7 @@ function build_triple_ring_design_space()
 end
 
 ## selecting gpu
-Flux.device!(0)
+# Flux.device!(0)
 ## setting discretization in space and time
 grid_size = 15.0f0
 elements = 512
@@ -64,7 +64,7 @@ action_speed = 500.0f0
 freq = 1000.0f0
 pml_width = 5.0f0
 pml_scale = 10000.0f0
-actions = 10 #200 #100
+actions = 2 #200 #100
 integration_steps = 100
 ## point source settings
 pulse_x = -10.0f0

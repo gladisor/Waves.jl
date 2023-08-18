@@ -1,6 +1,4 @@
-using Interpolations
-using Interpolations: Extrapolation
-using CairoMakie
+export render!
 
 const FRAMES_PER_SECOND = 24
 

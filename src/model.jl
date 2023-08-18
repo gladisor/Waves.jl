@@ -1,7 +1,4 @@
-using Flux
-using Flux: DataLoader
-using Optimisers
-using ReinforcementLearning
+export build_split_hypernet_wave_encoder, HypernetDesignEncoder, LatentDynamics, build_scattered_wave_decoder, ScatteredEnergyModel, train_loop, visualize!, plot_latent_simulation_and_scattered_energy!, overfit, generate_latent_solution, flatten_repeated_last_dim
 
 const EPSILON = Float32(1e-3)
 
@@ -359,7 +356,7 @@ function (m::CustomRecur)(x...)
 end
 
 Flux.@functor CustomRecur
-trainable(a::CustomRecur) = (; cell = a.cell)
+Flux.trainable(a::CustomRecur) = (; cell = a.cell)
 
 """
 Inputs to this function are the latent state containing displacement, velocity and force fields

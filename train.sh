@@ -9,7 +9,7 @@
 #SBATCH -w cs003
 
 #SBATCH -o logs/log-%j.out
-#SBATCH --mail-user=tristan.shah@sjsu.edu
+#SBATCH --mail-user=...
 
 export http_proxy=http://172.16.1.2:3128; export https_proxy=http://172.16.1.2:3128
 module load julia

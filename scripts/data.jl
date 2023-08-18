@@ -3,7 +3,6 @@ using Flux
 using BSON
 using FileIO
 using Waves
-# include("plot.jl")
 
 STORAGE_PATH = "..."
 
@@ -53,7 +52,7 @@ function build_triple_ring_design_space()
 end
 
 ## selecting gpu
-# Flux.device!(0)
+Flux.device!(0)
 ## setting discretization in space and time
 grid_size = 15.0f0
 elements = 512
@@ -100,13 +99,12 @@ env = WaveEnv(
 
 policy = RandomDesignPolicy(action_space(env))
 
-## saving environment
-# data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
-# BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
+# saving environment
+data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
+BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
 
 # rendering a sample animation
-# println("Rendering Example")
-# @time render!(policy, env, path = joinpath(data_path, "test_vid.mp4"), seconds = env.actions * 0.1f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+println("Rendering Example")
 @time render!(policy, env, path = "test_vid.mp4", seconds = env.actions * 0.5f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
 
 

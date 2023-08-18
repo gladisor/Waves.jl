@@ -9,8 +9,6 @@ using Optimisers
 using Waves
 
 Flux.CUDA.allowscalar(false)
-# include("improved_model.jl")
-# include("plot.jl")
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
     return [policy(env) for i in 1:horizon]
@@ -79,7 +77,7 @@ function (mpc::RandomShooting)(env::WaveEnv)
 end
 
 Flux.device!(0)
-main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
+main_path = "..."
 
 # pml_model_path = joinpath(main_path, "models/RERUN/horizon=20_nfreq=200_pml=10000.0_lr=0.0001_batchsize=32/epoch_90/model.bson")
 pml_model_path = joinpath(main_path, "models/SinWaveEmbedderV11/horizon=20_nfreq=200_pml=10000.0_lr=0.0001_batchsize=32/epoch_90/model.bson")

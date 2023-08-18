@@ -2,12 +2,9 @@ using Waves
 using BSON
 using CairoMakie
 
-include("improved_model.jl")
-include("plot.jl")
-
 Flux.CUDA.allowscalar(false)
 
-main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
+main_path = "..."
 data_path = joinpath(main_path, "episodes")
 
 function load_and_average_sigma(paths::Vector{String})

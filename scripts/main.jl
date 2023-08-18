@@ -10,11 +10,7 @@ using Waves
 
 Flux.CUDA.allowscalar(false)
 
-# include("improved_model.jl")
-# include("plot.jl")
-
 Flux.device!(0)
-
 main_path = "..."
 data_path = joinpath(main_path, "episodes")
 
@@ -59,8 +55,6 @@ println("Initializing DataLoaders")
 @time begin
     train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:100])
     val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 101:120])
-    # train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:2])
-    # val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 3:4])
     train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
     val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
 end

@@ -9,7 +9,7 @@
 #SBATCH -w cs003
 
 #SBATCH -o logs/log-%j.out
-#SBATCH --mail-user=tristan.shah@sjsu.edu
+#SBATCH --mail-user=...
 
 module load julia
 srun julia --project scripts/mpc.jl ## your run command

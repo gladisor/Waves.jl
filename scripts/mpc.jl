@@ -78,7 +78,7 @@ function (mpc::RandomShooting)(env::WaveEnv)
     return a[idx][1]
 end
 
-Flux.device!(1)
+Flux.device!(0)
 main_path = "/scratch/cmpe299-fa22/tristan/data/actions=200_design_space=build_triple_ring_design_space_freq=1000.0"
 
 # pml_model_path = joinpath(main_path, "models/RERUN/horizon=20_nfreq=200_pml=10000.0_lr=0.0001_batchsize=32/epoch_90/model.bson")
@@ -101,7 +101,8 @@ testmode!(no_pml_model)
 episode = EpisodeData(path = joinpath(data_path, "episode900/episode.bson"))
 s, a, t, sigma = prepare_data(episode, 2)#length(episode))
 
-idx = 20
+# idx = 20
+idx = 22
 s = gpu(s[idx])
 a = gpu(a[idx])
 t = gpu(t[idx])
@@ -115,28 +116,48 @@ t = gpu(t[idx])
 # mesh!(ax, cpu(s.design))
 # save("design.png", fig)
 
-latent_dim = cpu(pml_model.latent_dim)
-tspan = cpu(flatten_repeated_last_dim(t))
+# latent_dim = cpu(pml_model.latent_dim)
+# tspan = cpu(flatten_repeated_last_dim(t))
 
-z = cpu(generate_latent_solution(pml_model, s, a, t))
-# pml_z = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
+# z = cpu(generate_latent_solution(pml_model, s, a, t))
+# # pml_z = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
 
-u = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
-c = permutedims(z[:, 6, :, 1] * pml_model.iter.dynamics.C0)
+# u = permutedims(z[:, 2, :, 1] .- z[:, 1, :, 1])
+# c = permutedims(z[:, 6, :, 1] * pml_model.iter.dynamics.C0)
 
-fig = Figure(resolution = (1920, 1080), fontsize = 45)
-ax1 = Axis(fig[1, 1], ylabel = "Space (m)", title = L"u_{sc}^z(x, t)")
-hm1 = heatmap!(ax1, tspan, latent_dim.x, u, colormap = :ice)
-ax1.xticklabelsvisible = false
-ax1.xticksvisible = false
-ax1.titlesize =  60
+# fig = Figure(resolution = (1920, 1080), fontsize = 45)
+# ax1 = Axis(fig[1, 1], ylabel = "Space (m)", title = L"u_{sc}^z(x, t)")
+# hm1 = heatmap!(ax1, tspan, latent_dim.x, u, colormap = :ice)
+# ax1.xticklabelsvisible = false
+# ax1.xticksvisible = false
+# ax1.titlesize =  60
 
-Colorbar(fig[1, 2], hm1, label = L"m")
-ax2 = Axis(fig[2, 1], xlabel = "Time (s)", ylabel = "Space (m)", title = L"c^z(x, t)")
-ax2.titlesize =  60
-hm2 = heatmap!(ax2, tspan, latent_dim.x, c, colormap = :turbid)
-Colorbar(fig[2, 2], hm2, label = L"m/s")
-save("c.png", fig)
+# Colorbar(fig[1, 2], hm1, label = L"m")
+# ax2 = Axis(fig[2, 1], xlabel = "Time (s)", ylabel = "Space (m)", title = L"c^z(x, t)")
+# ax2.titlesize =  60
+# hm2 = heatmap!(ax2, tspan, latent_dim.x, c, colormap = :turbid)
+# Colorbar(fig[2, 2], hm2, label = L"m/s")
+# save("c.png", fig)
+
+
+fig = Figure(resolution = (1920, 1920))
+ax = Axis(fig[1, 1], aspect = 1.0)
+
+ax.xticklabelsvisible = false
+ax.xticksvisible = false
+ax.xgridvisible = false
+
+ax.yticklabelsvisible = false
+ax.yticksvisible = false
+ax.ygridvisible = false
+
+ax.topspinevisible = false
+ax.rightspinevisible = false
+ax.leftspinevisible = false
+ax.bottomspinevisible = false
+
+mesh!(ax, cpu(s.design))
+save("design.png", fig)
 
 # fig = Figure(resolution = (1920, 1080))
 

@@ -105,8 +105,8 @@ function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float
         _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i, :]), iter, wave)
         dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
 
-        a .+= adjoint_state .+ dwave# * iter.dt
-        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)# * iter.dt
+        a .+= adjoint_state .+ dwave
+        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
     end
 
     return a, tangent
@@ -140,7 +140,7 @@ struct WaveDynamics <: AbstractDynamics
 end
 
 Flux.@functor WaveDynamics
-Flux.trainable(dyn::WaveDynamics) = (;)
+Flux.trainable(::WaveDynamics) = (;)
 
 function WaveDynamics(dim::AbstractDim; 
         ambient_speed::Float32,

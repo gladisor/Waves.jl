@@ -38,6 +38,7 @@ using BSON
 using FileIO
 import LinearAlgebra
 using DataStructures: CircularBuffer
+using Images: imresize
 
 abstract type AbstractDim end
 

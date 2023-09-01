@@ -24,25 +24,17 @@ end
 
 Flux.@functor WaveEnvState
 
-struct WaveImage <: AbstractSensor end
-(sensor::WaveImage)(s::WaveEnvState) = s
-
 mutable struct WaveEnv <: AbstractEnv
     dim::AbstractDim
     reset_wave::AbstractInitialWave
-
     design_space::DesignSpace
+    resolution::Tuple{Int, Int}
     action_speed::Float32 ## speed that action is applied over m/s
-
-    sensor::AbstractSensor
-
     wave_total::CircularBuffer{AbstractArray{Float32, 3}}
     wave_incident::CircularBuffer{AbstractArray{Float32, 3}}
-
     total_dynamics::WaveDynamics
     incident_dynamics::WaveDynamics
-
-    σ::Vector{Float32}
+    signal::AbstractArray{Float32}
     time_step::Int
     dt::Float32
     integration_steps::Int
@@ -56,22 +48,20 @@ function WaveEnv(
         dim::TwoDim;
         reset_wave::AbstractInitialWave,
         design_space::DesignSpace,
+        resolution::Tuple{Int, Int},
         action_speed::Float32 = 500.0f0,
         source::AbstractSource = NoSource(),
-        sensor::AbstractSensor = WaveImage(),
         ambient_speed::Float32 = AIR,
         pml_width::Float32 = 2.0f0,
         pml_scale::Float32 = 20000.0f0,
         dt::Float32 = Float32(1e-5),
         integration_steps::Int = 100,
-        actions::Int = 10
-        )
+        actions::Int = 10)
 
     wave = reset_wave(build_wave(dim, fields = 6))
     total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = rand(design_space), source = source)
     incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
     sigma = zeros(Float32, integration_steps + 1)
-
 
     wave_total = CircularBuffer{AbstractArray{Float32, 3}}(3)
     wave_incident = CircularBuffer{AbstractArray{Float32, 3}}(3)
@@ -79,7 +69,7 @@ function WaveEnv(
     fill!(wave_total, wave)
     fill!(wave_incident, wave)
 
-    return WaveEnv(dim, reset_wave, design_space, action_speed, sensor, wave_total, wave_incident, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
+    return WaveEnv(dim, reset_wave, design_space, resolution, action_speed, wave_total, wave_incident, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
 end
 
 function Base.time(env::WaveEnv)
@@ -108,18 +98,12 @@ function RLBase.reset!(env::WaveEnv)
     push!(env.wave_total, env.reset_wave(z))
     push!(env.wave_incident, env.reset_wave(z))
 
-    design = DesignInterpolator(rand(env.design_space))
+    env.total_dynamics = update_design(
+        env.total_dynamics, 
+        DesignInterpolator(rand(env.design_space)) ## randomly sample design from ds
+        )
 
-    env.total_dynamics = WaveDynamics(
-        env.total_dynamics.ambient_speed, 
-        design, 
-        env.total_dynamics.source, 
-        env.total_dynamics.grid, 
-        env.total_dynamics.grad, 
-        env.total_dynamics.pml, 
-        env.total_dynamics.bc)
-
-    env.σ = zeros(Float32, env.integration_steps + 1)
+    env.signal *= 0.0f0
     return nothing
 end
 
@@ -140,28 +124,28 @@ function (env::WaveEnv)(action::AbstractDesign)
     push!(env.wave_incident, u_incident[end])
 
     u_scattered = u_total .- u_incident
-    env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
+    env.signal = sum.(energy.(displacement.(u_scattered))) * get_dx(env.dim) * get_dy(env.dim)
 
     env.time_step += env.integration_steps
     return (tspan, cpu(u_incident), cpu(u_scattered))
 end
 
 function RLBase.state(env::WaveEnv)
-
     x = cat(
         convert(Vector{AbstractArray{Float32, 3}}, env.wave_total)...,
-        dims = 4,
+        dims = 4) ## converting buffer frames into big tensor
+
+    d = imresize(
+        cpu(x[:, :, 1, :]), ## extracting displacement field of 2d membrane
+        env.resolution
         )
 
-    d = cpu(x[:, :, 1, :]) ## displacement field of 2d membrane
-
-    return env.sensor(WaveEnvState(
+    return WaveEnvState(
         cpu(env.dim),
         build_tspan(env), ## forward looking tspan
         d,
         cpu(env.total_dynamics.design(time(env))) ## getting the current design
         )
-    )
 end
 
 function RLBase.state_space(env::WaveEnv)
@@ -173,16 +157,7 @@ function RLBase.action_space(env::WaveEnv)
 end
 
 function RLBase.reward(env::WaveEnv)
-    return sum(env.σ)
-end
-
-function episode_trajectory(env::WaveEnv)
-    traj = CircularArraySARTTrajectory(
-        capacity = env.actions,
-        state = Vector{WaveEnvState} => (),
-        action = Vector{typeof(env.reset_design())} => ())
-
-    return traj
+    return sum(env.signal)
 end
 
 mutable struct RandomDesignPolicy <: AbstractPolicy

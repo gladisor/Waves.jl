@@ -137,7 +137,6 @@ function stack(c1::Cylinders, c2::Cylinders)
     return Cylinders(pos, r, c)
 end
 
-
 """
 Defining an abstract type to allow for two different types of scatterers. 
 AdjustableRadiiScatterers have fixed position and adjusable radii.
@@ -309,4 +308,50 @@ function build_2d_rotation_matrix(theta)
     return [
         cos(alpha) -sin(alpha);
         sin(alpha)  cos(alpha)]
+end
+
+## Design Spaces
+function build_simple_radii_design_space()
+    pos = [0.0f0 0.0f0]
+
+    r_low = fill(0.2f0, size(pos, 1))
+    r_high = fill(1.0f0, size(pos, 1))
+    c = fill(AIR, size(pos, 1))
+
+    core = Cylinders([5.0f0, 0.0f0]', [2.0f0], [AIR])
+
+    design_low = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_low, c)), core)
+    design_high = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_high, c)), core)
+
+    return DesignSpace(design_low, design_high)
+end
+
+function build_radii_design_space(pos::AbstractMatrix{Float32})
+
+    DESIGN_SPEED = 3 * AIR
+
+    r_low = fill(0.2f0, size(pos, 1))
+    r_high = fill(1.0f0, size(pos, 1))
+    c = fill(DESIGN_SPEED, size(pos, 1))
+
+    core = Cylinders([5.0f0, 0.0f0]', [2.0f0], [DESIGN_SPEED])
+
+    design_low = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_low, c)), core)
+    design_high = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_high, c)), core)
+
+    return DesignSpace(design_low, design_high)
+end
+
+function build_triple_ring_design_space()
+
+    rot = Float32.(Waves.build_2d_rotation_matrix(30))
+
+    cloak_rings = vcat(
+        Waves.hexagon_ring(3.5f0),
+        Waves.hexagon_ring(4.75f0) * rot,
+        Waves.hexagon_ring(6.0f0)
+    )
+
+    pos = cloak_rings .+ [5.0f0, 0.0f0]'
+    return build_radii_design_space(pos)
 end

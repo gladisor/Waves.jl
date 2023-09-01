@@ -1,4 +1,5 @@
 export OneDim, TwoDim, ThreeDim, build_grid, build_wave, dirichlet
+export get_dx, get_dy, get_dz
 
 Base.size(dim::AbstractDim, i::Int) = size(dim)[i]
 
@@ -121,3 +122,7 @@ function dirichlet(dim::TwoDim)
     bc[end, :] .= 0.0f0
     return bc
 end
+
+get_dx(dim::AbstractDim) = Flux.mean(diff(dim.x))
+get_dy(dim::AbstractDim) = Flux.mean(diff(dim.y))
+get_dz(dim::AbstractDim) = Flux.mean(diff(dim.z))

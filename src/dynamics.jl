@@ -190,5 +190,12 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
 end
 
 function update_design(dyn::WaveDynamics, interp::DesignInterpolator)
-    return WaveDynamics(dyn.ambient_speed, interp, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
+    return WaveDynamics(
+        dyn.ambient_speed, 
+        interp, 
+        dyn.source, 
+        dyn.grid, 
+        dyn.grad, 
+        dyn.pml, 
+        dyn.bc)
 end

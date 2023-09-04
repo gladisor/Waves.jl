@@ -100,12 +100,12 @@ function SinWaveEmbedder(dim::OneDim, nfreq::Int)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
-    x_norm = x ./ sum(abs, x, dims = 1)
+    x_norm = x# ./ sum(abs, x, dims = 1)
     return (embedder.frequencies * x_norm)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
-    x_norm = x ./ sum(abs, x, dims = 1)
+    x_norm = x# ./ sum(abs, x, dims = 1)
     return batched_mul(embedder.frequencies, x_norm)
 end
 
@@ -149,7 +149,7 @@ function build_split_hypernet_wave_encoder(;
     ## zero out forces in pml
     model = Chain(
         TotalWaveInput(),
-        MeanPool((4, 4)),
+        # MeanPool((4, 4)),
         ResidualBlock((3, 3), 3, 32, activation),
         ResidualBlock((3, 3), 32, 64, activation),
         ResidualBlock((3, 3), 64, h_size, activation),
@@ -311,10 +311,6 @@ function (dyn::LatentDynamics)(wave::AbstractArray{Float32, 3}, t::AbstractVecto
         Flux.unsqueeze(dc, dims = 2),
         Flux.unsqueeze(dc * 0.0f0, dims = 2)
         )
-end
-
-function build_embedder(::LatentDynamics)
-
 end
 
 struct ScatteredEnergyModel

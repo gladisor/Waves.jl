@@ -236,7 +236,6 @@ end
 
 function (model::HypernetDesignEncoder)(d::Vector{<: AbstractDesign}, a::Matrix{<: AbstractDesign})
     recur = Recur(model, d)
-
     design_sequences = hcat(d, [recur(a[i, :]) for i in axes(a, 1)]...)
     x = normalize.(design_sequences, [model.design_space])
     x_batch = cat([hcat(x[i, :]...) for i in axes(x, 1)]..., dims = 3)

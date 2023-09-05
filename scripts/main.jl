@@ -136,71 +136,8 @@ dc = zeros(Float32, size(latent_dim)..., 1, 1)
 #     lines!(ax, latent_dim.x, z_u_tot[i, :], color = :blue)
 # end
 
-struct LatentWaveDynamics <: AbstractDynamics
-    grad::AbstractMatrix{Float32}
-    C::Float32
-    source::LatentSource
-    pml::AbstractVector{Float32}
-    bc::AbstractVector{Float32}
-end
-
-Flux.@functor LatentWaveDynamics
-Flux.trainable(dyn::LatentWaveDynamics) = (;dyn.source)
-
-function (dyn::LatentWaveDynamics)(x::AbstractArray{Float32, 3}, t::AbstractVector{Float32})
-    u_inc = x[:, 1, :]
-    v_inc = x[:, 2, :]
-
-    u_tot = x[:, 3, :]
-    v_tot = x[:, 4, :]
-
-    c = x[:, 5, :]
-    dc = x[:, 6, :]
-
-    f = dyn.source(t)
-
-    du_inc = dyn.C ^ 2 * (dyn.grad * v_inc) .- dyn.pml .* u_inc
-    du_tot = dyn.C ^ 2 * c .* (dyn.grad * v_tot) .- dyn.pml .* u_tot
-
-    dv_inc = (dyn.grad * (u_inc .+ f)) .- dyn.pml .* v_inc
-    dv_tot = (dyn.grad * (u_tot .+ f)) .- dyn.pml .* v_tot
-
-    return hcat(
-        Flux.unsqueeze(du_inc .* dyn.bc, dims = 2),
-        Flux.unsqueeze(dv_inc, dims = 2),
-        Flux.unsqueeze(du_tot .* dyn.bc, dims = 2),
-        Flux.unsqueeze(dv_tot, dims = 2),
-        Flux.unsqueeze(dc, dims = 2),
-        Flux.unsqueeze(dc * 0.0f0, dims = 2))
-end
-
-grad = build_gradient(latent_dim)
-source = LatentSource(latent_dim, 5, (-10.0f0, 10.0f0), (0.2f0, 1.0f0), (0.0f0, 1.0f0), env.total_dynamics.source.freq)
-pml = build_pml(latent_dim, pml_width, pml_scale)
-bc = dirichlet(latent_dim)
-dyn = LatentWaveDynamics(grad, WATER, source, pml, bc) |> gpu
-
-iter = gpu(Integrator(runge_kutta, dyn, 0.0f0, env.dt, 5 * env.integration_steps))
-
-tspan = build_tspan(iter) |> collect |> gpu
-x = gpu(hcat(zi, c, dc))
-
 # z = iter(x, tspan[:, :])
-tspan_matrix = tspan[:, :]
-
-# cost, back = Flux.pullback(iter) do _iter
-#     z = _iter(x, tspan_matrix)
-#     return sum(z[:, 3, :, :] .^ 2) / 500.0f0
-# end
-
-# back(one(cost))
-
-ti = tspan_matrix[100, :]
-cost, back = Flux.pullback(_iter -> sum(_iter.dynamics.source(ti) .^ 2), iter)
-back(one(cost))
-
-
-
+# tspan_matrix = tspan[:, :]
 
 # fig = Figure()
 # ax = Axis(fig[1, 1])

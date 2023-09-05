@@ -55,7 +55,14 @@ For a single (shared) starting time
 """
 function (iter::Integrator)(ui::AbstractArray{Float32})
     tspan = @ignore_derivatives build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
-    recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
+    # recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
+
+    recur = Recur(ui) do _u, _t
+        du = iter.integration_function(iter.dynamics, _u, _t, iter.dt)
+        u_prime = _u .+ du
+        return u_prime, u_prime
+    end
+
     return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
 end
 
@@ -82,6 +89,10 @@ function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Fl
         dims = ndims(ui) + 1)
 end
 
+"""
+Major limitation: cannot differentiate through nested parameterized structures.
+All parameters must be contained in dynamics.
+"""
 function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
     a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
     a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
@@ -112,22 +123,23 @@ function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float
     return a, tangent
 end
 
-
 """
 Replaces the default autodiff method with a custom adjoint sensitivity method.
 """
-function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32}, t::AbstractMatrix{Float32})
+# function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32}, t::AbstractMatrix{Float32})
 
-    u = iter(ui, t)
+#     println("test")
 
-    function Integrator_back(adj::AbstractArray{Float32})
-        a, tangent = adjoint_sensitivity(iter, u, t, adj)
-        iter_tangent = Tangent{Integrator}(;dynamics = tangent)
-        return iter_tangent, a, nothing
-    end
+#     u = iter(ui, t)
 
-    return u, Integrator_back
-end
+#     function Integrator_back(adj::AbstractArray{Float32})
+#         a, tangent = adjoint_sensitivity(iter, u, t, adj)
+#         iter_tangent = Tangent{Integrator}(;dynamics = tangent)
+#         return iter_tangent, a, nothing
+#     end
+
+#     return u, Integrator_back
+# end
 
 struct WaveDynamics <: AbstractDynamics
     ambient_speed::Float32

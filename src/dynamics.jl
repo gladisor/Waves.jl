@@ -4,14 +4,14 @@ export WaveDynamics
 export ForceLatentDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
-    return range(ti, ti + steps * dt, steps + 1)
+    return collect(range(ti, ti + steps * dt, steps + 1))
 end
 
-function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t, dt::Float32)
-    k1 = f(u, t)
-    k2 = f(u .+ 0.5f0 * dt * k1, t .+ 0.5f0 * dt)
-    k3 = f(u .+ 0.5f0 * dt * k2, t .+ 0.5f0 * dt)
-    k4 = f(u .+ dt * k3,         t .+ dt)
+function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t, θ, dt::Float32)
+    k1 = f(u,                    t,               θ)
+    k2 = f(u .+ 0.5f0 * dt * k1, t .+ 0.5f0 * dt, θ)
+    k3 = f(u .+ 0.5f0 * dt * k2, t .+ 0.5f0 * dt, θ)
+    k4 = f(u .+ dt * k3,         t .+ dt,         θ)
     du = 1/6f0 * (k1 .+ 2 * k2 .+ 2 * k3 .+ k4)
     return du * dt
 end
@@ -19,7 +19,6 @@ end
 struct Integrator
     integration_function::Function
     dynamics::AbstractDynamics
-    ti::Float32
     dt::Float32
     steps::Int
 end
@@ -27,44 +26,7 @@ end
 Flux.@functor Integrator
 Flux.trainable(iter::Integrator) = (;iter.dynamics,)
 
-build_tspan(iter::Integrator) = build_tspan(iter.ti, iter.dt, iter.steps)
-
-function Base.reverse(iter::Integrator)
-    tf = iter.ti + iter.steps * iter.dt
-    return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
-end
-
-"""
-Works with a time (Float32) or a batch of times (Vector)
-"""
-function (iter::Integrator)(
-        u::AbstractArray{Float32}, 
-        t::Union{Float32, <: AbstractVector{Float32}}
-        )
-
-    return iter.integration_function(iter.dynamics, u, t, iter.dt)
-end
-
-function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
-    u′ = u .+ iter(u, t)
-    return (u′, u′)
-end
-
-"""
-For a single (shared) starting time
-"""
-function (iter::Integrator)(ui::AbstractArray{Float32})
-    tspan = @ignore_derivatives build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
-    # recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
-
-    recur = Recur(ui) do _u, _t
-        du = iter.integration_function(iter.dynamics, _u, _t, iter.dt)
-        u_prime = _u .+ du
-        return u_prime, u_prime
-    end
-
-    return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
-end
+build_tspan(iter::Integrator, ti::Float32) = build_tspan(ti, iter.dt, iter.steps)
 
 """
 For a batch of predefined time sequences.
@@ -75,10 +37,10 @@ tspan: (timesteps x batch)
 
 This method is specifically for propagating the dynamics for the predefined number of steps.
 """
-function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Float32})
+function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Float32}, θ)
 
     recur = Recur(ui) do _u, _t
-        du = iter(_u, _t)
+        du = iter.integration_function(iter.dynamics, _u, _t, θ, iter.dt)
         u_prime = _u .+ du
         return u_prime, u_prime
     end
@@ -87,6 +49,10 @@ function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Fl
         ui, 
         [recur(tspan[i, :]) for i in 1:(size(tspan, 1) - 1)]..., 
         dims = ndims(ui) + 1)
+end
+
+function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractVector{Float32}, θ)
+    return iter(ui, tspan[:, :], θ)
 end
 
 """
@@ -166,7 +132,7 @@ function WaveDynamics(dim::AbstractDim;
     grid = build_grid(dim)
     grad = build_gradient(dim)
     pml = build_pml(dim, pml_width, pml_scale)
-    bc = dirichlet(dim)
+    bc = build_dirichlet(dim)
 
     return WaveDynamics(ambient_speed, design, source, grid, grad, pml, bc)
 end

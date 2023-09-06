@@ -1,4 +1,4 @@
-export build_split_hypernet_wave_encoder, HypernetDesignEncoder, LatentDynamics, build_scattered_wave_decoder, ScatteredEnergyModel, train_loop, visualize!, plot_latent_simulation_and_scattered_energy!, overfit, generate_latent_solution, flatten_repeated_last_dim
+export build_split_hypernet_wave_encoder, HypernetDesignEncoder, LatentDynamics, build_scattered_wave_decoder, ScatteredEnergyModel, train_loop, visualize!, plot_latent_simulation_and_scattered_energy!, overfit, generate_latent_solution
 
 const EPSILON = Float32(1e-3)
 
@@ -322,23 +322,6 @@ struct ScatteredEnergyModel
 end
 
 Flux.@functor ScatteredEnergyModel
-
-function flatten_repeated_last_dim(x::AbstractArray{Float32})
-
-    last_dim = size(x, ndims(x))
-    first_component = selectdim(x, ndims(x), 1)
-    second_component = selectdim(selectdim(x, ndims(x) - 1, 2:size(x, ndims(x) - 1)), ndims(x), 2:last_dim)
-    new_dims = (size(second_component)[1:end-2]..., prod(size(second_component)[end-1:end]))
-
-    return cat(
-        first_component,
-        reshape(second_component, new_dims),
-        dims = ndims(x) - 1)
-end
-
-function flatten_repeated_last_dim(x::Vector{<:AbstractMatrix{Float32}})
-    return hcat(flatten_repeated_last_dim.(x)...)
-end
 
 mutable struct CustomRecur{T,S}
     cell::T

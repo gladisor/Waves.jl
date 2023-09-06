@@ -61,9 +61,9 @@ include("designs.jl")
 include("sources.jl")
 include("initial_wave.jl")                  ## Pulses, waves, etc...
 include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
-include("env.jl")
+# include("env.jl")
 
-include("data.jl")
-include("model.jl")
-include("plot.jl")
+# include("data.jl")
+# include("model.jl")
+# include("plot.jl")
 end

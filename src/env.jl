@@ -2,23 +2,24 @@ export WaveEnvState
 export WaveImage, DisplacementImage
 export WaveEnv, RandomDesignPolicy
 
-function Base.convert(
-        ::Type{CircularBuffer{AbstractArray{Float32, 3}}}, 
-        x::Union{
-            Vector{CUDA.CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}},
-            Vector{Array{Float32, 3}}
-            }
-        )
+# function Base.convert(
+#         ::Type{CircularBuffer{AbstractArray{Float32, 3}}}, 
+#         x::Union{
+#             Vector{CUDA.CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}},
+#             Vector{Array{Float32, 3}}
+#             }
+#         )
 
-    cb = CircularBuffer{AbstractArray{Float32, 3}}(length(x))
-    [push!(cb, x[i]) for i in axes(x, 1)]
-    return cb
-end
+#     cb = CircularBuffer{AbstractArray{Float32, 3}}(length(x))
+#     [push!(cb, x[i]) for i in axes(x, 1)]
+#     return cb
+# end
 
 struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
-    wave_total::AbstractArray{Float32, 3}
+
+    wave::AbstractArray{Float32, 3}
     design::AbstractDesign
 end
 
@@ -26,16 +27,20 @@ Flux.@functor WaveEnvState
 
 mutable struct WaveEnv <: AbstractEnv
     dim::AbstractDim
-    reset_wave::AbstractInitialWave
+    
     design_space::DesignSpace
+    design::AbstractDesign ## state of design
+    wave::AbstractArray{Float32} ## state of wave
+    source::AbstractSource ## source of energy in environment
+
+    iter::Integrator
+
+    signal::AbstractArray{Float32} ## information saved from integration
+    time_step::Int ## time in environment
+
+    ## static parameters
     resolution::Tuple{Int, Int}
     action_speed::Float32 ## speed that action is applied over m/s
-    wave_total::CircularBuffer{AbstractArray{Float32, 3}}
-    wave_incident::CircularBuffer{AbstractArray{Float32, 3}}
-    total_dynamics::WaveDynamics
-    incident_dynamics::WaveDynamics
-    signal::AbstractArray{Float32}
-    time_step::Int
     dt::Float32
     integration_steps::Int
     actions::Int
@@ -46,37 +51,40 @@ Flux.trainable(::WaveEnv) = (;)
 
 function WaveEnv(
         dim::TwoDim;
-        reset_wave::AbstractInitialWave,
         design_space::DesignSpace,
-        resolution::Tuple{Int, Int},
         action_speed::Float32 = 500.0f0,
         source::AbstractSource = NoSource(),
-        ambient_speed::Float32 = AIR,
+
+        c0::Float32 = WATER,
         pml_width::Float32 = 2.0f0,
         pml_scale::Float32 = 20000.0f0,
-        dt::Float32 = Float32(1e-5),
+
+        resolution::Tuple{Int, Int} = (128, 128), ## this must be less than 
+        dt::Float32 = 1f-5,
         integration_steps::Int = 100,
         actions::Int = 10)
 
-    wave = reset_wave(build_wave(dim, 6))
-    total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = rand(design_space), source = source)
-    incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
-    sigma = zeros(Float32, integration_steps + 1)
+    @assert all(size(dim) .> resolution) "Resolution must be less than finite element grid."
 
-    wave_total = CircularBuffer{AbstractArray{Float32, 3}}(3)
-    wave_incident = CircularBuffer{AbstractArray{Float32, 3}}(3)
+    wave = build_wave(dim, 6)
+    design = rand(design_space)
+    dyn = AcousticDynamics(dim, c0, pml_width, pml_scale)
+    iter = Integrator(runge_kutta, dyn, dt, integration_steps)
+    signal = zeros(Float32, integration_steps + 1)
 
-    fill!(wave_total, wave)
-    fill!(wave_incident, wave)
-
-    return WaveEnv(dim, reset_wave, design_space, resolution, action_speed, wave_total, wave_incident, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
+    return WaveEnv(
+        dim, 
+        design_space, design, 
+        wave, source, 
+        iter, signal, 0, 
+        resolution, action_speed, dt, integration_steps, actions)
 end
 
 function Base.time(env::WaveEnv)
     return env.time_step * env.dt
 end
 
-function build_tspan(env::WaveEnv) 
+function Waves.build_tspan(env::WaveEnv) 
     return build_tspan(time(env), env.dt, env.integration_steps)
 end
 
@@ -108,44 +116,44 @@ function RLBase.reset!(env::WaveEnv)
 end
 
 function (env::WaveEnv)(action::AbstractDesign)
+    tspan = build_tspan(env)
     ti = time(env)
-    tspan = build_tspan(ti, env.dt, env.integration_steps)
 
-    design = env.total_dynamics.design(ti)
-    interp = DesignInterpolator(design, env.design_space(design, gpu(action)), ti, tspan[end])
-    env.total_dynamics = update_design(env.total_dynamics, interp)
+    current_design = env.design
+    next_design = env.design_space(current_design, action)
+    interp = DesignInterpolator(current_design, next_design, ti, tspan[end])
 
-    total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
-    u_total = unbatch(total_iter(env.wave_total[end]))
-    push!(env.wave_total, u_total[end])
+    grid = build_grid(env.dim)
+    C = t -> speed(interp(cpu(t)[1]), grid, env.iter.dynamics.c0)
 
-    incident_iter = Integrator(runge_kutta, env.incident_dynamics, ti, env.dt, env.integration_steps)
-    u_incident = unbatch(incident_iter(env.wave_incident[end]))
-    push!(env.wave_incident, u_incident[end])
+    sol = env.iter(env.wave, gpu(tspan), [C, env.source])
+    u_tot = sol[:, :, 1, :]
 
-    u_scattered = u_total .- u_incident
-    env.signal = sum.(energy.(displacement.(u_scattered))) * get_dx(env.dim) * get_dy(env.dim)
-
+    env.design = next_design
+    env.wave = sol[:, :, :, end]
     env.time_step += env.integration_steps
-    return (tspan, cpu(u_incident), cpu(u_scattered))
+    return tspan, interp, u_tot
+    
+    # u_scattered = u_total .- u_incident
+    # env.signal = sum.(energy.(displacement.(u_scattered))) * get_dx(env.dim) * get_dy(env.dim)
+    # return (tspan, cpu(u_incident), cpu(u_scattered))
 end
 
 function RLBase.state(env::WaveEnv)
-    x = cat(
-        convert(Vector{AbstractArray{Float32, 3}}, env.wave_total)...,
-        dims = 4) ## converting buffer frames into big tensor
 
-    d = imresize(
-        cpu(x[:, :, 1, :]), ## extracting displacement field of 2d membrane
-        env.resolution
-        )
+    env.wave
 
-    return WaveEnvState(
-        cpu(env.dim),
-        build_tspan(env), ## forward looking tspan
-        d,
-        cpu(env.total_dynamics.design(time(env))) ## getting the current design
-        )
+    # d = imresize(
+    #     cpu(x[:, :, 1, :]), ## extracting displacement field of 2d membrane
+    #     env.resolution
+    #     )
+
+    # return WaveEnvState(
+    #     cpu(env.dim),
+    #     build_tspan(env), ## forward looking tspan
+    #     d,
+    #     cpu(env.total_dynamics.design(time(env))) ## getting the current design
+    #     )
 end
 
 function RLBase.state_space(env::WaveEnv)

@@ -51,6 +51,9 @@ function acoustic_dynamics(x, c, f, ∇, pml, bc)
 end
 
 function (dyn::AcousticDynamics)(x, t::AbstractVector{Float32}, θ)
+
+    C, F = θ
+
     c = C(t)
     f = F(t)
 
@@ -77,42 +80,65 @@ function build_normal(x::AbstractArray{Float32, 3}, μ::AbstractMatrix, σ::Abst
     return dropdims(sum(f, dims = 3), dims = 3)
 end
 
-dim = TwoDim(15.0f0, 256)
-dyn = AcousticDynamics(dim, WATER, 2.0f0, 10000.0f0)
-iter = Integrator(runge_kutta, dyn, 1f-5, 2000) |> gpu
-tspan = build_tspan(iter, 0.0f0)
-grid = gpu(build_grid(dim))
+function Base.:∈(t::Float32, interp::DesignInterpolator)
+    return interp.ti <= t <= interp.tf
+end
 
-n = 1
-μ = gpu([-10.0f0;; 0.0f0])
-σ = gpu(ones(Float32, n) * 0.3f0)
-a = gpu(ones(Float32, n) * 1.0f0)
+function multi_design_interpolation(interps::Vector{DesignInterpolator}, t::Float32)
+    _, idx = findmax(t .∈ interps)
+    return interps[idx](t)
+end
 
-pulse = build_normal(grid, μ, σ, a)
-F = gpu(Source(pulse, 1000.0f0))
+using ReinforcementLearning
+include("../src/env.jl")
 
-design_space = Waves.build_triple_ring_design_space()
-d1 = rand(design_space)
-d2 = rand(design_space)
-design_interpolator = gpu(DesignInterpolator(d1, d2, tspan[1], tspan[end]))
+dim = TwoDim(15.0f0, 700)
 
-C = t -> speed(design_interpolator(cpu(t)[1]), grid, dyn.c0)
-C([1.0f0])
+n = 4
 
-θ = [C, F]
-x = gpu(build_wave(dim, 6))
-@time sol = cpu(iter(x, gpu(tspan), θ))
-println("Min: ", sol[:, :, 1, :] |> minimum)
-println("Max: ", sol[:, :, 1, :] |> maximum)
+μ = zeros(Float32, n, 2)
+μ[1, :] .= [-10.0f0, 0.0f0]
+μ[2, :] .= [-10.0f0, 2.0f0]
+μ[3, :] .= [-5.0f0, -5.0f0]
+μ[4, :] .= [-5.0f0, 5.0f0]
 
-u = linear_interpolation(tspan, Flux.unbatch(sol[:, :, 1, :]))
+σ = ones(Float32, n) * 0.3f0
+a = ones(Float32, n) * 0.5f0
+a[4] *= -1.0f0
 
+pulse = build_normal(build_grid(dim), μ, σ, a)
 
-idx = 1:5:length(tspan)
+F = Source(pulse, 1000.0f0)
+env = gpu(WaveEnv(dim; 
+    design_space = Waves.build_triple_ring_design_space(),
+    source = F,
+    integration_steps = 1000
+    ))
+
+policy = RandomDesignPolicy(action_space(env))
+
+a1 = policy(env)
+a2 = policy(env)
+a3 = policy(env)
+
+@time tspan1, interp1, u_tot1 = cpu(env(a1))
+@time tspan2, interp2, u_tot2 = cpu(env(a2))
+@time tspan3, interp3, u_tot3 = cpu(env(a3))
+
+tspan = flatten_repeated_last_dim(hcat(tspan1, tspan2, tspan3))
+interp = [interp1, interp2, interp3]
+u_tot = flatten_repeated_last_dim(cat(u_tot1, u_tot2, u_tot3, dims = 4))
+
+println("Min: ", u_tot |> minimum)
+println("Max: ", u_tot |> maximum)
+
+u = linear_interpolation(tspan, Flux.unbatch(u_tot))
 
 fig = Figure()
 ax = Axis(fig[1, 1], aspect = 1.0f0)
-@time record(fig, "vid.mp4", idx) do i
+
+@time record(fig, "vid.mp4", 1:5:length(tspan)) do i
     empty!(ax)
     heatmap!(ax, dim.x, dim.y, u(tspan[i]), colormap = :ice, colorrange = (-1.0f0, 1.0f0))
+    mesh!(ax, multi_design_interpolation(interp, tspan[i]))
 end

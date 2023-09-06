@@ -1,7 +1,7 @@
 export NoSource, Source
 
 struct NoSource <: AbstractSource end
-(source::NoSource)(t::Float32) = 0.0f0
+(source::NoSource)(t) = 0.0f0
 
 struct Source <: AbstractSource
     shape::AbstractArray{Float32}

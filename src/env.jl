@@ -58,7 +58,7 @@ function WaveEnv(
         integration_steps::Int = 100,
         actions::Int = 10)
 
-    wave = reset_wave(build_wave(dim, fields = 6))
+    wave = reset_wave(build_wave(dim, 6))
     total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = rand(design_space), source = source)
     incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
     sigma = zeros(Float32, integration_steps + 1)

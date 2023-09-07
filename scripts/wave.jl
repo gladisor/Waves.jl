@@ -24,7 +24,6 @@ function build_normal(x::AbstractArray{Float32, 3}, μ::AbstractMatrix, σ::Abst
 end
 
 dim = TwoDim(15.0f0, 512)
-
 n = 5
 μ = zeros(Float32, n, 2)
 μ[:, 1] .= -10.0f0

@@ -33,11 +33,9 @@ using Flux:
 using ChainRulesCore
 using Optimisers
 using ReinforcementLearning
-using ProgressMeter: @showprogress
 using BSON
 using FileIO
 import LinearAlgebra
-using DataStructures: CircularBuffer
 using Images: imresize
 
 abstract type AbstractDim end
@@ -50,7 +48,6 @@ abstract type AbstractSource end
 abstract type AbstractInitialWave end
 
 abstract type AbstractDynamics end
-abstract type AbstractSensor end
 
 include("dims.jl")                          ## Core structures for defining dimensional spaces
 include("metrics.jl")

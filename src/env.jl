@@ -2,19 +2,6 @@ export WaveEnvState
 export WaveImage, DisplacementImage
 export WaveEnv, RandomDesignPolicy
 
-# function Base.convert(
-#         ::Type{CircularBuffer{AbstractArray{Float32, 3}}}, 
-#         x::Union{
-#             Vector{CUDA.CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}},
-#             Vector{Array{Float32, 3}}
-#             }
-#         )
-
-#     cb = CircularBuffer{AbstractArray{Float32, 3}}(length(x))
-#     [push!(cb, x[i]) for i in axes(x, 1)]
-#     return cb
-# end
-
 struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
@@ -66,11 +53,12 @@ function WaveEnv(
 
     @assert all(size(dim) .> resolution) "Resolution must be less than finite element grid."
 
-    wave = build_wave(dim, 6)
-    design = rand(design_space)
+    wave = zeros(Float32, size(dim)..., 6, 3)       ## initialize wave state
+    design = rand(design_space)                     ## initialize design state
+    signal = zeros(Float32, integration_steps + 1)  ## initialize signal quanitity
+
     dyn = AcousticDynamics(dim, c0, pml_width, pml_scale)
     iter = Integrator(runge_kutta, dyn, dt, integration_steps)
-    signal = zeros(Float32, integration_steps + 1)
 
     return WaveEnv(
         dim, 
@@ -100,6 +88,7 @@ function RLBase.reset!(env::WaveEnv)
     return nothing
 end
 
+FRAMESKIP = 10
 function (env::WaveEnv)(action::AbstractDesign)
     tspan = build_tspan(env)
     ti = time(env)
@@ -111,22 +100,21 @@ function (env::WaveEnv)(action::AbstractDesign)
     grid = build_grid(env.dim)
     C = t -> speed(interp(cpu(t)[1]), grid, env.iter.dynamics.c0)
 
-    sol = env.iter(env.wave, gpu(tspan), [C, env.source])
+    sol = env.iter(env.wave[:, :, :, end], gpu(tspan), [C, env.source])
     u_tot = sol[:, :, 1, :]
 
     env.design = next_design
-    env.wave = sol[:, :, :, end]
+    ## 3 frames with frameskip of 5
+    env.wave = sol[:, :, :, end-(2*FRAMESKIP):FRAMESKIP:end]
     env.time_step += env.integration_steps
+
+    # get_dx(dim) * get_dy(dim)
     return tspan, interp, u_tot
-    
-    # u_scattered = u_total .- u_incident
-    # env.signal = sum.(energy.(displacement.(u_scattered))) * get_dx(env.dim) * get_dy(env.dim)
-    # return (tspan, cpu(u_incident), cpu(u_scattered))
 end
 
 function RLBase.state(env::WaveEnv)
 
-    u_tot = imresize(cpu(env.wave[:, :, 1]), env.resolution)
+    u_tot = imresize(cpu(env.wave[:, :, 1, :]), env.resolution)
 
     return WaveEnvState(
         cpu(env.dim),

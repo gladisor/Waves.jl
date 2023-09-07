@@ -136,7 +136,6 @@ end
 dim = TwoDim(15.0f0, 700)
 
 n = 5
-
 μ = zeros(Float32, n, 2)
 μ[1, :] .= [-10.0f0, 0.0f0]
 μ[2, :] .= [-10.0f0, -1.0f0]
@@ -153,17 +152,23 @@ source = Source(pulse, 1000.0f0)
 env = gpu(WaveEnv(dim; 
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
-    integration_steps = 1000,
+    integration_steps = 100,
     actions = 20))
 
 policy = RandomDesignPolicy(action_space(env))
+render!(policy, env, Float32(env.actions) * 0.5f0)
 
-# render!(policy, env, Float32(env.actions) * 0.5f0)
-a = policy(env)
-tspan, interp, u_tot = env(a)
-s = state(env)
+# a = policy(env)
+# tspan, interp, u_tot = env(a)
+# s = state(env)
+# wave = s.wave
 
-fig = Figure()
-ax = Axis(fig[1, 1], aspect = 1.0f0)
-heatmap!(ax, s.wave, colormap = :ice)
-save("wave.png", fig)
+# fig = Figure()
+# ax1 = Axis(fig[1, 1], aspect = 1.0f0)
+# ax2 = Axis(fig[1, 2], aspect = 1.0f0)
+# ax3 = Axis(fig[1, 3], aspect = 1.0f0)
+
+# heatmap!(ax1, wave[:, :, 1], colormap = :ice)
+# heatmap!(ax2, wave[:, :, 2], colormap = :ice)
+# heatmap!(ax3, wave[:, :, 3], colormap = :ice)
+# save("wave.png", fig)

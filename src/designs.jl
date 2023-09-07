@@ -181,8 +181,6 @@ struct AdjustableRadiiScatterers <: AbstractScatterers
 end
 
 Flux.@functor AdjustableRadiiScatterers
-# Flux.trainable(design::AdjustableRadiiScatterers) = (;design.cylinders.r)
-# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;r = design.cylinders.r))
 Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
 Base.vec(design::AdjustableRadiiScatterers) = design.cylinders.r
 
@@ -290,6 +288,15 @@ function (interp::DesignInterpolator)(t::Float32)
     Δt = ifelse(Δt > 0.0f0, Δt, 1.0f0)
     Δy = interp.final - interp.initial
     return interp.initial + (clamp(t, interp.ti, interp.tf) - interp.ti) * (Δy / Δt)
+end
+
+function Base.:∈(t::Float32, interp::DesignInterpolator)
+    return interp.ti <= t <= interp.tf
+end
+
+function multi_design_interpolation(interps::Vector{DesignInterpolator}, t::Float32)
+    _, idx = findmax(t .∈ interps)
+    return interps[idx](t)
 end
 
 function hexagon_ring(r::Float32)

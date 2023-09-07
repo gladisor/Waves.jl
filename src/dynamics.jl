@@ -1,5 +1,6 @@
 export build_tspan, runge_kutta
 export Integrator
+export AcousticDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
     return collect(range(ti, ti + steps * dt, steps + 1))
@@ -103,3 +104,60 @@ Replaces the default autodiff method with a custom adjoint sensitivity method.
 
 #     return u, Integrator_back
 # end
+
+struct AcousticDynamics <: AbstractDynamics
+    c0::Float32
+    grad::AbstractMatrix{Float32}
+    pml::AbstractArray{Float32}
+    bc::AbstractArray{Float32}
+end
+
+Flux.@functor AcousticDynamics
+Flux.trainable(::AcousticDynamics) = (;)
+
+function AcousticDynamics(dim::AbstractDim, c0::Float32, pml_width::Float32, pml_scale::Float32)
+    return AcousticDynamics(
+        c0, 
+        build_gradient(dim), 
+        build_pml(dim, pml_width, pml_scale), 
+        build_dirichlet(dim))
+end
+
+function acoustic_dynamics(x, c, f, ∇, pml, bc)
+    U = x[:, :, 1]
+    Vx = x[:, :, 2]
+    Vy = x[:, :, 3]
+    Ψx = x[:, :, 4]
+    Ψy = x[:, :, 5]
+    Ω = x[:, :, 6]
+
+    b = c .^ 2
+
+    σx = pml
+    σy = σx'
+
+    Vxx = ∂x(∇, Vx)
+    Vyy = ∂y(∇, Vy)
+    Ux = ∂x(∇, U .+ f)
+    Uy = ∂y(∇, U .+ f)
+
+    dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
+    dVx = Ux .- σx .* Vx
+    dVy = Uy .- σy .* Vy
+    dΨx = b .* σx .* Vyy
+    dΨy = b .* σy .* Vxx
+    dΩ = σx .* σy .* U
+
+    return cat(bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+end
+
+function (dyn::AcousticDynamics)(x, t::AbstractVector{Float32}, θ)
+    C, F = θ
+
+    c = C(t)
+    f = F(t)
+
+    dtot = acoustic_dynamics(x[:, :, 1:6],        c, f, dyn.grad, dyn.pml, dyn.bc)
+    dinc = acoustic_dynamics(x[:, :, 7:end], dyn.c0, f, dyn.grad, dyn.pml, dyn.bc)
+    return cat(dtot, dinc, dims = 3)
+end

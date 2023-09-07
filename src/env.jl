@@ -5,7 +5,6 @@ export WaveEnv, RandomDesignPolicy
 struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
-
     wave::AbstractArray{Float32}
     design::AbstractDesign
 end
@@ -13,21 +12,20 @@ end
 Flux.@functor WaveEnvState
 
 mutable struct WaveEnv <: AbstractEnv
-    dim::AbstractDim
+    dim::TwoDim
     
     design_space::DesignSpace
-    design::AbstractDesign ## state of design
-    wave::AbstractArray{Float32} ## state of wave
-    source::AbstractSource ## source of energy in environment
-
+    design::AbstractDesign          ## state of design
+    wave::AbstractArray{Float32}    ## state of wave
+    source::AbstractSource          ## source of energy in environment
     iter::Integrator
 
-    signal::AbstractArray{Float32} ## information saved from integration
-    time_step::Int ## time in environment
+    signal::AbstractArray{Float32}  ## information saved from integration
+    time_step::Int                  ## time in environment
 
     ## static parameters
     resolution::Tuple{Int, Int}
-    action_speed::Float32 ## speed that action is applied over m/s
+    action_speed::Float32           ## speed that action is applied over m/s
     dt::Float32
     integration_steps::Int
     actions::Int
@@ -53,7 +51,7 @@ function WaveEnv(
 
     @assert all(size(dim) .> resolution) "Resolution must be less than finite element grid."
 
-    wave = zeros(Float32, size(dim)..., 6, 3)       ## initialize wave state
+    wave = zeros(Float32, size(dim)..., 12, 3)       ## initialize wave state
     design = rand(design_space)                     ## initialize design state
     signal = zeros(Float32, integration_steps + 1)  ## initialize signal quanitity
 
@@ -96,31 +94,35 @@ function (env::WaveEnv)(action::AbstractDesign)
     current_design = env.design
     next_design = env.design_space(current_design, action)
     interp = DesignInterpolator(current_design, next_design, ti, tspan[end])
-
-    grid = build_grid(env.dim)
+    grid = build_grid(env.dim) ## need to fix this
     C = t -> speed(interp(cpu(t)[1]), grid, env.iter.dynamics.c0)
 
+    ## integrating dynamics
     sol = env.iter(env.wave[:, :, :, end], gpu(tspan), [C, env.source])
-    u_tot = sol[:, :, 1, :]
 
+    ## seperation of scattered energy
+    u_tot = sol[:, :, 1, :]
+    u_inc = sol[:, :, 7, :]
+    u_sc = u_tot .- u_inc
+    dΩ = get_dx(env.dim) * get_dy(env.dim)
+    tot_energy = vec(sum(u_tot .^ 2, dims = (1, 2))) * dΩ
+    inc_energy = vec(sum(u_inc .^ 2, dims = (1, 2))) * dΩ
+    sc_energy =  vec(sum(u_sc  .^ 2, dims = (1, 2))) * dΩ
+
+    ## setting environment variables
+    env.signal = hcat(tot_energy, inc_energy, sc_energy)
     env.design = next_design
-    ## 3 frames with frameskip of 5
-    env.wave = sol[:, :, :, end-(2*FRAMESKIP):FRAMESKIP:end]
+    env.wave = sol[:, :, :, end-(2*FRAMESKIP):FRAMESKIP:end] ## 3 frames with frameskip of 5
     env.time_step += env.integration_steps
 
-    # get_dx(dim) * get_dy(dim)
-    return tspan, interp, u_tot
+    ## returning some internal information which is not stored
+    return tspan, cpu(interp), cpu(u_tot), cpu(u_inc)
 end
 
 function RLBase.state(env::WaveEnv)
-
+    ## only the total wave is observable
     u_tot = imresize(cpu(env.wave[:, :, 1, :]), env.resolution)
-
-    return WaveEnvState(
-        cpu(env.dim),
-        build_tspan(env),
-        u_tot,
-        cpu(env.design))
+    return WaveEnvState(cpu(env.dim), build_tspan(env), u_tot, cpu(env.design))
 end
 
 function RLBase.state_space(env::WaveEnv)

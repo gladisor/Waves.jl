@@ -39,14 +39,9 @@ import LinearAlgebra
 using Images: imresize
 
 abstract type AbstractDim end
-
 abstract type AbstractDesign end
 abstract type AbstractScatterers <: AbstractDesign end
-
 abstract type AbstractSource end
-
-abstract type AbstractInitialWave end
-
 abstract type AbstractDynamics end
 
 include("dims.jl")                          ## Core structures for defining dimensional spaces
@@ -56,11 +51,10 @@ include("pml.jl")                           ## Perfectly Matched Layer
 
 include("designs.jl")
 include("sources.jl")
-include("initial_wave.jl")                  ## Pulses, waves, etc...
 include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
-# include("env.jl")
+include("env.jl")
 
-# include("data.jl")
+include("data.jl")
 # include("model.jl")
-# include("plot.jl")
+include("plot.jl")
 end

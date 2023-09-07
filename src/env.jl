@@ -52,7 +52,7 @@ Flux.trainable(::WaveEnv) = (;)
 function WaveEnv(
         dim::TwoDim;
         design_space::DesignSpace,
-        action_speed::Float32 = 500.0f0,
+        action_speed::Float32 = 250.0f0,
         source::AbstractSource = NoSource(),
 
         c0::Float32 = WATER,
@@ -94,23 +94,8 @@ end
 
 function RLBase.reset!(env::WaveEnv)
     env.time_step = 0
-
-    z = gpu(zeros(Float32, size(env.wave_total[end])))
-
-    empty!(env.wave_total)
-    empty!(env.wave_incident)
-
-    fill!(env.wave_total, z)
-    fill!(env.wave_incident, z)
-
-    push!(env.wave_total, env.reset_wave(z))
-    push!(env.wave_incident, env.reset_wave(z))
-
-    env.total_dynamics = update_design(
-        env.total_dynamics, 
-        DesignInterpolator(rand(env.design_space)) ## randomly sample design from ds
-        )
-
+    env.wave *= 0.0f0
+    env.design = rand(env.design_space)
     env.signal *= 0.0f0
     return nothing
 end

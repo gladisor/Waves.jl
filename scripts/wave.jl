@@ -3,6 +3,11 @@ using Flux
 Flux.CUDA.allowscalar(false)
 using CairoMakie
 using Interpolations
+import ProgressMeter
+using ReinforcementLearning
+include("../src/env.jl")
+
+const FRAMES_PER_SECOND = 24
 
 struct AcousticDynamics <: AbstractDynamics
     c0::Float32
@@ -89,8 +94,43 @@ function multi_design_interpolation(interps::Vector{DesignInterpolator}, t::Floa
     return interps[idx](t)
 end
 
-using ReinforcementLearning
-include("../src/env.jl")
+function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32)
+    tspans = []
+    interps = DesignInterpolator[]
+    u_tots = []
+
+    # p = ProgressMeter.Progress(n, "Simulating", env.actions)
+    reset!(env)
+    while !is_terminated(env)
+        tspan, interp, u_tot = cpu(env(policy(env)))
+        push!(tspans, tspan)
+        push!(interps, interp)
+        push!(u_tots, u_tot)
+        println(env.time_step)
+        # ProgressMeter.next!(p)
+    end
+    # ProgressMeter.finish!(p)
+
+    tspan = flatten_repeated_last_dim(hcat(tspans...))
+    u_tot = flatten_repeated_last_dim(cat(u_tots..., dims = 4))
+    u_tot = linear_interpolation(tspan, Flux.unbatch(u_tot))
+
+    frames = Int(round(FRAMES_PER_SECOND * seconds))
+    tspan = range(tspan[1], tspan[end], frames)
+
+    # p = ProgressMeter.Progress(n, "Rendering", length(tspan))
+    fig = Figure()
+    ax = Axis(fig[1, 1], aspect = 1.0f0)
+    @time record(fig, "vid.mp4", tspan, framerate = FRAMES_PER_SECOND) do t
+        empty!(ax)
+        heatmap!(ax, dim.x, dim.y, u_tot(t), colormap = :ice, colorrange = (-1.0f0, 1.0f0))
+        mesh!(ax, multi_design_interpolation(interps, t))
+        # ProgressMeter.next!(p)
+    end
+    # ProgressMeter.finish!(p)
+
+    return nothing
+end
 
 dim = TwoDim(15.0f0, 700)
 
@@ -107,38 +147,39 @@ a = ones(Float32, n) * 0.5f0
 a[4] *= -1.0f0
 
 pulse = build_normal(build_grid(dim), μ, σ, a)
+source = Source(pulse, 1000.0f0)
 
-F = Source(pulse, 1000.0f0)
 env = gpu(WaveEnv(dim; 
     design_space = Waves.build_triple_ring_design_space(),
-    source = F,
-    integration_steps = 1000
-    ))
+    source = source,
+    integration_steps = 100,
+    actions = 20))
 
 policy = RandomDesignPolicy(action_space(env))
+render!(policy, env, Float32(env.actions) * 0.5f0)
 
-a1 = policy(env)
-a2 = policy(env)
-a3 = policy(env)
+# a1 = policy(env)
+# a2 = policy(env)
+# a3 = policy(env)
 
-@time tspan1, interp1, u_tot1 = cpu(env(a1))
-@time tspan2, interp2, u_tot2 = cpu(env(a2))
-@time tspan3, interp3, u_tot3 = cpu(env(a3))
+# @time tspan1, interp1, u_tot1 = cpu(env(a1))
+# @time tspan2, interp2, u_tot2 = cpu(env(a2))
+# @time tspan3, interp3, u_tot3 = cpu(env(a3))
 
-tspan = flatten_repeated_last_dim(hcat(tspan1, tspan2, tspan3))
-interp = [interp1, interp2, interp3]
-u_tot = flatten_repeated_last_dim(cat(u_tot1, u_tot2, u_tot3, dims = 4))
+# tspan = flatten_repeated_last_dim(hcat(tspan1, tspan2, tspan3))
+# interp = [interp1, interp2, interp3]
+# u_tot = flatten_repeated_last_dim(cat(u_tot1, u_tot2, u_tot3, dims = 4))
 
-println("Min: ", u_tot |> minimum)
-println("Max: ", u_tot |> maximum)
+# println("Min: ", u_tot |> minimum)
+# println("Max: ", u_tot |> maximum)
 
-u = linear_interpolation(tspan, Flux.unbatch(u_tot))
+# u = linear_interpolation(tspan, Flux.unbatch(u_tot))
 
-fig = Figure()
-ax = Axis(fig[1, 1], aspect = 1.0f0)
+# fig = Figure()
+# ax = Axis(fig[1, 1], aspect = 1.0f0)
 
-@time record(fig, "vid.mp4", 1:5:length(tspan)) do i
-    empty!(ax)
-    heatmap!(ax, dim.x, dim.y, u(tspan[i]), colormap = :ice, colorrange = (-1.0f0, 1.0f0))
-    mesh!(ax, multi_design_interpolation(interp, tspan[i]))
-end
+# @time record(fig, "vid.mp4", 1:5:length(tspan)) do i
+#     empty!(ax)
+#     heatmap!(ax, dim.x, dim.y, u(tspan[i]), colormap = :ice, colorrange = (-1.0f0, 1.0f0))
+#     mesh!(ax, multi_design_interpolation(interp, tspan[i]))
+# end

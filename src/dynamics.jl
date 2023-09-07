@@ -1,7 +1,5 @@
 export build_tspan, runge_kutta
 export Integrator
-export WaveDynamics
-export ForceLatentDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
     return collect(range(ti, ti + steps * dt, steps + 1))
@@ -25,7 +23,6 @@ end
 
 Flux.@functor Integrator
 Flux.trainable(iter::Integrator) = (;iter.dynamics,)
-
 build_tspan(iter::Integrator, ti::Float32) = build_tspan(ti, iter.dt, iter.steps)
 
 """
@@ -106,74 +103,3 @@ Replaces the default autodiff method with a custom adjoint sensitivity method.
 
 #     return u, Integrator_back
 # end
-
-struct WaveDynamics <: AbstractDynamics
-    ambient_speed::Float32
-    design::DesignInterpolator
-    source::AbstractSource
-    grid::AbstractArray{Float32}
-    grad::AbstractMatrix{Float32}
-    pml::AbstractArray{Float32}
-    bc::AbstractArray{Float32}
-end
-
-Flux.@functor WaveDynamics
-Flux.trainable(::WaveDynamics) = (;)
-
-function WaveDynamics(dim::AbstractDim; 
-        ambient_speed::Float32,
-        pml_width::Float32,
-        pml_scale::Float32,
-        design::AbstractDesign = NoDesign(),
-        source::AbstractSource = NoSource()
-        )
-
-    design = DesignInterpolator(design)
-    grid = build_grid(dim)
-    grad = build_gradient(dim)
-    pml = build_pml(dim, pml_width, pml_scale)
-    bc = build_dirichlet(dim)
-
-    return WaveDynamics(ambient_speed, design, source, grid, grad, pml, bc)
-end
-
-function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
-    U = wave[:, :, 1]
-    Vx = wave[:, :, 2]
-    Vy = wave[:, :, 3]
-    Ψx = wave[:, :, 4]
-    Ψy = wave[:, :, 5]
-    Ω = wave[:, :, 6]
-
-    C = speed(dyn.design(t), dyn.grid, dyn.ambient_speed)
-    b = C .^ 2
-    ∇ = dyn.grad
-    σx = dyn.pml
-    σy = σx'
-    force = dyn.source(t)
-
-    Vxx = ∂x(∇, Vx)
-    Vyy = ∂y(∇, Vy)
-    Ux = ∂x(∇, U .+ force) #.* mask ## Gradient at boundary of design is 0
-    Uy = ∂y(∇, U .+ force) #.* mask ##
-
-    dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
-    dVx = Ux .- σx .* Vx
-    dVy = Uy .- σy .* Vy
-    dΨx = b .* σx .* Vyy
-    dΨy = b .* σy .* Vxx
-    dΩ = σx .* σy .* U
-
-    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
-end
-
-function update_design(dyn::WaveDynamics, interp::DesignInterpolator)
-    return WaveDynamics(
-        dyn.ambient_speed, 
-        interp, 
-        dyn.source, 
-        dyn.grid, 
-        dyn.grad, 
-        dyn.pml, 
-        dyn.bc)
-end

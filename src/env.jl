@@ -19,7 +19,7 @@ struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
 
-    wave::AbstractArray{Float32, 3}
+    wave::AbstractArray{Float32}
     design::AbstractDesign
 end
 
@@ -84,7 +84,7 @@ function Base.time(env::WaveEnv)
     return env.time_step * env.dt
 end
 
-function Waves.build_tspan(env::WaveEnv) 
+function Waves.build_tspan(env::WaveEnv)
     return build_tspan(time(env), env.dt, env.integration_steps)
 end
 
@@ -126,19 +126,13 @@ end
 
 function RLBase.state(env::WaveEnv)
 
-    env.wave
+    u_tot = imresize(cpu(env.wave[:, :, 1]), env.resolution)
 
-    # d = imresize(
-    #     cpu(x[:, :, 1, :]), ## extracting displacement field of 2d membrane
-    #     env.resolution
-    #     )
-
-    # return WaveEnvState(
-    #     cpu(env.dim),
-    #     build_tspan(env), ## forward looking tspan
-    #     d,
-    #     cpu(env.total_dynamics.design(time(env))) ## getting the current design
-    #     )
+    return WaveEnvState(
+        cpu(env.dim),
+        build_tspan(env),
+        u_tot,
+        cpu(env.design))
 end
 
 function RLBase.state_space(env::WaveEnv)

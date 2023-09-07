@@ -5,6 +5,7 @@ using CairoMakie
 using Interpolations
 import ProgressMeter
 using ReinforcementLearning
+using Images: imresize
 include("../src/env.jl")
 
 const FRAMES_PER_SECOND = 24
@@ -134,17 +135,17 @@ end
 
 dim = TwoDim(15.0f0, 700)
 
-n = 4
+n = 5
 
 μ = zeros(Float32, n, 2)
 μ[1, :] .= [-10.0f0, 0.0f0]
-μ[2, :] .= [-10.0f0, 2.0f0]
-μ[3, :] .= [-5.0f0, -5.0f0]
-μ[4, :] .= [-5.0f0, 5.0f0]
+μ[2, :] .= [-10.0f0, -1.0f0]
+μ[3, :] .= [-10.0f0, 1.0f0]
+μ[4, :] .= [-10.0f0, -2.0f0]
+μ[5, :] .= [-10.0f0, 2.0f0]
 
 σ = ones(Float32, n) * 0.3f0
 a = ones(Float32, n) * 0.5f0
-a[4] *= -1.0f0
 
 pulse = build_normal(build_grid(dim), μ, σ, a)
 source = Source(pulse, 1000.0f0)
@@ -152,34 +153,17 @@ source = Source(pulse, 1000.0f0)
 env = gpu(WaveEnv(dim; 
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
-    integration_steps = 100,
+    integration_steps = 1000,
     actions = 20))
 
 policy = RandomDesignPolicy(action_space(env))
-render!(policy, env, Float32(env.actions) * 0.5f0)
 
-# a1 = policy(env)
-# a2 = policy(env)
-# a3 = policy(env)
+# render!(policy, env, Float32(env.actions) * 0.5f0)
+a = policy(env)
+tspan, interp, u_tot = env(a)
+s = state(env)
 
-# @time tspan1, interp1, u_tot1 = cpu(env(a1))
-# @time tspan2, interp2, u_tot2 = cpu(env(a2))
-# @time tspan3, interp3, u_tot3 = cpu(env(a3))
-
-# tspan = flatten_repeated_last_dim(hcat(tspan1, tspan2, tspan3))
-# interp = [interp1, interp2, interp3]
-# u_tot = flatten_repeated_last_dim(cat(u_tot1, u_tot2, u_tot3, dims = 4))
-
-# println("Min: ", u_tot |> minimum)
-# println("Max: ", u_tot |> maximum)
-
-# u = linear_interpolation(tspan, Flux.unbatch(u_tot))
-
-# fig = Figure()
-# ax = Axis(fig[1, 1], aspect = 1.0f0)
-
-# @time record(fig, "vid.mp4", 1:5:length(tspan)) do i
-#     empty!(ax)
-#     heatmap!(ax, dim.x, dim.y, u(tspan[i]), colormap = :ice, colorrange = (-1.0f0, 1.0f0))
-#     mesh!(ax, multi_design_interpolation(interp, tspan[i]))
-# end
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+heatmap!(ax, s.wave, colormap = :ice)
+save("wave.png", fig)

@@ -4,17 +4,14 @@ export
     AbstractDim, 
     AbstractDesign, 
     AbstractSource,
-    AbstractInitialWave, 
     AbstractInitialDesign, 
-    AbstractDynamics,
-    AbstractSensor
+    AbstractDynamics
 
 using SparseArrays
 using IntervalSets
 using Distributions: Uniform
 using CairoMakie
-using Interpolations
-using Interpolations: Extrapolation
+using Interpolations: linear_interpolation, Extrapolation
 
 using Flux
 using Flux: 

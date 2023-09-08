@@ -33,6 +33,7 @@ function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.ac
     ax1 = Axis(fig[1, 1], aspect = 1.0f0)
     # ax2 = Axis(fig[1, 2], aspect = 1.0f0)
 
+    dim = cpu(env.dim)
     @time record(fig, "vid.mp4", tspan, framerate = FRAMES_PER_SECOND) do t
         empty!(ax1)
         # empty!(ax2)

@@ -105,7 +105,7 @@ Replaces the default autodiff method with a custom adjoint sensitivity method.
 #     return u, Integrator_back
 # end
 
-struct AcousticDynamics <: AbstractDynamics
+struct AcousticDynamics{D <: AbstractDim} <: AbstractDynamics
     c0::Float32
     grad::AbstractMatrix{Float32}
     pml::AbstractArray{Float32}
@@ -116,7 +116,7 @@ Flux.@functor AcousticDynamics
 Flux.trainable(::AcousticDynamics) = (;)
 
 function AcousticDynamics(dim::AbstractDim, c0::Float32, pml_width::Float32, pml_scale::Float32)
-    return AcousticDynamics(
+    return AcousticDynamics{typeof(dim)}(
         c0, 
         build_gradient(dim), 
         build_pml(dim, pml_width, pml_scale), 
@@ -151,7 +151,7 @@ function acoustic_dynamics(x, c, f, ∇, pml, bc)
     return cat(bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-function (dyn::AcousticDynamics)(x, t::AbstractVector{Float32}, θ)
+function (dyn::AcousticDynamics{TwoDim})(x, t::AbstractVector{Float32}, θ)
     C, F = θ
 
     c = C(t)

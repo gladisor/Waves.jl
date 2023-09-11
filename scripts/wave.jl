@@ -4,23 +4,7 @@ Flux.CUDA.allowscalar(false)
 using CairoMakie
 using ReinforcementLearning
 
-function build_normal(x::AbstractVector{Float32}, μ::AbstractVector{Float32}, σ::AbstractVector, a::AbstractVector)
-    μ = permutedims(μ)
-    σ = permutedims(σ)
-    a = permutedims(a)
-    f = (1.0f0 ./ (σ * sqrt(2.0f0 * π))) .* a .* exp.(- ((x .- μ) .^ 2) ./ (2.0f0 * σ .^ 2))
-    return dropdims(sum(f, dims = 2), dims = 2)
-end
-
-function build_normal(x::AbstractArray{Float32, 3}, μ::AbstractMatrix, σ::AbstractVector, a::AbstractVector)
-    μ = permutedims(μ[:, :, :, :], (3, 4, 2, 1))
-    σ = permutedims(σ[:, :, :], (2, 3, 1))
-    a = permutedims(a[:, :, :], (2, 3, 1))
-    f = (1.0f0 ./ (2.0f0 * π * σ .^ 2)) .* a .* exp.(-dropdims(sum((x .- μ) .^ 2, dims = 3), dims = 3) ./ (2.0f0 * σ .^ 2))
-    return dropdims(sum(f, dims = 3), dims = 3)
-end
-
-dim = TwoDim(15.0f0, 700)
+dim = TwoDim(15.0f0, 256)
 n = 10
 μ = zeros(Float32, n, 2)
 μ[:, 1] .= -10.0f0
@@ -34,8 +18,8 @@ source = Source(pulse, 1000.0f0)
 env = gpu(WaveEnv(dim; 
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
-    integration_steps = 100,
-    actions = 20))
+    integration_steps = 20,
+    actions = 10))
 
 policy = RandomDesignPolicy(action_space(env))
 render!(policy, env)

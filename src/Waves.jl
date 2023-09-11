@@ -42,7 +42,7 @@ abstract type AbstractSource end
 abstract type AbstractDynamics end
 
 include("dims.jl")                          ## Core structures for defining dimensional spaces
-include("metrics.jl")
+# include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                           ## Perfectly Matched Layer
 

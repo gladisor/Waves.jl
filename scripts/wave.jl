@@ -59,7 +59,6 @@ function prepare_data(eps::Vector{Episode{S, Y}}, horizon::Int) where {S, Y}
     return vcat.(prepare_data.(eps, horizon)...)
 end
 
-
 """
 mask:   (sequence x sequence)
 x:      (sequence x batch)
@@ -80,9 +79,7 @@ function PolynomialInterpolation(x::AbstractArray, y::AbstractArray)
 end
 
 function (interp::PolynomialInterpolation)(t::AbstractVector{Float32})
-
-    scale = maximum(interp.x, dims = 1)
-
+    # scale = maximum(interp.x, dims = 1)
     n = interp.mask .+ .!interp.mask .* Flux.unsqueeze((interp.x .- t'), 2)
     numer = prod(n, dims = 1)
 
@@ -100,18 +97,32 @@ function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Flo
     V = x[:, 2, :]
     ∇ = dyn.grad
 
-    b = dyn.c0 .^ 2 * C(t)
-
-    dU = b .* (∇ * V) .- dyn.pml .* U
+    dU = (dyn.c0 .^ 2 * C(t)) .* (∇ * V) .- dyn.pml .* U
     dV = ∇ * (U .+ F(t)) .- dyn.pml .* V
-    return hcat(dU .* dyn.bc, dV)
+
+    return hcat(
+        Flux.unsqueeze(dU, 2) .* dyn.bc,
+        Flux.unsqueeze(dV, 2))
 end
 
-# struct GaussianSource <: AbstractSource
+struct GaussianSource <: AbstractSource
+    x::AbstractArray
+    μ::AbstractArray
+    σ::AbstractVector
+    a::AbstractVector
+    freq::Float32
+end
 
-# end
+Flux.@functor GaussianSource
+Flux.trainable(source::GaussianSource) = (source.μ, source.σ, source.a)
+GaussianSource(dim::AbstractDim, args...) = GaussianSource(build_grid(dim), args...)
 
-dim = TwoDim(15.0f0, 700)
+function (source::GaussianSource)(t::AbstractVector)
+    f = build_normal(source.x, source.μ, source.σ, source.a)
+    return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
+end
+
+dim = TwoDim(15.0f0, 512)
 n = 10
 μ = zeros(Float32, n, 2)
 μ[:, 1] .= -10.0f0
@@ -126,38 +137,58 @@ env = gpu(WaveEnv(dim;
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
     integration_steps = 100,
-    actions = 5))
+    actions = 3))
 
 policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
-# ep = generate_episode!(policy, env)
+ep = generate_episode!(policy, env)
 
-data = Flux.DataLoader(prepare_data([ep, ep], 3), batchsize = 6, shuffle = true, partial = false)
+data = Flux.DataLoader(prepare_data([ep, ep], 3), batchsize = 2, shuffle = true, partial = false)
 s, a, t, y = Flux.batch.(first(data))
 t′ = t[1:env.integration_steps:end, :]
 
 latent_dim = OneDim(15.0f0, 512)
+
 nfreq = 50
 emb = Waves.SinWaveEmbedder(latent_dim, nfreq)
 w = emb(randn(Float32, nfreq, size(t′)...) * 5.0f0)
 
-interp = PolynomialInterpolation(t′, w)
-C = Chain(interp, sigmoid)
+C = Chain(PolynomialInterpolation(t′, w), sigmoid)
+F = GaussianSource(latent_dim, [0.0f0], [0.3f0], [1.0f0], 1000.0f0)
 
-# dyn = AcousticDynamics(latent_dim, WATER, 2.0f0, 10000.0f0)
-# iter = Integrator(runge_kutta, dyn, env.dt)
+dyn = AcousticDynamics(latent_dim, WATER, 2.0f0, 10000.0f0)
+iter = gpu(Integrator(runge_kutta, dyn, env.dt))
+θ = gpu([C, F])
+wave = zeros(Float32, size(latent_dim)..., 2, 2)
+
+cost, back = Flux.pullback(θ) do _θ
+    z = iter(wave, t, _θ)
+    return Flux.mean(sum(z[:, 1, 1, :] .^ 2, dims = 1))
+end
+
+gs = back(one(cost))[1]
 
 fig = Figure()
-ax = Axis(fig[1, 1])
-xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-ylims!(ax, 0.0f0, 1.0f0)
+ax1 = Axis(fig[1, 1])
+ax2 = Axis(fig[1, 2])
+ax3 = Axis(fig[2, 1])
+ax4 = Axis(fig[2, 2])
+lines!(ax1, latent_dim.x, gs[1].layers[1].y[:, 1, 1])
+lines!(ax2, latent_dim.x, gs[1].layers[1].y[:, 2, 1])
+lines!(ax3, latent_dim.x, gs[1].layers[1].y[:, 3, 1])
+lines!(ax4, latent_dim.x, gs[1].layers[1].y[:, 4, 1])
+save("Cgs.png", fig)
 
-record(fig, "interp.mp4", axes(t, 1)) do i
-    empty!(ax)
 
-    w = C(t[i, :])
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+# ylims!(ax, -1.0f0, 1.0f0)
 
-    lines!(ax, latent_dim.x, w[:, 1], color = :blue)
-    lines!(ax, latent_dim.x, w[:, 2], color = :orange)
-    lines!(ax, latent_dim.x, w[:, 3], color = :red)
-end
+# record(fig, "interp.mp4", axes(t, 1)) do i
+#     empty!(ax)
+
+#     c = C(t[i, :])[:, 1]
+#     lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
+#     lines!(ax, latent_dim.x, c, color = :blue)
+# end

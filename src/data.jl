@@ -1,21 +1,4 @@
-export EpisodeData, generate_episode_data, prepare_data, flatten_repeated_last_dim
-
-function flatten_repeated_last_dim(x::AbstractArray{Float32})
-
-    last_dim = size(x, ndims(x))
-    first_component = selectdim(x, ndims(x), 1)
-    second_component = selectdim(selectdim(x, ndims(x) - 1, 2:size(x, ndims(x) - 1)), ndims(x), 2:last_dim)
-    new_dims = (size(second_component)[1:end-2]..., prod(size(second_component)[end-1:end]))
-
-    return cat(
-        first_component,
-        reshape(second_component, new_dims),
-        dims = ndims(x) - 1)
-end
-
-function flatten_repeated_last_dim(x::Vector{<:AbstractMatrix{Float32}})
-    return hcat(flatten_repeated_last_dim.(x)...)
-end
+export EpisodeData, generate_episode_data, prepare_data
 
 struct EpisodeData
     states::Vector{WaveEnvState}

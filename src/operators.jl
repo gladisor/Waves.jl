@@ -1,5 +1,5 @@
 export build_gradient, ∂x, ∂y
-export build_normal
+export build_normal, flatten_repeated_last_dim
 
 const FORWARD_DIFF_COEF = [-3.0f0, 4.0f0, -1.0f0]
 const BACKWARD_DIFF_COEF = [1.0f0, -4.0f0, 3.0f0]
@@ -61,4 +61,21 @@ function build_normal(x::AbstractArray{Float32, 3}, μ::AbstractMatrix, σ::Abst
     a = permutedims(a[:, :, :], (2, 3, 1))
     f = (1.0f0 ./ (2.0f0 * π * σ .^ 2)) .* a .* exp.(-dropdims(sum((x .- μ) .^ 2, dims = 3), dims = 3) ./ (2.0f0 * σ .^ 2))
     return dropdims(sum(f, dims = 3), dims = 3)
+end
+
+function flatten_repeated_last_dim(x::AbstractArray{Float32})
+
+    last_dim = size(x, ndims(x))
+    first_component = selectdim(x, ndims(x), 1)
+    second_component = selectdim(selectdim(x, ndims(x) - 1, 2:size(x, ndims(x) - 1)), ndims(x), 2:last_dim)
+    new_dims = (size(second_component)[1:end-2]..., prod(size(second_component)[end-1:end]))
+
+    return cat(
+        first_component,
+        reshape(second_component, new_dims),
+        dims = ndims(x) - 1)
+end
+
+function flatten_repeated_last_dim(x::Vector{<:AbstractMatrix{Float32}})
+    return hcat(flatten_repeated_last_dim.(x)...)
 end

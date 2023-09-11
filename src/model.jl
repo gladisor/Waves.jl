@@ -100,12 +100,12 @@ function SinWaveEmbedder(dim::OneDim, nfreq::Int)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
-    x_norm = x# ./ sum(abs, x, dims = 1)
+    x_norm = x ./ size(embedder.frequencies, 2) # ./ sum(abs, x, dims = 1)
     return (embedder.frequencies * x_norm)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
-    x_norm = x# ./ sum(abs, x, dims = 1)
+    x_norm = x ./ size(embedder.frequencies, 2) # ./ sum(abs, x, dims = 1)
     return batched_mul(embedder.frequencies, x_norm)
 end
 

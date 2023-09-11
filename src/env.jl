@@ -56,7 +56,7 @@ function WaveEnv(
     signal = zeros(Float32, integration_steps + 1)  ## initialize signal quanitity
 
     dyn = AcousticDynamics(dim, c0, pml_width, pml_scale)
-    iter = Integrator(runge_kutta, dyn, dt, integration_steps)
+    iter = Integrator(runge_kutta, dyn, dt)
 
     return WaveEnv(
         dim, 

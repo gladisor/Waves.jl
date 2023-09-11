@@ -19,12 +19,12 @@ struct Integrator
     integration_function::Function
     dynamics::AbstractDynamics
     dt::Float32
-    steps::Int
+    # steps::Int
 end
 
 Flux.@functor Integrator
 Flux.trainable(iter::Integrator) = (;iter.dynamics,)
-build_tspan(iter::Integrator, ti::Float32) = build_tspan(ti, iter.dt, iter.steps)
+build_tspan(iter::Integrator, ti::Float32, steps::Int) = build_tspan(ti, iter.dt, steps)
 
 """
 For a batch of predefined time sequences.
@@ -106,6 +106,7 @@ Replaces the default autodiff method with a custom adjoint sensitivity method.
 # end
 
 struct AcousticDynamics{D <: AbstractDim} <: AbstractDynamics
+    dim::D
     c0::Float32
     grad::AbstractMatrix{Float32}
     pml::AbstractArray{Float32}
@@ -116,7 +117,9 @@ Flux.@functor AcousticDynamics
 Flux.trainable(::AcousticDynamics) = (;)
 
 function AcousticDynamics(dim::AbstractDim, c0::Float32, pml_width::Float32, pml_scale::Float32)
-    return AcousticDynamics{typeof(dim)}(
+
+    return AcousticDynamics(
+        dim,
         c0, 
         build_gradient(dim), 
         build_pml(dim, pml_width, pml_scale), 

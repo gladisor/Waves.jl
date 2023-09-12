@@ -1,6 +1,7 @@
 using Waves
 using Flux
 Flux.CUDA.allowscalar(false)
+using Flux.ChainRulesCore: Tangent, ZeroTangent
 using CairoMakie
 using ReinforcementLearning
 using LinearAlgebra
@@ -78,16 +79,17 @@ function PolynomialInterpolation(x::AbstractArray, y::AbstractArray)
     return PolynomialInterpolation(mask, x, y)
 end
 
+EPS = 1f-5
 """
 """
 function (interp::PolynomialInterpolation)(t::AbstractVector{Float32})
     scale = Flux.unsqueeze(maximum(abs.(interp.x), dims = 1), 1)
     n = interp.mask .+ (.!interp.mask) .* Flux.unsqueeze(interp.x .- permutedims(t), 2)
-    numer = Flux.prod(n ./ scale .+ 1f-5, dims = 1)
+    numer = Flux.prod(n ./ scale .+ EPS, dims = 1)
 
     T = Flux.unsqueeze(interp.x, 2) .- Flux.unsqueeze(interp.x, 1)
     d = T .+ interp.mask
-    denom = Flux.prod(d ./ scale .+ 1f-5, dims = 1)
+    denom = Flux.prod(d ./ scale .+ EPS, dims = 1)
     coef = numer ./ denom
     return dropdims(sum(interp.y .* coef, dims = 2), dims = 2)
 end
@@ -99,9 +101,11 @@ function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Flo
     V = x[:, 2, :]
     ∇ = dyn.grad
     
-    b = dyn.c0 ^ 2 * sigmoid(C(t))
+    b = dyn.c0 ^ 2 * C(t)
+    f = F(t)
+
     dU = b .* (∇ * V) .- dyn.pml .* U
-    dV = ∇ * (U .+ F(t)) .- dyn.pml .* V
+    dV = ∇ * (U .+ f) .- dyn.pml .* V
 
     return hcat(
         Flux.unsqueeze(dU, 2) .* dyn.bc,
@@ -140,51 +144,62 @@ env = gpu(WaveEnv(dim;
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
     integration_steps = 100,
-    actions = 5))
+    actions = 10))
 
 policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
 # ep = generate_episode!(policy, env)
 
-data = Flux.DataLoader(prepare_data([ep, ep], 5), batchsize = 2, shuffle = true, partial = false)
+horizon = 3
+data = Flux.DataLoader(prepare_data([ep, ep], horizon), batchsize = 2, shuffle = true, partial = false)
 s, a, t, y = gpu(Flux.batch.(first(data)))
-t′ = t[1:env.integration_steps:end, :]
+t′ = gpu(t[1:env.integration_steps:end, :])
 
 latent_dim = OneDim(15.0f0, 700)
 
 nfreq = 50
 emb = Waves.SinWaveEmbedder(latent_dim, nfreq)
-w = emb(randn(Float32, nfreq, size(t′)...) * 5.0f0)
+w = gpu(emb(randn(Float32, nfreq, size(t′)...)))
 
-C = gpu(PolynomialInterpolation(t′, w))
+mask = gpu(I(size(t′, 1)))
+
+C = Chain(
+    PolynomialInterpolation(mask, t′, w),
+    c -> sigmoid(2.0f0 * c)
+    )
+
 F = gpu(GaussianSource(latent_dim, [5.0f0, -5.0f0, 0.0f0], [0.3f0, 0.4f0, 0.5f0], [-1.0f0, 0.5f0, 1.0f0], 1000.0f0))
 dyn = gpu(AcousticDynamics(latent_dim, WATER, 2.0f0, 10000.0f0))
 iter = gpu(Integrator(runge_kutta, dyn, env.dt))
-
 wave = gpu(zeros(Float32, size(latent_dim)..., 2, length(s)))
 
-## testing differentiation through simulation
-z, back = Flux.pullback(C, F) do _C, _F
-    return iter(wave, t, [_C, _F])
-end
+θ = [C, F]
 
-gs = cpu(back(z))
-# z = cpu(iter(wave, t, [C, F]))
-z = cpu(z)
+"""
+testing differentiation through simulation
+"""
+# z, back = Flux.pullback(θ) do _θ
+#     return iter(wave, t, _θ)
+# end
+# @time gs = cpu(back(z))[1]
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, gs[1].y[:, 1, 1])
-lines!(ax, gs[1].y[:, 2, 1])
-lines!(ax, gs[1].y[:, 3, 1])
-lines!(ax, gs[1].y[:, 4, 1])
-lines!(ax, gs[1].y[:, 5, 1])
-lines!(ax, gs[1].y[:, 6, 1])
-save("gs.png", fig)
+"""
+plotting gradients
+"""
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, gs[1][1][1].y[:, 1, 1], label = "1")
+# lines!(ax, gs[1][1][1].y[:, 2, 1], label = "2")
+# lines!(ax, gs[1][1][1].y[:, 3, 1], label = "3")
+# lines!(ax, gs[1][1][1].y[:, 4, 1], label = "4")
+# lines!(ax, gs[1][1][1].y[:, 5, 1], label = "5")
+# lines!(ax, gs[1][1][1].y[:, 6, 1], label = "6")
+# axislegend(ax)
+# save("gs.png", fig)
 
-
-
-## testing single timestep differentiation
+"""
+testing single timestep differentiation
+"""
 # θ = [C, F]
 # # for i in axes(t, 1)
 #     dwave, back = Flux.pullback(θ) do _θ
@@ -197,24 +212,31 @@ save("gs.png", fig)
 
 
 
+"""
+rendering simulation
+"""
+# z = cpu(iter(wave, t, [C, F]))
+# z = cpu(z)
 
-## rendinring simulation
-fig = Figure()
-ax = Axis(fig[1, 1])
-xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-ylims!(ax, -1.0f0, 1.0f0)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+# ylims!(ax, -1.0f0, 1.0f0)
 
-record(fig, "interp.mp4", axes(t, 1)) do i
-    c = cpu(sigmoid(C(t[i, :])))
+# record(fig, "interp.mp4", axes(t, 1)) do i
+#     c = cpu(C(t[i, :]))
 
-    empty!(ax)
-    lines!(ax, latent_dim.x, c[:, 1], color = :red)
-    lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
-end
-
+#     empty!(ax)
+#     lines!(ax, latent_dim.x, c[:, 1], color = :red)
+#     lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
+# end
 
 
 
+
+"""
+Testing with known function interp
+"""
 # y = sin.(1000.0f0 .* t′)
 # y_true = sin.(1000.0f0 .* t)
 
@@ -227,3 +249,66 @@ end
 # lines!(ax, cpu(t[:, 1]), cpu(y_pred[:, 1]), color = :green)
 # lines!(ax, cpu(t[:, 1]), cpu(y_true[:, 1]), color = :orange)
 # save("interp.png", fig)
+
+
+# @time z = iter(wave, t, θ);
+# display(size(z))
+adj = z .^ 0.0f0
+
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, latent_dim.x, cpu(adj[:, 1, 1, end]))
+# save("adj.png", fig)
+
+
+"""
+adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
+
+u: (finite elements x fields x batch x time)
+t: (time x batch)
+adj: same as solution (u)
+"""
+function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, ∂L_∂z::AbstractArray{Float32, 4})
+    ∂L_∂zᵢ = z[:, :, :, 1] * 0.0f0 ## loss accumulator
+    ∂L_∂θ = ZeroTangent()
+end
+
+i = 100
+
+for i in axes(z, 4)
+    zi = z[:, :, :, i]
+    ti = t[i, :]
+
+    dzidt, back = Flux.pullback(zi, θ) do _zi, _θ
+        iter.integration_function(iter.dynamics, _zi, ti, _θ, iter.dt)
+    end
+
+    dadj_dzi, dadj_dθ = back(adj[:, :, :, i])
+    dadj_dC, dadj_dF = dadj_dθ
+
+    display(Flux.norm(dadj_dC[1][1].y))
+    display(dadj_dF.μ)
+    display(dadj_dF.σ)
+    display(dadj_dF.a)
+    display(dadj_dF.freq)
+
+    break
+end
+
+
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, dadj_dc[:, 1, 1], label = "1")
+# lines!(ax, dadj_dc[:, 2, 1], label = "2")
+# lines!(ax, dadj_dc[:, 3, 1], label = "3")
+# lines!(ax, dadj_dc[:, 4, 1], label = "4")
+# # lines!(ax, y[:, 5, 1], label = "5")
+# # lines!(ax, y[:, 6, 1], label = "6")
+# axislegend(ax)
+# save("gs.png", fig)
+
+
+
+
+
+

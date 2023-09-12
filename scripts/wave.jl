@@ -83,11 +83,11 @@ end
 function (interp::PolynomialInterpolation)(t::AbstractVector{Float32})
     scale = Flux.unsqueeze(maximum(abs.(interp.x), dims = 1), 1)
     n = interp.mask .+ (.!interp.mask) .* Flux.unsqueeze(interp.x .- permutedims(t), 2)
-    numer = Flux.prod(n ./ scale, dims = 1)
+    numer = Flux.prod(n ./ scale .+ 1f-5, dims = 1)
 
     T = Flux.unsqueeze(interp.x, 2) .- Flux.unsqueeze(interp.x, 1)
     d = T .+ interp.mask
-    denom = Flux.prod(d ./ scale, dims = 1)
+    denom = Flux.prod(d ./ scale .+ 1f-5, dims = 1)
     coef = numer ./ denom
     return dropdims(sum(interp.y .* coef, dims = 2), dims = 2)
 end
@@ -99,7 +99,7 @@ function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Flo
     V = x[:, 2, :]
     ∇ = dyn.grad
     
-    b = dyn.c0 ^ 2 * sigmoid(C(t))    
+    b = dyn.c0 ^ 2 * sigmoid(C(t))
     dU = b .* (∇ * V) .- dyn.pml .* U
     dV = ∇ * (U .+ F(t)) .- dyn.pml .* V
 
@@ -125,7 +125,7 @@ function (source::GaussianSource)(t::AbstractVector)
     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end
 
-dim = TwoDim(15.0f0, 512)
+dim = TwoDim(15.0f0, 700)
 n = 10
 μ = zeros(Float32, n, 2)
 μ[:, 1] .= -10.0f0
@@ -146,67 +146,71 @@ policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
 # ep = generate_episode!(policy, env)
 
-data = Flux.DataLoader(prepare_data([ep, ep], 3), batchsize = 3, shuffle = true, partial = false)
+data = Flux.DataLoader(prepare_data([ep, ep], 5), batchsize = 2, shuffle = true, partial = false)
 s, a, t, y = gpu(Flux.batch.(first(data)))
 t′ = t[1:env.integration_steps:end, :]
 
-latent_dim = OneDim(15.0f0, 512)
+latent_dim = OneDim(15.0f0, 700)
 
 nfreq = 50
 emb = Waves.SinWaveEmbedder(latent_dim, nfreq)
-w = emb(randn(Float32, nfreq, size(t′)...))
+w = emb(randn(Float32, nfreq, size(t′)...) * 5.0f0)
 
 C = gpu(PolynomialInterpolation(t′, w))
-F = gpu(GaussianSource(latent_dim, [0.0f0], [0.3f0], [1.0f0], 1000.0f0))
+F = gpu(GaussianSource(latent_dim, [5.0f0, -5.0f0, 0.0f0], [0.3f0, 0.4f0, 0.5f0], [-1.0f0, 0.5f0, 1.0f0], 1000.0f0))
 dyn = gpu(AcousticDynamics(latent_dim, WATER, 2.0f0, 10000.0f0))
 iter = gpu(Integrator(runge_kutta, dyn, env.dt))
 
 wave = gpu(zeros(Float32, size(latent_dim)..., 2, length(s)))
-C(t[1,:])
-
-
-
-
 
 ## testing differentiation through simulation
-# z, back = Flux.pullback(C, F) do _C, _F
-#     return iter(wave, t, [_C, _F])
-# end
+z, back = Flux.pullback(C, F) do _C, _F
+    return iter(wave, t, [_C, _F])
+end
 
-# gs = back(z)
+gs = cpu(back(z))
 # z = cpu(iter(wave, t, [C, F]))
+z = cpu(z)
 
-
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, gs[1].y[:, 1, 1])
+lines!(ax, gs[1].y[:, 2, 1])
+lines!(ax, gs[1].y[:, 3, 1])
+lines!(ax, gs[1].y[:, 4, 1])
+lines!(ax, gs[1].y[:, 5, 1])
+lines!(ax, gs[1].y[:, 6, 1])
+save("gs.png", fig)
 
 
 
 ## testing single timestep differentiation
 # θ = [C, F]
-# for i in axes(t, 1)
+# # for i in axes(t, 1)
 #     dwave, back = Flux.pullback(θ) do _θ
-#         return dyn(wave, t[i, :], _θ)
+#         return dyn(wave, t[end, :], _θ)
 #     end
     
 #     gs = back(dwave)[1]
-#     display(i)
-# end
+#     # display(i)
+# # end
 
 
 
 
 ## rendinring simulation
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-# ylims!(ax, -1.0f0, 1.0f0)
+fig = Figure()
+ax = Axis(fig[1, 1])
+xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+ylims!(ax, -1.0f0, 1.0f0)
 
-# record(fig, "interp.mp4", axes(t, 1)) do i
-#     c = cpu(C(t[i, :]))
+record(fig, "interp.mp4", axes(t, 1)) do i
+    c = cpu(sigmoid(C(t[i, :])))
 
-#     empty!(ax)
-#     lines!(ax, latent_dim.x, c[:, 1], color = :red)
-#     lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
-# end
+    empty!(ax)
+    lines!(ax, latent_dim.x, c[:, 1], color = :red)
+    lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
+end
 
 
 
@@ -222,5 +226,4 @@ C(t[1,:])
 # scatter!(ax, cpu(t′[:, 1]), cpu(y[:, 1]))
 # lines!(ax, cpu(t[:, 1]), cpu(y_pred[:, 1]), color = :green)
 # lines!(ax, cpu(t[:, 1]), cpu(y_true[:, 1]), color = :orange)
-
 # save("interp.png", fig)

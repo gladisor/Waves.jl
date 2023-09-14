@@ -11,7 +11,7 @@ abstract type WaveInputLayer end
 
 struct TotalWaveInput <: WaveInputLayer end
 Flux.@functor TotalWaveInput
-(input::TotalWaveInput)(s::WaveEnvState) = s.wave_total[:, :, :, :] .+ 1f-5
+(input::TotalWaveInput)(s::WaveEnvState) = s.wave[:, :, :, :] .+ 1f-5
 
 struct ResidualBlock
     main::Chain
@@ -100,12 +100,16 @@ function SinWaveEmbedder(dim::OneDim, nfreq::Int)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
-    x_norm = x ./ size(embedder.frequencies, 2) # ./ sum(abs, x, dims = 1)
+    # x_norm = x ./ size(embedder.frequencies, 2)
+    x_norm = x ./ sum(abs, x, dims = 1)
+    # x_norm = x
     return (embedder.frequencies * x_norm)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
-    x_norm = x ./ size(embedder.frequencies, 2) # ./ sum(abs, x, dims = 1)
+    # x_norm = x ./ size(embedder.frequencies, 2)
+    x_norm = x ./ sum(abs, x, dims = 1)
+    # x_norm = x
     return batched_mul(embedder.frequencies, x_norm)
 end
 

@@ -137,7 +137,7 @@ function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
 end
 
 function (source::SinusoidalSource)(t::AbstractVector{Float32})
-    f = source.emb(source.freq_coefs[:, :])
+    f = source.emb(tanh.(source.freq_coefs[:, :]))
     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end
 
@@ -212,11 +212,20 @@ function build_wave_encoder(;
 end
 
 function linear_interp(X::AbstractMatrix{Float32}, Y::AbstractArray{Float32, 3}, x::AbstractVector{Float32})
+    x_row = permutedims(x)
 
-    d = X .- permutedims(x)
+    d = X .- x_row
     ΔYΔX = diff(Y, dims = 2) ./ Flux.unsqueeze(diff(d, dims = 1), 1)
+    l = X[1:end-1, :]
+    r = X[2:end, :]
 
+    ## short circut evaluation used to cover edge case when x is the final X point
+    mask = (l .<= x_row .< r) # .|| (x_row .== r)
 
+    x0 = sum(X[1:end-1, :] .* mask, dims = 1)
+    y0 = dropdims(sum(Y[:, 1:end-1, :] .* Flux.unsqueeze(mask, 1), dims = 2), dims = 2)
+    dydx = dropdims(sum(ΔYΔX .* Flux.unsqueeze(mask, 1), dims = 2), dims = 2)
+    return y0 .+ (permutedims(x) .- x0) .* dydx
 end
 
 dim = TwoDim(15.0f0, 700)
@@ -234,24 +243,22 @@ env = gpu(WaveEnv(dim;
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
     integration_steps = 100,
-    actions = 10))
+    actions = 20))
 
 policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
 # ep = generate_episode!(policy, env)
 
 horizon = 5
-data = Flux.DataLoader(prepare_data([ep, ep], horizon), batchsize = 2, shuffle = true, partial = false)
-s, a, t, y = gpu(Flux.batch.(first(data)))
-t_ = gpu(t[1:env.integration_steps:end, :])
+data = Flux.DataLoader(prepare_data([ep], horizon), batchsize = 4, shuffle = true, partial = false)
+# s, a, t, y = gpu(Flux.batch.(first(data)))
+# t_ = gpu(t[1:env.integration_steps:end, :])
 
 latent_dim = OneDim(15.0f0, 700)
-
 nfreq = 50
-emb = SinWaveEmbedder(latent_dim, nfreq)
-w = gpu(emb(randn(Float32, nfreq, size(t_)...)))
-mask = gpu(I(size(t_, 1)))
-
+# emb = SinWaveEmbedder(latent_dim, nfreq)
+# w = gpu(emb(randn(Float32, nfreq, size(t_)...)))
+# mask = gpu(I(size(t_, 1)))
 # C = Chain(PolynomialInterpolation(mask, t′, w), sigmoid)
 # # F = gpu(GaussianSource(latent_dim, [0.0f0], [0.3f0], [1.0f0], 1000.0f0))
 # F = gpu(SinusoidalSource(latent_dim, nfreq, 1000.0f0))
@@ -262,13 +269,22 @@ mask = gpu(I(size(t_, 1)))
 # wave_encoder = gpu(build_wave_encoder(;latent_dim, nfreq))
 # wave = wave_encoder(s)
 
-ti = t[300, :]
-linear_interp(t_, w, ti)
-l = t_[1:end-1, :]
-r = t_[2:end, :]
+# tx = gpu([0.0005f0, 0.0125f0, 0.011f0, 0.0035f0])
+# y_hat, back = Flux.pullback(w) do _w
+#     linear_interp(t_, _w, tx)
+# end
+# gs = back(y_hat)[1]
+tx = t[101, :]
+linear_interp(t_, w, tx)
 
-ti = gpu([0.0065f0, 0.0055f0])
-display(l .<= permutedims(ti) .< r)
+
+
+
+
+
+
+
+
 
 
 # """
@@ -311,24 +327,18 @@ display(l .<= permutedims(ti) .< r)
 # """
 # Testing with known function interp
 # """
-# # y = sin.(1000.0f0 .* t′)
-# # y_true = sin.(1000.0f0 .* t)
-
+# y = sin.(1000.0f0 .* t_)
+# y_true = sin.(1000.0f0 .* t)
 # # interp = gpu(PolynomialInterpolation(t′, Flux.unsqueeze(y, 1)))
 # # y_pred = vcat([interp(t[i, :]) for i in axes(t, 1)]...)
+# y_pred = vcat([linear_interp(t_, Flux.unsqueeze(y, 1), t[i, :]) for i in axes(t, 1)]...)
 
-# # fig = Figure()
-# # ax = Axis(fig[1, 1])
-# # scatter!(ax, cpu(t′[:, 1]), cpu(y[:, 1]))
-# # lines!(ax, cpu(t[:, 1]), cpu(y_pred[:, 1]), color = :green)
-# # lines!(ax, cpu(t[:, 1]), cpu(y_true[:, 1]), color = :orange)
-# # save("interp.png", fig)
-
-
-# # fig = Figure()
-# # ax = Axis(fig[1, 1])
-# # lines!(ax, latent_dim.x, cpu(adj[:, 1, 1, end]))
-# # save("adj.png", fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# scatter!(ax, cpu(t_[:, 1]), cpu(y[:, 1]))
+# lines!(ax, cpu(t[:, 1]), cpu(y_pred[:, 1]), color = :green)
+# lines!(ax, cpu(t[:, 1]), cpu(y_true[:, 1]), color = :orange)
+# save("interp.png", fig)
 
 
 # """

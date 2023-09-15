@@ -164,3 +164,30 @@ function (dyn::AcousticDynamics{TwoDim})(x, t::AbstractVector{Float32}, θ)
     dinc = acoustic_dynamics(x[:, :, 7:end], dyn.c0, f, dyn.grad, dyn.pml, dyn.bc)
     return cat(dtot, dinc, dims = 3)
 end
+
+function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
+    C, F = θ
+
+    U_tot = x[:, 1, :]
+    V_tot = x[:, 2, :]
+    U_inc = x[:, 3, :]
+    V_inc = x[:, 4, :]
+
+    ∇ = dyn.grad
+
+    c = C(t)
+    f = F(t)
+
+    dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- dyn.pml .* U_tot
+    dV_tot = ∇ * (U_tot .+ f) .- dyn.pml .* V_tot
+
+    dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- dyn.pml .* U_inc
+    dV_inc = ∇ * (U_inc .+ f) .- dyn.pml .* V_inc
+
+    return hcat(
+        Flux.unsqueeze(dU_tot, 2) .* dyn.bc,
+        Flux.unsqueeze(dV_tot, 2),
+        Flux.unsqueeze(dU_inc, 2) .* dyn.bc,
+        Flux.unsqueeze(dV_inc, 2),
+        )
+end

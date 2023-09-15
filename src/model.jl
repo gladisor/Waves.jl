@@ -103,6 +103,7 @@ function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
     # x_norm = x ./ size(embedder.frequencies, 2)
     x_norm = x ./ sum(abs, x, dims = 1)
     # x_norm = x
+    # x_norm = x ./ maximum(abs.(x), dims = 1)
     return (embedder.frequencies * x_norm)
 end
 
@@ -110,7 +111,44 @@ function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     # x_norm = x ./ size(embedder.frequencies, 2)
     x_norm = x ./ sum(abs, x, dims = 1)
     # x_norm = x
+    # x_norm = x ./ maximum(abs.(x), dims = 1)
     return batched_mul(embedder.frequencies, x_norm)
+end
+
+struct SinusoidalSource <: AbstractSource
+    freq_coefs::AbstractVector
+    emb::Waves.SinWaveEmbedder
+    freq::Float32
+end
+
+Flux.@functor SinusoidalSource
+Flux.trainable(source::SinusoidalSource) = (;source.freq_coefs)
+
+function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
+    freq_coefs = randn(Float32, nfreq)
+    return SinusoidalSource(freq_coefs, Waves.SinWaveEmbedder(dim, nfreq), freq)
+end
+
+function (source::SinusoidalSource)(t::AbstractVector{Float32})
+    f = source.emb(tanh.(source.freq_coefs[:, :]))
+    return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
+end
+
+struct GaussianSource <: AbstractSource
+    x::AbstractArray
+    μ::AbstractArray
+    σ::AbstractVector
+    a::AbstractVector
+    freq::Float32
+end
+
+Flux.@functor GaussianSource
+Flux.trainable(source::GaussianSource) = (;source.μ, source.σ, source.a)
+GaussianSource(dim::AbstractDim, args...) = GaussianSource(build_grid(dim), args...)
+
+function (source::GaussianSource)(t::AbstractVector)
+    f = build_normal(source.x, source.μ, source.σ, source.a)
+    return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end
 
 struct NonTrainableScale

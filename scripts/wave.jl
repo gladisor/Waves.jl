@@ -220,11 +220,13 @@ function linear_interp(X::AbstractMatrix{Float32}, Y::AbstractArray{Float32, 3},
     r = X[2:end, :]
 
     ## short circut evaluation used to cover edge case when x is the final X point
-    mask = (l .<= x_row .< r) # .|| (x_row .== r)
+    final_step = r .== r[[end], :] .== x_row
+    mask = (l .<= x_row .< r) .|| final_step
 
     x0 = sum(X[1:end-1, :] .* mask, dims = 1)
     y0 = dropdims(sum(Y[:, 1:end-1, :] .* Flux.unsqueeze(mask, 1), dims = 2), dims = 2)
     dydx = dropdims(sum(ΔYΔX .* Flux.unsqueeze(mask, 1), dims = 2), dims = 2)
+
     return y0 .+ (permutedims(x) .- x0) .* dydx
 end
 
@@ -274,7 +276,7 @@ nfreq = 50
 #     linear_interp(t_, _w, tx)
 # end
 # gs = back(y_hat)[1]
-tx = t[101, :]
+tx = t[201, :]
 linear_interp(t_, w, tx)
 
 
@@ -324,21 +326,21 @@ linear_interp(t_, w, tx)
 
 
 
-# """
-# Testing with known function interp
-# """
-# y = sin.(1000.0f0 .* t_)
-# y_true = sin.(1000.0f0 .* t)
-# # interp = gpu(PolynomialInterpolation(t′, Flux.unsqueeze(y, 1)))
-# # y_pred = vcat([interp(t[i, :]) for i in axes(t, 1)]...)
-# y_pred = vcat([linear_interp(t_, Flux.unsqueeze(y, 1), t[i, :]) for i in axes(t, 1)]...)
+"""
+Testing with known function interp
+"""
+y = sin.(1000.0f0 .* t_)
+y_true = sin.(1000.0f0 .* t)
+# interp = gpu(PolynomialInterpolation(t′, Flux.unsqueeze(y, 1)))
+# y_pred = vcat([interp(t[i, :]) for i in axes(t, 1)]...)
+y_pred = vcat([linear_interp(t_, Flux.unsqueeze(y, 1), t[i, :]) for i in axes(t, 1)]...)
 
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# scatter!(ax, cpu(t_[:, 1]), cpu(y[:, 1]))
-# lines!(ax, cpu(t[:, 1]), cpu(y_pred[:, 1]), color = :green)
-# lines!(ax, cpu(t[:, 1]), cpu(y_true[:, 1]), color = :orange)
-# save("interp.png", fig)
+fig = Figure()
+ax = Axis(fig[1, 1])
+scatter!(ax, cpu(t_[:, 1]), cpu(y[:, 1]))
+lines!(ax, cpu(t[:, 1]), cpu(y_pred[:, 1]), color = :green)
+lines!(ax, cpu(t[:, 1]), cpu(y_true[:, 1]), color = :orange)
+save("interp.png", fig)
 
 
 # """

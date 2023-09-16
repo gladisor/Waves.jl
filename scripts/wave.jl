@@ -126,13 +126,13 @@ env = gpu(WaveEnv(dim;
     design_space = Waves.build_triple_ring_design_space(),
     source = source,
     integration_steps = 100,
-    actions = 20))
+    actions = 10))
 
 policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
 # ep = generate_episode!(policy, env)
 
-horizon = 20
+horizon = 5
 data = Flux.DataLoader(prepare_data([ep], horizon), batchsize = 2, shuffle = true, partial = false)
 s, a, t, y = gpu(Flux.batch.(first(data)))
 latent_dim = OneDim(15.0f0, 700)
@@ -165,12 +165,10 @@ F = gpu(Waves.SinusoidalSource(latent_dim, nfreq, 1000.0f0))
 
 c = cpu(hcat([C(t[i, :]) for i in axes(t, 1)]...))
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-heatmap!(ax, cpu(t[:, 1]), latent_dim.x, c, colormap = :ice)
-save("c.png", fig)
-
-
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# heatmap!(ax, latent_dim.x, cpu(t[:, 1]), c, colormap = :ice)
+# save("c.png", fig)
 
 # ### Plotting Gradients
 # dwave = gs[1]
@@ -200,22 +198,23 @@ save("c.png", fig)
 # u_inc = z[:, 3, 1, :]
 # u_sc = u_tot .- u_inc
 
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-# ylims!(ax, -1.0f0, 1.0f0)
+fig = Figure()
+ax = Axis(fig[1, 1])
+xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+ylims!(ax, -1.0f0, 1.0f0)
 
-# record(fig, "latent_gaussian.mp4", axes(t, 1)) do i
-#     empty!(ax)
+record(fig, "latent_gaussian.mp4", axes(t, 1)) do i
+    empty!(ax)
 
-#     c = cpu(C(t[i, :]))
-#     f = cpu(F(t[i, :]))
-#     # lines!(ax, latent_dim.x, u_tot[:, i], color = :blue)
-#     # lines!(ax, latent_dim.x, u_inc[:, i], color = :green)
-#     lines!(ax, latent_dim.x, u_sc[:, i], color = :red)
-#     lines!(ax, latent_dim.x, c[:, 1], color = :grey)
-#     lines!(ax, latent_dim.x, f[:, 1], color = :blue)
-# end
+    c = cpu(C(t[i, :]))
+    # f = cpu(F(t[i, :]))
+    # lines!(ax, latent_dim.x, u_tot[:, i], color = :blue)
+    # lines!(ax, latent_dim.x, u_inc[:, i], color = :green)
+    # lines!(ax, latent_dim.x, u_sc[:, i], color = :red)
+    # lines!(ax, latent_dim.x, c[:, 1], color = :grey)
+    # lines!(ax, latent_dim.x, f[:, 1], color = :blue)
+    lines!(ax, latent_dim.x, c[:, 1], color = :blue)
+end
 
 # ### Plotting energy
 # tot_energy = vec(sum(u_tot .^ 2, dims = 1))

@@ -167,13 +167,12 @@ end
 
 function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
     C, F = θ
+    ∇ = dyn.grad
 
     U_tot = x[:, 1, :]
     V_tot = x[:, 2, :]
     U_inc = x[:, 3, :]
     V_inc = x[:, 4, :]
-
-    ∇ = dyn.grad
 
     c = C(t)
     f = F(t)

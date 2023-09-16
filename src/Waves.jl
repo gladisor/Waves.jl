@@ -41,8 +41,8 @@ abstract type AbstractScatterers <: AbstractDesign end
 abstract type AbstractSource end
 abstract type AbstractDynamics end
 
+include("utils.jl")
 include("dims.jl")                          ## Core structures for defining dimensional spaces
-# include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                           ## Perfectly Matched Layer
 
@@ -51,7 +51,7 @@ include("sources.jl")
 include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
 include("env.jl")
 
-# include("data.jl")
+include("data.jl")
 include("model.jl")
 include("plot.jl")
 end

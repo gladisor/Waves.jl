@@ -130,40 +130,53 @@ env = gpu(WaveEnv(dim;
 
 policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
-# ep = generate_episode!(policy, env)
+ep = generate_episode!(policy, env)
 
-horizon = 5
-data = Flux.DataLoader(prepare_data([ep], horizon), batchsize = 2, shuffle = true, partial = false)
-s, a, t, y = gpu(Flux.batch.(first(data)))
-latent_dim = OneDim(15.0f0, 700)
+# horizon = 5
+# data = Flux.DataLoader(prepare_data([ep], horizon), batchsize = 2, shuffle = true, partial = false)
+# s, a, t, y = gpu(Flux.batch.(first(data)))
+# latent_dim = OneDim(15.0f0, 700)
 
-nfreq = 50
-in_size = 18
-h_size = 256
-activation = leakyrelu
+# nfreq = 50
+# in_size = 18
+# h_size = 256
+# activation = leakyrelu
 
-dyn = AcousticDynamics(latent_dim, WATER, 5.0f0, 10000.0f0)
-iter = gpu(Integrator(runge_kutta, dyn, env.dt))
-wave_encoder = gpu(build_wave_encoder(;latent_dim, nfreq, h_size))
-wave = wave_encoder(s)
+# dyn = AcousticDynamics(latent_dim, WATER, 5.0f0, 10000.0f0)
+# iter = gpu(Integrator(runge_kutta, dyn, env.dt))
+# wave_encoder = gpu(build_wave_encoder(;latent_dim, nfreq, h_size))
+# wave = wave_encoder(s)
 
-mlp = Chain(
-    Dense(in_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, nfreq, tanh),
-    Waves.SinWaveEmbedder(latent_dim, nfreq),
-    sigmoid
-    )
+# mlp = Chain(
+#     Dense(in_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, nfreq, tanh),
+#     Waves.SinWaveEmbedder(latent_dim, nfreq),
+#     sigmoid
+#     )
 
-de = gpu(DesignEncoder(env.design_space, mlp, env.integration_steps))
+# de = gpu(DesignEncoder(env.design_space, mlp, env.integration_steps))
 
-C = de(s, a, t)
-F = gpu(Waves.SinusoidalSource(latent_dim, nfreq, 1000.0f0))
-θ = [C, F]
+# C = de(s, a, t)
+# F = gpu(Waves.SinusoidalSource(latent_dim, nfreq, 1000.0f0))
+# θ = [C, F]
 
-c = cpu(hcat([C(t[i, :]) for i in axes(t, 1)]...))
+# c = cpu(hcat([C(t[i, :]) for i in axes(t, 1)]...))
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # fig = Figure()
 # ax = Axis(fig[1, 1])

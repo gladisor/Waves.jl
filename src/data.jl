@@ -54,20 +54,15 @@ function prepare_data(eps::Vector{Episode{S, Y}}, horizon::Int) where {S, Y}
     return vcat.(prepare_data.(eps, horizon)...)
 end
 
-# function FileIO.save(episode::EpisodeData, path::String)
-#     BSON.bson(path, 
-#         states = episode.states,
-#         actions = episode.actions,
-#         tspans = episode.tspans,
-#         signals = episode.signals,
-#     )
-# end
+function FileIO.save(episode::Episode, path::String)
+    BSON.bson(path, s = episode.s, a = episode.a, t = episode.t, y = episode.y)
+end
 
-# function EpisodeData(;path::String)
-#     file = BSON.load(path)
-#     states = identity.(file[:states])
-#     actions = identity.(file[:actions])
-#     tspans = file[:tspans]
-#     signals = file[:signals]
-#     return EpisodeData(states, actions, tspans, signals)
-# end
+function Episode(;path::String)
+    file = BSON.load(path)
+    s = identity.(file[:s])
+    a = identity.(file[:a])
+    t = identity.(file[:t])
+    y = identity.(file[:y])
+    return Episode(s, a, t, y)
+end

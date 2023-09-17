@@ -1,89 +1,34 @@
-using ReinforcementLearning
-using Flux
-using BSON
-using FileIO
 using Waves
-
+using Flux
+using ReinforcementLearning
 using CairoMakie
-function plot_sigma(episode::EpisodeData; path::String)
-    _, _, t, y = prepare_data(episode, length(episode))
-    tspan = flatten_repeated_last_dim(t[1])
 
-    fig = Figure()
-    ax = Axis(fig[1, 1], 
-        title = "Sigma During Episode",
-        xlabel = "Time (s)",
-        ylabel = "Sigma")
+dim = TwoDim(15.0f0, 700)
 
-    lines!(ax, tspan, y[1], color = :blue)
-    save(path, fig)
+## beam
+# n = 10
+# μ = zeros(Float32, n, 2)
+# μ[:, 1] .= -10.0f0
+# μ[:, 2] .= range(-2.0f0, 2.0f0, n)
+# σ = ones(Float32, n) * 0.3f0
+# a = ones(Float32, n) * 0.3f0
 
-    return nothing
-end
 
-## selecting gpu
-Flux.device!(0)
-## setting discretization in space and time
-grid_size = 15.0f0
-elements = 512
-dt = 1e-5
-## various environment parameters
-action_speed = 500.0f0
-freq = 1000.0f0
-pml_width = 5.0f0
-pml_scale = 10000.0f0
-actions = 200
-integration_steps = 100
-## point source settings
-pulse_x = -10.0f0
-pulse_y = 0.0f0
-pulse_intensity = 10.0f0
-## number of episodes to generate
-episodes = 500
-## declaring name of dataset
-name = "actions=$(actions)_pulse_intensity=$(pulse_intensity)_freq=$(freq)"
+## single pulse
+μ = zeros(Float32, 1, 2)
+μ[1, :] .= [-10.0f0, 0.0f0]
+σ = [0.3f0]
+a = [1.0f0]
 
-## building FEM grid
-dim = TwoDim(grid_size, elements)
-grid = build_grid(dim)
-pulse = build_pulse(grid, pulse_x, pulse_y, pulse_intensity)
+pulse = build_normal(build_grid(dim), μ, σ, a)
+source = Source(pulse, 1000.0f0)
 
-## initializing environment with settings
-println("Building WaveEnv")
-
-env = WaveEnv(
-    dim,
-    reset_wave = Silence(),
+env = gpu(WaveEnv(dim; 
     design_space = Waves.build_triple_ring_design_space(),
-    resolution = (128, 128),
-    action_speed = action_speed,
-    source = Source(pulse, freq = freq),
-    ambient_speed = WATER,
-    pml_width = pml_width,
-    pml_scale = pml_scale,
-    dt = Float32(dt),
-    integration_steps = integration_steps,
-    actions = actions) |> gpu
+    source = source,
+    integration_steps = 100,
+    actions = 200))
 
 policy = RandomDesignPolicy(action_space(env))
-
-# saving environment
-STORAGE_PATH = "/scratch/cmpe299-fa22/tristan/data/"
-data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
-BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
-
-# rendering a sample animation
-println("Rendering Example")
-
-env.actions = 20
-@time render!(policy, env, path = joinpath(data_path, "test_vid.mp4"), seconds = env.actions * 0.5f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
-env.actions = 200
-
-# starting data generation loop
-println("Generating Data")
-for i in 1:episodes
-    path = mkpath(joinpath(data_path, "episode$i"))
-    @time episode = generate_episode_data(policy, env)
-    save(episode, joinpath(path, "episode.bson"))
-    plot_sigma(episode, path = joinpath(path, "sigma.png"))
-end
+ep = generate_episode!(policy, env)
+save(ep, "episode.bson")

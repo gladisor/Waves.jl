@@ -2,6 +2,7 @@ using Waves
 using Flux
 using ReinforcementLearning
 using CairoMakie
+using BSON
 
 dim = TwoDim(15.0f0, 700)
 
@@ -12,7 +13,6 @@ dim = TwoDim(15.0f0, 700)
 # μ[:, 2] .= range(-2.0f0, 2.0f0, n)
 # σ = ones(Float32, n) * 0.3f0
 # a = ones(Float32, n) * 0.3f0
-
 
 ## single pulse
 μ = zeros(Float32, 1, 2)
@@ -30,5 +30,6 @@ env = gpu(WaveEnv(dim;
     actions = 200))
 
 policy = RandomDesignPolicy(action_space(env))
-ep = generate_episode!(policy, env)
-save(ep, "episode.bson")
+# ep = generate_episode!(policy, env)
+# save(ep, "episode.bson")
+BSON.bson("env.bson", env = cpu(env))

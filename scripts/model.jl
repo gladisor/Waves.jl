@@ -174,22 +174,23 @@ t: (time x batch)
 adj: same as solution (u)
 """
 function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, θ, ∂L_∂z::AbstractArray{Float32, 4})
-    ∂L_∂z₀ = ∂L_∂z[:, :, :, 1] * 0.0f0 ## loss accumulator
+    ∂L_∂z₀ = ∂L_∂z[:, :, :, end] * 0.0f0 ## loss accumulator
+    # ∂L_∂z₀ = ∂L_∂z[:, :, :, end] ## loss accumulator
     # ∂L_∂θ = ZeroTangent()
 
-    for i in axes(z, 4)
-        zᵢ = z[:, :, :, i]
-        tᵢ = t[i, :]
-        aᵢ = ∂L_∂z[:, :, :, i]
+    for i in reverse(axes(z, 4))
+        zᵢ = z[:, :, :, i]      ## current state
+        tᵢ = t[i, :]            ## current time
 
         _, back = Flux.pullback(zᵢ, θ) do _zᵢ, _θ
             return iter.integration_function(iter.dynamics, _zᵢ, tᵢ, _θ, iter.dt)
         end
-        
-        # ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
-        ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(aᵢ)
-        
-        ∂L_∂z₀ .+= aᵢ .+ ∂aᵢ_∂tᵢ
+
+        aᵢ = ∂L_∂z[:, :, :, i]  ## gradient of loss wrt zᵢ
+        ∂L_∂z₀ .+= aᵢ
+
+        ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
+        ∂L_∂z₀ .+= ∂aᵢ_∂tᵢ
     end
 
     return ∂L_∂z₀

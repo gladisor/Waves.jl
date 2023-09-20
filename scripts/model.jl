@@ -1,3 +1,14 @@
+function latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
+    tot = z[:, 1, :, :]
+    inc = z[:, 3, :, :]
+    sc = tot .- inc
+
+    tot_energy = sum(tot .^ 2, dims = 1) * dx
+    inc_energy = sum(inc .^ 2, dims = 1) * dx
+    sc_energy =  sum(sc  .^ 2, dims = 1) * dx
+    return permutedims(vcat(tot_energy, inc_energy, sc_energy), (3, 1, 2))
+end
+
 struct SinWaveEmbedder
     frequencies::AbstractMatrix{Float32}
 end
@@ -16,15 +27,12 @@ function SinWaveEmbedder(dim::OneDim, nfreq::Int)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
-    # x_norm = x ./ sum(abs, x, dims = 1)
-    x_norm = x
+    x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
     return (embedder.frequencies * x_norm)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
-    # x_norm = x ./ sum(abs, x, dims = 1)
-    x_norm = x
-    # x_norm = Flux.softmax(x, dims = 1)
+    x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
     return batched_mul(embedder.frequencies, x_norm)
 end
 
@@ -38,7 +46,7 @@ Flux.@functor SinusoidalSource
 Flux.trainable(source::SinusoidalSource) = (;source.freq_coefs)
 
 function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
-    freq_coefs = randn(Float32, nfreq) ./ nfreq
+    freq_coefs = randn(Float32, nfreq)
     return SinusoidalSource(freq_coefs, SinWaveEmbedder(dim, nfreq), freq)
 end
 
@@ -118,7 +126,7 @@ function build_wave_encoder(;
         ResidualBlock(k, 64, h_size, activation),
         GlobalMaxPool(),
         Flux.flatten,
-        Dense(h_size, nfields * nfreq, tanh),
+        Dense(h_size, nfields * nfreq),
         b -> reshape(b, nfreq, nfields, :),
         SinWaveEmbedder(latent_dim, nfreq),
         x -> hcat(x[:, [1], :], x[:, [2], :] ./ c0, x[:, [3], :], x[:, [4], :] ./ c0))
@@ -157,30 +165,71 @@ function (de::DesignEncoder)(s::Vector{WaveEnvState}, a::Matrix{<:AbstractDesign
     return LinearInterpolation(t_, y)
 end
 
-# using Flux.ChainRulesCore: Tangent, ZeroTangent
-# """
-# adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
+using Flux.ChainRulesCore: Tangent, ZeroTangent
+"""
+adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
 
-# u: (finite elements x fields x batch x time)
-# t: (time x batch)
-# adj: same as solution (u)
-# """
-# function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, θ, ∂L_∂z::AbstractArray{Float32, 4})
-#     ∂L_∂z₀ = ∂L_∂z[:, :, :, 1] * 0.0f0 ## loss accumulator
-#     # ∂L_∂θ = ZeroTangent()
+u: (finite elements x fields x batch x time)
+t: (time x batch)
+adj: same as solution (u)
+"""
+function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, θ, ∂L_∂z::AbstractArray{Float32, 4})
+    ∂L_∂z₀ = ∂L_∂z[:, :, :, 1] * 0.0f0 ## loss accumulator
+    # ∂L_∂θ = ZeroTangent()
 
-#     for i in axes(z, 4)
-#         zᵢ = z[:, :, :, i]
-#         tᵢ = t[i, :]
-#         aᵢ = ∂L_∂z[:, :, :, i]
+    for i in axes(z, 4)
+        zᵢ = z[:, :, :, i]
+        tᵢ = t[i, :]
+        aᵢ = ∂L_∂z[:, :, :, i]
 
-#         _, back = Flux.pullback(zᵢ, θ) do _zᵢ, _θ
-#             return iter.integration_function(iter.dynamics, _zᵢ, tᵢ, _θ, iter.dt)
-#         end
+        _, back = Flux.pullback(zᵢ, θ) do _zᵢ, _θ
+            return iter.integration_function(iter.dynamics, _zᵢ, tᵢ, _θ, iter.dt)
+        end
         
-#         ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
-#         ∂L_∂z₀ .+= aᵢ .+ ∂aᵢ_∂tᵢ
-#     end
+        # ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
+        ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(aᵢ)
+        
+        ∂L_∂z₀ .+= aᵢ .+ ∂aᵢ_∂tᵢ
+    end
 
-#     return ∂L_∂z₀
-# end
+    return ∂L_∂z₀
+end
+
+struct AcousticEnergyModel
+    wave_encoder::Chain
+    design_encoder::DesignEncoder
+    F::AbstractSource
+    iter::Integrator
+end
+
+Flux.@functor AcousticEnergyModel
+Flux.trainable(model::AcousticEnergyModel) = (;model.wave_encoder, model.design_encoder, model.F)
+
+function (model::AcousticEnergyModel)(s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
+    C = model.design_encoder(s, a, t)
+    F = model.F
+    θ = [C, F]
+    z0 = model.wave_encoder(s)
+    z = model.iter(z0, t, θ)
+end
+
+function render(dim::OneDim, z::Array{Float32, 3}, t::Vector{Float32}; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    xlims!(ax, dim.x[1], dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
+
+    record(fig, path, axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, latent_dim.x, z[:, 1, i], color = :blue)
+    end
+end
+
+function plot_energy(tspan::Vector{Float32}, energy::Matrix{Float32}; path::String)
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, tspan, energy[:, 1, 1])
+    lines!(ax, tspan, energy[:, 2, 1])
+    lines!(ax, tspan, energy[:, 3, 1])
+    save(path, fig)
+end

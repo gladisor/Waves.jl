@@ -28,12 +28,20 @@ end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
-    return (embedder.frequencies * x_norm)
+    # x_norm = x ./ sum(abs, x, dims = 1)
+    # x_norm = x
+    y = (embedder.frequencies * x_norm)
+    return y
+    # return y ./ (sum(abs, y, dims = 1) * dx)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
-    return batched_mul(embedder.frequencies, x_norm)
+    # x_norm = x ./ sum(abs, x, dims = 1)
+    # x_norm = x
+    y = batched_mul(embedder.frequencies, x_norm)
+    return y
+    # return y ./ (sum(abs, y, dims = 1) * dx)
 end
 
 struct SinusoidalSource <: AbstractSource
@@ -226,16 +234,9 @@ function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::
 end
 
 function Flux.ChainRulesCore.rrule(iter::Integrator, z0::AbstractArray{Float32, 3}, t::AbstractMatrix{Float32}, θ)
-
-    println("test")
-
     z = iter(z0, t, θ)
-
     function Integrator_back(adj::AbstractArray{Float32})
         gs_z0, gs_θ = adjoint_sensitivity(iter, z, t, θ, adj)
-        # adjoint_sensitivity(iter, u, t, adj)
-        # iter_tangent = Tangent{Integrator}(;dynamics = tangent)
-        # return iter_tangent, a, nothing
         return nothing, gs_z0, nothing, gs_θ
     end
 

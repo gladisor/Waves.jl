@@ -29,46 +29,106 @@ mlp = Chain(
 design_encoder = gpu(DesignEncoder(env.design_space, mlp, env.integration_steps))
 
 C = design_encoder(s, a, t)
-F = gpu(SinusoidalSource(latent_dim, nfreq, env.source.freq))
+# F = gpu(SinusoidalSource(latent_dim, nfreq, env.source.freq))
+F = gpu(GaussianSource(latent_dim, [0.0f0], [0.3f0], [0.0f0], env.source.freq))
+# f = gpu(zeros(Float32, size(latent_dim)..., batchsize))
 θ = [C, F]
 
 dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, 5.0f0, 10000.0f0)
 iter = gpu(Integrator(runge_kutta, dyn, env.dt))
 
 c0 = env.iter.dynamics.c0
-emb = gpu(Chain(SinWaveEmbedder(latent_dim, nfreq), x -> hcat(x[:, [1], :], x[:, [2], :] ./ c0, x[:, [3], :], x[:, [4], :] ./ c0)))  
+emb = gpu(Chain(SinWaveEmbedder(latent_dim, nfreq), x -> hcat(x[:, [1], :], x[:, [2], :] ./ c0, x[:, [3], :], x[:, [4], :] ./ c0)))
 freq_coefs = gpu(randn(Float32, nfreq, 4, 1))
 
+z0 = emb(freq_coefs) * 0.0f0
+z0[:, 1, 1] .= gpu(build_normal(latent_dim.x, [0.0f0], [1.0f0], [1.0f0]))
 
+target = gpu(build_normal(latent_dim.x, [5.0f0], [0.3f0], [1.0f0]))
 
+opt_state = Optimisers.setup(Optimisers.Descent(1e-4), z0)
 
-z = iter(emb(freq_coefs), t, θ)
-energy = cpu(latent_energy(z, dx))
-plot_energy(tspan, energy[:, :, 1], path = "pre_opt_latent_energy.png")
-plot_energy(tspan, cpu(y[:, :, 1]), path = "true_energy.png")
-
-
-
-
-x = [freq_coefs, θ]
-opt_state = Optimisers.setup(Optimisers.Descent(1e-2), x)
-
-for i in 1:20
-    loss, back = Flux.pullback(x) do _x
-        z0 = emb(_x[1])
-        z = iter(z0, t, _x[2])
-        e = latent_energy(z, dx)
-        return Flux.mse(e, y)
+for i in 1:10
+    loss, back = Flux.pullback(z0) do _z0
+        z = iter(_z0, t, θ)
+        return Flux.mse(z[:, 1, 1, end], target)
     end
-    gs = back(one(loss))[1]
 
-    opt_state, x = Optimisers.update(opt_state, x, gs)
     println(loss)
+    gs = back(one(loss))[1]
+    opt_state, z0 = Optimisers.update(opt_state, z0, gs)
 end
 
 
+z = iter(z0, t, θ)
+@time render(latent_dim, cpu(z[:, :, 1, :]), tspan, path = "latent.mp4")
 
 
-z = iter(emb(freq_coefs), t, θ)
-energy = cpu(latent_energy(z, dx))
-plot_energy(tspan, energy[:, :, 1], path = "post_opt_latent_energy.png")
+
+
+
+
+
+
+# x = [freq_coefs, θ]
+# z0 = emb(x[1])
+# @time z = iter(emb(x[1]), t, x[2])
+# opt_state = Optimisers.setup(Optimisers.Descent(1e-3), z0)
+
+# for i in 1:10
+#     loss, back = Flux.pullback(x) do _x
+#         z = iter(emb(_x[1]), t, _x[2])
+#         sum(z[:, 1, 1, end] .^ 2) * dx
+#     end
+
+#     println(loss)
+#     gs = back(one(loss))[1]
+#     opt_state, x = Optimisers.update(opt_state, x, gs)
+# end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# z = iter(emb(x[1]), t, x[2])
+# energy = cpu(latent_energy(z, dx))
+# plot_energy(tspan, energy[:, :, 1], path = "pre_opt_latent_energy.png")
+# plot_energy(tspan, cpu(y[:, :, 1]), path = "true_energy.png")
+
+# z = iter(z0, t, θ)
+# @time render(latent_dim, cpu(z[:, :, 1, :]), tspan, path = "latent.mp4")
+
+# opt_state = Optimisers.setup(Optimisers.Descent(1e-3), x)
+
+# for i in 1:20
+#     loss, back = Flux.pullback(x) do _x
+#         z = iter(emb(_x[1]), t, _x[2])
+#         e = latent_energy(z, dx)
+#         return Flux.mse(e, y)
+#     end
+#     gs = back(one(loss))[1]
+
+#     opt_state, x = Optimisers.update(opt_state, x, gs)
+#     println(loss)
+# end
+
+
+
+
+
+
+
+
+# z = iter(emb(x[1]), t, x[2])
+# energy = cpu(latent_energy(z, dx))
+# plot_energy(tspan, energy[:, :, 1], path = "post_opt_latent_energy.png")

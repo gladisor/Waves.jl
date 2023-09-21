@@ -45,7 +45,6 @@ end
 
 env = BSON.load("env.bson")[:env]
 ep = Episode(path = "episode.bson")
-length(ep)
 
 horizon = 3
 batchsize = 1

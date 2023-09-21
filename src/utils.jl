@@ -91,6 +91,7 @@ struct LinearInterpolation
 end
 
 Flux.@functor LinearInterpolation
+Flux.trainable(interp::LinearInterpolation) = (;interp.Y)
 
 function (interp::LinearInterpolation)(x::AbstractVector)
     return linear_interp(interp.X, interp.Y, x)

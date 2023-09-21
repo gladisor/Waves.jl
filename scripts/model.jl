@@ -43,7 +43,7 @@ struct SinusoidalSource <: AbstractSource
 end
 
 Flux.@functor SinusoidalSource
-Flux.trainable(source::SinusoidalSource) = (;source.freq_coefs)
+Flux.trainable(source::SinusoidalSource) = (;freq_coefs = source.freq_coefs)
 
 function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
     freq_coefs = randn(Float32, nfreq)
@@ -166,6 +166,35 @@ function (de::DesignEncoder)(s::Vector{WaveEnvState}, a::Matrix{<:AbstractDesign
 end
 
 using Flux.ChainRulesCore: Tangent, ZeroTangent
+
+
+"""
+Adds two named tuples together preserving fields. Assumes exact same
+structure for each.
+"""
+function add_gradients(gs1::NamedTuple, gs2::NamedTuple)
+
+    v3 = []
+
+    for ((k1, v1), (k2, v2)) in zip(pairs(gs1), pairs(gs2))
+        if v1 isa NamedTuple
+            push!(v3, ChainRulesCore.elementwise_add(v1, v2))
+        else
+            push!(v3, v1 .+ v2)
+        end
+    end
+
+    return NamedTuple{keys(gs1)}(v3)
+end
+
+function add_gradients(gs1::Vector{NamedTuple}, gs2::Vector{NamedTuple})
+    return add_gradients.(gs1, gs2)
+end
+
+function add_gradients(::Nothing, gs)
+    return gs
+end
+
 """
 adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
 
@@ -175,8 +204,7 @@ adj: same as solution (u)
 """
 function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, θ, ∂L_∂z::AbstractArray{Float32, 4})
     ∂L_∂z₀ = ∂L_∂z[:, :, :, end] * 0.0f0 ## loss accumulator
-    # ∂L_∂z₀ = ∂L_∂z[:, :, :, end] ## loss accumulator
-    # ∂L_∂θ = ZeroTangent()
+    ∂L_∂θ = nothing
 
     for i in reverse(axes(z, 4))
         zᵢ = z[:, :, :, i]      ## current state
@@ -191,9 +219,27 @@ function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::
 
         ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
         ∂L_∂z₀ .+= ∂aᵢ_∂tᵢ
+        ∂L_∂θ = add_gradients(∂L_∂θ, ∂aᵢ_∂θ)
     end
 
-    return ∂L_∂z₀
+    return ∂L_∂z₀, ∂L_∂θ
+end
+
+function Flux.ChainRulesCore.rrule(iter::Integrator, z0::AbstractArray{Float32, 3}, t::AbstractMatrix{Float32}, θ)
+
+    println("test")
+
+    z = iter(z0, t, θ)
+
+    function Integrator_back(adj::AbstractArray{Float32})
+        gs_z0, gs_θ = adjoint_sensitivity(iter, z, t, θ, adj)
+        # adjoint_sensitivity(iter, u, t, adj)
+        # iter_tangent = Tangent{Integrator}(;dynamics = tangent)
+        # return iter_tangent, a, nothing
+        return nothing, gs_z0, nothing, gs_θ
+    end
+
+    return z, Integrator_back
 end
 
 struct AcousticEnergyModel

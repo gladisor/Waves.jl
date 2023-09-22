@@ -32,7 +32,6 @@ function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
     # x_norm = x
     y = (embedder.frequencies * x_norm)
     return y
-    # return y ./ (sum(abs, y, dims = 1) * dx)
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
@@ -41,7 +40,6 @@ function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     # x_norm = x
     y = batched_mul(embedder.frequencies, x_norm)
     return y
-    # return y ./ (sum(abs, y, dims = 1) * dx)
 end
 
 struct SinusoidalSource <: AbstractSource

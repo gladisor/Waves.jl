@@ -11,7 +11,7 @@ ep = Episode(path = "episode.bson")
 horizon = 3
 batchsize = 1
 h_size = 256
-nfreq = 50
+nfreq = 500
 
 data = Flux.DataLoader(prepare_data([ep], horizon), batchsize = batchsize, shuffle = true, partial = false)
 s, a, t, y = gpu(Flux.batch.(first(data)))
@@ -39,36 +39,44 @@ iter = gpu(Integrator(runge_kutta, dyn, env.dt))
 
 c0 = env.iter.dynamics.c0
 emb = gpu(Chain(SinWaveEmbedder(latent_dim, nfreq), x -> hcat(x[:, [1], :], x[:, [2], :] ./ c0, x[:, [3], :], x[:, [4], :] ./ c0)))
-freq_coefs = gpu(randn(Float32, nfreq, 4, 1))
+freq_coefs = gpu(randn(Float32, nfreq, 4, 1)) * 0.1f0
 
-z0 = emb(freq_coefs) * 0.0f0
-z0[:, 1, 1] .= gpu(build_normal(latent_dim.x, [0.0f0], [1.0f0], [1.0f0]))
-
+z0 = emb(freq_coefs)# * 0.0f0
+#z0[:, 1, 1] .= gpu(build_normal(latent_dim.x, [0.0f0], [1.0f0], [1.0f0]))
 target = gpu(build_normal(latent_dim.x, [5.0f0], [0.3f0], [1.0f0]))
 
-opt_state = Optimisers.setup(Optimisers.Descent(1e-4), z0)
+opt_state = Optimisers.setup(Optimisers.Adam(1e-1), freq_coefs)
 
 for i in 1:10
-    loss, back = Flux.pullback(z0) do _z0
-        z = iter(_z0, t, θ)
+    loss, back = Flux.pullback(freq_coefs) do _freq_coefs
+        # z = iter(_z0, t, θ)
+        z = iter(emb(_freq_coefs), t, θ)
         return Flux.mse(z[:, 1, 1, end], target)
     end
 
     println(loss)
     gs = back(one(loss))[1]
-    opt_state, z0 = Optimisers.update(opt_state, z0, gs)
+    opt_state, freq_coefs = Optimisers.update(opt_state, freq_coefs, gs)
+end
+
+z = iter(emb(freq_coefs), t, θ)
+z = cpu(z)
+
+fig = Figure()
+ax = Axis(fig[1, 1], title = "Wave Simulation Optimization", xlabel = "Space (m)", ylabel = "Displacement (m)")
+xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+ylims!(ax, -2.0f0, 2.0f0)
+
+record(fig, "latent_freq_opt.mp4", axes(t, 1)) do i
+    empty!(ax)
+    lines!(ax, latent_dim.x, cpu(target), color = :red)
+    lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
 end
 
 
-z = iter(z0, t, θ)
-@time render(latent_dim, cpu(z[:, :, 1, :]), tspan, path = "latent.mp4")
 
 
-
-
-
-
-
+# @time render(latent_dim, cpu(z[:, :, 1, :]), tspan, path = "latent.mp4")
 
 # x = [freq_coefs, θ]
 # z0 = emb(x[1])
@@ -121,13 +129,6 @@ z = iter(z0, t, θ)
 #     opt_state, x = Optimisers.update(opt_state, x, gs)
 #     println(loss)
 # end
-
-
-
-
-
-
-
 
 # z = iter(emb(x[1]), t, x[2])
 # energy = cpu(latent_energy(z, dx))

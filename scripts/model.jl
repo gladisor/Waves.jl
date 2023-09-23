@@ -1,4 +1,4 @@
-function latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
+function compute_latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
     tot = z[:, 1, :, :]
     inc = z[:, 3, :, :]
     sc = tot .- inc
@@ -28,6 +28,7 @@ end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
+    # x_norm = x ./ Float32(size(embedder.frequencies, 2))
     # x_norm = x ./ sum(abs, x, dims = 1)
     # x_norm = x
     y = (embedder.frequencies * x_norm)
@@ -36,6 +37,7 @@ end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
+    # x_norm = x ./ Float32(size(embedder.frequencies, 2))
     # x_norm = x ./ sum(abs, x, dims = 1)
     # x_norm = x
     y = batched_mul(embedder.frequencies, x_norm)
@@ -52,7 +54,7 @@ Flux.@functor SinusoidalSource
 Flux.trainable(source::SinusoidalSource) = (;freq_coefs = source.freq_coefs)
 
 function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
-    freq_coefs = randn(Float32, nfreq)
+    freq_coefs = randn(Float32, nfreq) ./ Float32(sqrt(nfreq))
     return SinusoidalSource(freq_coefs, SinWaveEmbedder(dim, nfreq), freq)
 end
 
@@ -74,7 +76,7 @@ Flux.trainable(source::GaussianSource) = (;source.μ, source.σ, source.a)
 GaussianSource(dim::AbstractDim, args...) = GaussianSource(build_grid(dim), args...)
 
 function (source::GaussianSource)(t::AbstractVector)
-    f = build_normal(source.x, source.μ, source.σ, source.a)
+    f = build_normal(source.x, source.μ, exp.(source.σ), source.a)
     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end
 
@@ -101,7 +103,7 @@ Flux.@functor ResidualBlock
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
         Conv(k, in_channels => out_channels, pad = SamePad()),
-        BatchNorm(out_channels),
+        # BatchNorm(out_channels), ## causes very large z0
         activation,
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
@@ -135,7 +137,8 @@ function build_wave_encoder(;
         Dense(h_size, nfields * nfreq),
         b -> reshape(b, nfreq, nfields, :),
         SinWaveEmbedder(latent_dim, nfreq),
-        x -> hcat(x[:, [1], :], x[:, [2], :] ./ c0, x[:, [3], :], x[:, [4], :] ./ c0))
+        x -> hcat(x[:, [1], :], x[:, [2], :] ./ c0, x[:, [3], :], x[:, [4], :] ./ c0)
+        )
 end
 
 """
@@ -171,9 +174,6 @@ function (de::DesignEncoder)(s::Vector{WaveEnvState}, a::Matrix{<:AbstractDesign
     return LinearInterpolation(t_, y)
 end
 
-using Flux.ChainRulesCore: Tangent, ZeroTangent
-
-
 """
 Adds two named tuples together preserving fields. Assumes exact same
 structure for each.
@@ -184,7 +184,7 @@ function add_gradients(gs1::NamedTuple, gs2::NamedTuple)
 
     for ((k1, v1), (k2, v2)) in zip(pairs(gs1), pairs(gs2))
         if v1 isa NamedTuple
-            push!(v3, ChainRulesCore.elementwise_add(v1, v2))
+            push!(v3, Flux.ChainRulesCore.elementwise_add(v1, v2))
         else
             push!(v3, v1 .+ v2)
         end
@@ -246,17 +246,22 @@ struct AcousticEnergyModel
     design_encoder::DesignEncoder
     F::AbstractSource
     iter::Integrator
+    dx::Float32
 end
 
 Flux.@functor AcousticEnergyModel
 Flux.trainable(model::AcousticEnergyModel) = (;model.wave_encoder, model.design_encoder, model.F)
 
-function (model::AcousticEnergyModel)(s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
-    C = model.design_encoder(s, a, t)
-    F = model.F
-    θ = [C, F]
+function generate_latent_solution(model::AcousticEnergyModel, s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z0 = model.wave_encoder(s)
-    z = model.iter(z0, t, θ)
+    C = model.design_encoder(s, a, t)
+    θ = [C, model.F]
+    return model.iter(z0, t, θ)
+end
+
+function (model::AcousticEnergyModel)(s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
+    z = generate_latent_solution(model, s, a, t)
+    return compute_latent_energy(z, model.dx)
 end
 
 function render(dim::OneDim, z::Array{Float32, 3}, t::Vector{Float32}; path::String)

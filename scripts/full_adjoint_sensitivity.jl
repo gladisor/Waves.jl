@@ -11,7 +11,7 @@ ep = Episode(path = "episode.bson")
 horizon = 3
 batchsize = 1
 h_size = 256
-nfreq = 500
+nfreq = 50
 
 data = Flux.DataLoader(prepare_data([ep], horizon), batchsize = batchsize, shuffle = true, partial = false)
 s, a, t, y = gpu(Flux.batch.(first(data)))
@@ -51,7 +51,7 @@ for i in 1:10
     loss, back = Flux.pullback(freq_coefs) do _freq_coefs
         # z = iter(_z0, t, θ)
         z = iter(emb(_freq_coefs), t, θ)
-        return Flux.mse(z[:, 1, 1, end], target)
+        return Flux.mse(z[:, 1, 1, end], target) + Flux.norm(_freq_coefs) * 0.005f0
     end
 
     println(loss)

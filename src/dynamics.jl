@@ -53,39 +53,39 @@ function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractVector{Fl
     return iter(ui, tspan[:, :], θ)
 end
 
-"""
-Major limitation: cannot differentiate through nested parameterized structures.
-All parameters must be contained in dynamics.
-"""
-function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
-    a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
-    a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
+# """
+# Major limitation: cannot differentiate through nested parameterized structures.
+# All parameters must be contained in dynamics.
+# """
+# function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
+#     a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
+#     a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
 
-    wave = selectdim(u, ndims(u), size(u, ndims(u)))
-    wave = u[parentindices(wave)...] ## getting non-view version
+#     wave = selectdim(u, ndims(u), size(u, ndims(u)))
+#     wave = u[parentindices(wave)...] ## getting non-view version
 
-    _, back = Flux.pullback(_iter -> _iter(wave, tspan[end, :]), iter)
+#     _, back = Flux.pullback(_iter -> _iter(wave, tspan[end, :]), iter)
 
-    gs = back(a)[1]
-    tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...) * 0.0f0 ## starting gradient accumulation at zero
+#     gs = back(a)[1]
+#     tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...) * 0.0f0 ## starting gradient accumulation at zero
 
-    for i in reverse(1:size(u, ndims(u)))
+#     for i in reverse(1:size(u, ndims(u)))
 
-        wave = selectdim(u, ndims(u), i) ## current wave state
-        wave = u[parentindices(wave)...] ## getting non-view version
+#         wave = selectdim(u, ndims(u), i) ## current wave state
+#         wave = u[parentindices(wave)...] ## getting non-view version
 
-        adjoint_state = selectdim(adj, ndims(adj), i) ## current adjoint state
-        adjoint_state = adj[parentindices(adjoint_state)...] ## getting non-view version
+#         adjoint_state = selectdim(adj, ndims(adj), i) ## current adjoint state
+#         adjoint_state = adj[parentindices(adjoint_state)...] ## getting non-view version
 
-        _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i, :]), iter, wave)
-        dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
+#         _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i, :]), iter, wave)
+#         dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
 
-        a .+= adjoint_state .+ dwave
-        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
-    end
+#         a .+= adjoint_state .+ dwave
+#         tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
+#     end
 
-    return a, tangent
-end
+#     return a, tangent
+# end
 
 """
 Replaces the default autodiff method with a custom adjoint sensitivity method.

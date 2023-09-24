@@ -53,57 +53,72 @@ function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractVector{Fl
     return iter(ui, tspan[:, :], θ)
 end
 
-# """
-# Major limitation: cannot differentiate through nested parameterized structures.
-# All parameters must be contained in dynamics.
-# """
-# function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
-#     a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
-#     a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
+"""
+Adds two named tuples together preserving fields. Assumes exact same
+structure for each.
+"""
+function add_gradients(gs1::NamedTuple, gs2::NamedTuple)
 
-#     wave = selectdim(u, ndims(u), size(u, ndims(u)))
-#     wave = u[parentindices(wave)...] ## getting non-view version
+    v3 = []
 
-#     _, back = Flux.pullback(_iter -> _iter(wave, tspan[end, :]), iter)
+    for ((k1, v1), (k2, v2)) in zip(pairs(gs1), pairs(gs2))
+        if v1 isa NamedTuple
+            push!(v3, Flux.ChainRulesCore.elementwise_add(v1, v2))
+        else
+            push!(v3, v1 .+ v2)
+        end
+    end
 
-#     gs = back(a)[1]
-#     tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...) * 0.0f0 ## starting gradient accumulation at zero
+    return NamedTuple{keys(gs1)}(v3)
+end
 
-#     for i in reverse(1:size(u, ndims(u)))
+function add_gradients(gs1::Vector{NamedTuple}, gs2::Vector{NamedTuple})
+    return add_gradients.(gs1, gs2)
+end
 
-#         wave = selectdim(u, ndims(u), i) ## current wave state
-#         wave = u[parentindices(wave)...] ## getting non-view version
-
-#         adjoint_state = selectdim(adj, ndims(adj), i) ## current adjoint state
-#         adjoint_state = adj[parentindices(adjoint_state)...] ## getting non-view version
-
-#         _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i, :]), iter, wave)
-#         dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
-
-#         a .+= adjoint_state .+ dwave
-#         tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
-#     end
-
-#     return a, tangent
-# end
+function add_gradients(::Nothing, gs)
+    return gs
+end
 
 """
-Replaces the default autodiff method with a custom adjoint sensitivity method.
+adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
+
+u: (finite elements x fields x batch x time)
+t: (time x batch)
+adj: same as solution (u)
 """
-# function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32}, t::AbstractMatrix{Float32})
+function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, θ, ∂L_∂z::AbstractArray{Float32, 4})
+    ∂L_∂z₀ = ∂L_∂z[:, :, :, end] * 0.0f0 ## loss accumulator
+    ∂L_∂θ = nothing
 
-#     println("test")
+    for i in reverse(axes(z, 4))
+        zᵢ = z[:, :, :, i]      ## current state
+        tᵢ = t[i, :]            ## current time
 
-#     u = iter(ui, t)
+        _, back = Flux.pullback(zᵢ, θ) do _zᵢ, _θ
+            return iter.integration_function(iter.dynamics, _zᵢ, tᵢ, _θ, iter.dt)
+        end
 
-#     function Integrator_back(adj::AbstractArray{Float32})
-#         a, tangent = adjoint_sensitivity(iter, u, t, adj)
-#         iter_tangent = Tangent{Integrator}(;dynamics = tangent)
-#         return iter_tangent, a, nothing
-#     end
+        aᵢ = ∂L_∂z[:, :, :, i]  ## gradient of loss wrt zᵢ
+        ∂L_∂z₀ .+= aᵢ
 
-#     return u, Integrator_back
-# end
+        ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
+        ∂L_∂z₀ .+= ∂aᵢ_∂tᵢ
+        ∂L_∂θ = add_gradients(∂L_∂θ, ∂aᵢ_∂θ)
+    end
+
+    return ∂L_∂z₀, ∂L_∂θ
+end
+
+function Flux.ChainRulesCore.rrule(iter::Integrator, z0::AbstractArray{Float32, 3}, t::AbstractMatrix{Float32}, θ)
+    z = iter(z0, t, θ)
+    function Integrator_back(adj::AbstractArray{Float32})
+        gs_z0, gs_θ = adjoint_sensitivity(iter, z, t, θ, adj)
+        return nothing, gs_z0, nothing, gs_θ
+    end
+
+    return z, Integrator_back
+end
 
 struct AcousticDynamics{D <: AbstractDim} <: AbstractDynamics
     dim::D

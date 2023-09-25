@@ -97,7 +97,6 @@ Flux.@functor ResidualBlock
 function ResidualBlock(k::Tuple{Int, Int}, in_channels::Int, out_channels::Int, activation::Function)
     main = Chain(
         Conv(k, in_channels => out_channels, pad = SamePad()),
-        # BatchNorm(out_channels), ## causes very large z0
         activation,
         Conv(k, out_channels => out_channels, pad = SamePad())
     )
@@ -189,6 +188,32 @@ end
 function (model::AcousticEnergyModel)(s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z = generate_latent_solution(model, s, a, t)
     return compute_latent_energy(z, model.dx)
+end
+
+function AcousticEnergyModel(;
+        env::WaveEnv, 
+        latent_dim::OneDim, 
+        nfreq::Int, 
+        h_size::Int,
+        pml_width::Float32,
+        pml_scale::Float32)
+
+    wave_encoder = build_wave_encoder(;latent_dim, nfreq, h_size, c0 = env.iter.dynamics.c0)
+
+    mlp = Chain(
+        Dense(length(vec(env.design)), h_size, leakyrelu), 
+        Dense(h_size, h_size, leakyrelu), 
+        Dense(h_size, h_size, leakyrelu),
+        Dense(h_size, h_size, leakyrelu), 
+        Dense(h_size, nfreq),
+        SinWaveEmbedder(latent_dim, nfreq),
+        c -> 2.0f0 * sigmoid.(c))
+
+    design_encoder = DesignEncoder(env.design_space, mlp, env.integration_steps)
+    F = SinusoidalSource(latent_dim, nfreq, env.source.freq)
+    dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
+    iter = Integrator(runge_kutta, dyn, env.dt)
+    return AcousticEnergyModel(wave_encoder, design_encoder, F, iter, get_dx(latent_dim))
 end
 
 function render(dim::OneDim, z::Array{Float32, 3}, t::Vector{Float32}; path::String)

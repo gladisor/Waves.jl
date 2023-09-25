@@ -3,10 +3,6 @@ using CairoMakie
 using BSON
 Flux.CUDA.allowscalar(false)
 
-function evaluate(model::Waves.AcousticEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32}, y::AbstractArray{Float32, 3})
-    
-end
-
 env = BSON.load("env.bson")[:env]
 ep = Episode(path = "episode.bson")
 
@@ -43,7 +39,6 @@ design_encoder = gpu(design_encoder)
 F = gpu(F)
 z0 = gpu(zeros(Float32, elements, 4, 1))
 C = design_encoder(s, a, t)
-
 target = gpu(build_normal(build_grid(latent_dim), [0.0f0], [3.0f0], [5.0f0]))
 
 theta = [C, F]

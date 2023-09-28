@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J mpc
+#SBATCH -J train
 
 #SBATCH -p gpu
 #SBATCH -N 1
@@ -9,7 +9,7 @@
 #SBATCH -w cs003
 
 #SBATCH -o logs/log-%j.out
-#SBATCH --mail-user=...
+#SBATCH --mail-user=tristan.shah@sjsu.edu
 
 export http_proxy=http://172.16.1.2:3128; export https_proxy=http://172.16.1.2:3128
 module load julia

@@ -1,5 +1,6 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
+using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 Flux.device!(1)
@@ -7,9 +8,22 @@ display(Flux.device())
 
 function make_plots(model::AcousticEnergyModel, batch; path::String, samples::Int = 1)
     s, a, t, y = batch
+
+    z = cpu(Waves.generate_latent_solution(model, s, a, t))
+    latent_dim = cpu(model.iter.dynamics.dim)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
+
+    record(fig, joinpath(path, "latent.mp4"), axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
+    end
+
     y_hat = cpu(model(s, a, t))
     y = cpu(y)
-    # Waves.plot_latent_source(model, path = joinpath(path, "F.png"))
     for i in 1:min(length(s), samples)
         tspan = cpu(t[:, i])
         Waves.plot_predicted_energy(tspan, y[:, 1, i], y_hat[:, 1, i], title = "Total Energy", path = joinpath(path, "tot$i.png"))
@@ -93,6 +107,95 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
     return model, opt_state
 end
 
+struct LocalizationLayer
+    coords::AbstractArray{Float32, 4}
+end
+
+Flux.@functor LocalizationLayer
+Flux.trainable(::LocalizationLayer) = (;)
+
+function LocalizationLayer(dim::TwoDim, resolution::Tuple{Int, Int})
+    x = imresize(build_grid(dim), resolution) ./ maximum(dim.x)
+    return LocalizationLayer(x[:, :, :, :])
+end
+
+function (layer::LocalizationLayer)(x)
+    return cat(
+        x,
+        repeat(layer.coords, 1, 1, 1, size(x, 4)),
+        dims = 3
+    )
+end
+
+function Waves.build_wave_encoder(;
+        latent_dim::OneDim,
+        h_size::Int,
+        nfreq::Int,
+        c0::Float32,
+        k::Tuple{Int, Int} = (3, 3),
+        in_channels::Int = 3,
+        activation::Function = leakyrelu)
+
+    nfields = 5
+
+    return Chain(
+        Waves.TotalWaveInput(),
+        LocalizationLayer(env.dim, env.resolution),
+        Waves.ResidualBlock(k, 2 + in_channels, 32, activation),
+        Waves.ResidualBlock(k, 32, 64, activation),
+        Waves.ResidualBlock(k, 64, h_size, activation),
+        GlobalMaxPool(),
+        Flux.flatten,
+        Parallel(
+            vcat,
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+        ),
+        b -> reshape(b, nfreq, nfields, :),
+        SinWaveEmbedder(latent_dim, nfreq),
+        x -> hcat(
+            x[:, [1], :],       # u_tot
+            x[:, [2], :] ./ c0, # v_tot
+            x[:, [3], :],       # u_inc
+            x[:, [4], :] ./ c0, # v_inc
+            x[:, [5], :]        # f
+            )
+        )
+end
+
+function Waves.AcousticEnergyModel(;
+        env::WaveEnv, 
+        latent_dim::OneDim,
+        h_size::Int, 
+        nfreq::Int, 
+        pml_width::Float32,
+        pml_scale::Float32)
+
+    wave_encoder = Waves.build_wave_encoder(;
+        latent_dim, 
+        h_size, 
+        nfreq,
+        c0 = env.iter.dynamics.c0)
+
+    mlp = Chain(
+        Dense(length(vec(env.design)), h_size, leakyrelu), 
+        Dense(h_size, h_size, leakyrelu), 
+        Dense(h_size, h_size, leakyrelu),
+        Dense(h_size, h_size, leakyrelu), 
+        Dense(h_size, nfreq),
+        SinWaveEmbedder(latent_dim, nfreq),
+        c -> 2.0f0 * sigmoid.(c))
+
+    design_encoder = Waves.DesignEncoder(env.design_space, mlp, env.integration_steps)
+    F = Waves.SinusoidalSource(latent_dim, nfreq, env.source.freq)
+    dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
+    iter = Integrator(runge_kutta, dyn, env.dt)
+    return AcousticEnergyModel(wave_encoder, design_encoder, F, iter, get_dx(latent_dim))
+end
+
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
 ## declaring hyperparameters
 h_size = 256
@@ -100,7 +203,7 @@ nfreq = 500
 elements = 1024
 
 horizon = 10
-horizon = 1
+# horizon = 1
 
 batchsize = 64
 val_every = 20
@@ -115,8 +218,8 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 10:20]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -128,45 +231,20 @@ val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 ## contstruct model & train
-@time model = gpu(AcousticEnergyModel(;env, nfreq, h_size, pml_width, pml_scale, latent_dim = OneDim(latent_gs, elements)))
+latent_dim = OneDim(latent_gs, elements)
+@time model = gpu(AcousticEnergyModel(;env, h_size, nfreq, pml_width, pml_scale, latent_dim))
+# s, a, t, y = gpu(Flux.batch.(first(val_loader)))
+# wave = model.wave_encoder(s)
+# layer = gpu(LocalizationLayer(env.dim, env.resolution))
 # model = gpu(BSON.load("tranable_source/checkpoint_step=2640/checkpoint.bson")[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 
-path = "h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+path = "localization_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
 model, opt_state = @time train!(model, opt_state;
     train_loader, 
     val_loader, 
     val_every,
     epochs,
-    path = path
-    # path = joinpath(DATA_PATH, path)
+    # path = path
+    path = joinpath(DATA_PATH, path)
     )
-
-
-
-# s, a, t, y = gpu(Flux.batch.(first(train_loader)))
-# @time z = cpu(Waves.generate_latent_solution(model, s, a, t))
-# @time y_hat = cpu(model(s, a, t))
-
-# latent_dim = cpu(model.iter.dynamics.dim)
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, cpu(t[:, 1]), cpu(y_hat[:, 1, 1]))
-# lines!(ax, cpu(t[:, 1]), cpu(y_hat[:, 2, 1]))
-# lines!(ax, cpu(t[:, 1]), cpu(y_hat[:, 3, 1]))
-# save("energy.png", fig)
-
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-# ylims!(ax, -3.0f0, 3.0f0)
-# record(fig, "latent.mp4", axes(t, 1)) do i
-#     empty!(ax)
-#     lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
-# end
-
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# xlims!(ax, -100.0f0, -50.0f0)
-# lines!(ax, latent_dim.x, cpu(model.iter.dynamics.pml))
-# save("pml.png", fig)

@@ -7,21 +7,50 @@ Flux.device!(2)
 display(Flux.device())
 include("model_modifications.jl")
 
+function render_latent_solution!(dim::OneDim, t::Vector{Float32}, z::Array{Float32, 3}; path::String)
+    tot = z[:, 1, :]
+    inc = z[:, 3, :]
+    sc = tot .- inc
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    xlims!(ax, dim.x[1], dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
+
+    record(fig, joinpath(path, "tot.mp4"), axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, dim.x, tot[:, i], color = :blue)
+    end
+
+    record(fig, joinpath(path, "inc.mp4"), axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, dim.x, inc[:, i], color = :blue)
+    end
+
+    record(fig, joinpath(path, "sc.mp4"), axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, dim.x, sc[:, i], color = :blue)
+    end
+end
+
 function make_plots(model::AcousticEnergyModel, batch; path::String, samples::Int = 1)
     s, a, t, y = batch
 
     z = cpu(Waves.generate_latent_solution(model, s, a, t))
     latent_dim = cpu(model.iter.dynamics.dim)
+    render_latent_solution!(latent_dim, cpu(t[:, 1]), z[:, :, 1, :], path = path)
+
+    z0, (C, F, PML) = get_parameters_and_initial_condition(model, s, a, t)
 
     fig = Figure()
     ax = Axis(fig[1, 1])
-    xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-    ylims!(ax, -2.0f0, 2.0f0)
+    lines!(ax, latent_dim.x, cpu(PML[:, 1]))
+    save(joinpath(path, "pml.png"), fig)
 
-    record(fig, joinpath(path, "latent.mp4"), axes(t, 1)) do i
-        empty!(ax)
-        lines!(ax, latent_dim.x, z[:, 1, 1, i], color = :blue)
-    end
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, latent_dim.x, cpu(F.shape[:, 1]))
+    save(joinpath(path, "force.png"), fig)
 
     y_hat = cpu(model(s, a, t))
     y = cpu(y)
@@ -118,7 +147,7 @@ DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_P
 h_size = 256
 nfreq = 500
 elements = 1024
-horizon = 1
+horizon = 20
 batchsize = 32
 val_every = 20
 val_batches = val_every
@@ -131,8 +160,8 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -150,13 +179,13 @@ s, a, t, y = gpu(Flux.batch.(first(val_loader)))
 # model = gpu(BSON.load("tranable_source/checkpoint_step=2640/checkpoint.bson")[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 
-path = "localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
 model, opt_state = @time train!(model, opt_state;
     train_loader, 
     val_loader, 
     val_every,
     val_batches,
     epochs,
-    path = path
-    # path = joinpath(DATA_PATH, path)
+    # path = path
+    path = joinpath(DATA_PATH, path)
     )

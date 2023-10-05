@@ -19,7 +19,6 @@ struct Integrator
     integration_function::Function
     dynamics::AbstractDynamics
     dt::Float32
-    # steps::Int
 end
 
 Flux.@functor Integrator

@@ -5,12 +5,14 @@ Flux.device!(0)
 display(Flux.device())
 include("model_modifications.jl")
 
+step = 2300
+
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/"
 ENV_PATH = joinpath(DATA_PATH, "env.bson")
 EPISODE_PATH = joinpath(DATA_PATH, "episodes/episode500.bson")
 
-step = 2300
-MODEL_PATH = joinpath(DATA_PATH, "trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$step/checkpoint.bson")
+MODEL_PATH = joinpath(DATA_PATH, "localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$step/checkpoint.bson")
+# MODEL_PATH = joinpath(DATA_PATH, "trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$step/checkpoint.bson")
 
 env = BSON.load(ENV_PATH)[:env]
 ep = Episode(path = EPISODE_PATH)

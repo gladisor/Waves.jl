@@ -30,14 +30,12 @@ end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
-    # x_norm = x
     y = (embedder.frequencies * x_norm)
     return y
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
-    # x_norm = x
     y = batched_mul(embedder.frequencies, x_norm)
     return y
 end

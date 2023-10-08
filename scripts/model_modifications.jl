@@ -89,33 +89,33 @@ function Waves.AcousticEnergyModel(;
     return AcousticEnergyModel(wave_encoder, design_encoder, F, iter, get_dx(latent_dim))
 end
 
-function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
-    C, F, PML = θ
-    pml_scale = dyn.pml[[1]]
-    σ = pml_scale .* PML
-    ∇ = dyn.grad
+# function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
+#     C, F, PML = θ
+#     pml_scale = dyn.pml[[1]]
+#     σ = pml_scale .* PML
+#     ∇ = dyn.grad
 
-    U_tot = x[:, 1, :]
-    V_tot = x[:, 2, :]
-    U_inc = x[:, 3, :]
-    V_inc = x[:, 4, :]
+#     U_tot = x[:, 1, :]
+#     V_tot = x[:, 2, :]
+#     U_inc = x[:, 3, :]
+#     V_inc = x[:, 4, :]
 
-    c = C(t)
-    f = F(t)
+#     c = C(t)
+#     f = F(t)
 
-    dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- σ .* U_tot
-    dV_tot = ∇ * (U_tot .+ f) .- σ .* V_tot
+#     dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- σ .* U_tot
+#     dV_tot = ∇ * (U_tot .+ f) .- σ .* V_tot
 
-    dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- σ .* U_inc
-    dV_inc = ∇ * (U_inc .+ f) .- σ .* V_inc
+#     dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- σ .* U_inc
+#     dV_inc = ∇ * (U_inc .+ f) .- σ .* V_inc
 
-    return hcat(
-        Flux.unsqueeze(dU_tot, 2) .* dyn.bc,
-        Flux.unsqueeze(dV_tot, 2),
-        Flux.unsqueeze(dU_inc, 2) .* dyn.bc,
-        Flux.unsqueeze(dV_inc, 2),
-        )
-end
+#     return hcat(
+#         Flux.unsqueeze(dU_tot, 2) .* dyn.bc,
+#         Flux.unsqueeze(dV_tot, 2),
+#         Flux.unsqueeze(dU_inc, 2) .* dyn.bc,
+#         Flux.unsqueeze(dV_inc, 2),
+#         )
+# end
 
 function get_parameters_and_initial_condition(model::AcousticEnergyModel, s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
     x = model.wave_encoder(s)
@@ -132,10 +132,10 @@ function Waves.generate_latent_solution(model::AcousticEnergyModel, s::AbstractV
     return model.iter(z0, t, θ)
 end
 
-function Waves.add_gradients(g1::AbstractArray{Float32}, g2::AbstractArray{Float32})
-    return g1 .+ g2
-end
+# function Waves.add_gradients(g1::AbstractArray{Float32}, g2::AbstractArray{Float32})
+#     return g1 .+ g2
+# end
 
-function Waves.add_gradients(g1::Vector, g2::Vector)
-    return Waves.add_gradients.(g1, g2)
-end
+# function Waves.add_gradients(g1::Vector, g2::Vector)
+#     return Waves.add_gradients.(g1, g2)
+# end

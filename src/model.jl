@@ -40,41 +40,41 @@ function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     return y
 end
 
-struct SinusoidalSource <: AbstractSource
-    freq_coefs::AbstractVector
-    emb::SinWaveEmbedder
-    freq::Float32
-end
+# struct SinusoidalSource <: AbstractSource
+#     freq_coefs::AbstractVector
+#     emb::SinWaveEmbedder
+#     freq::Float32
+# end
 
-Flux.@functor SinusoidalSource
-Flux.trainable(source::SinusoidalSource) = (;freq_coefs = source.freq_coefs)
+# Flux.@functor SinusoidalSource
+# Flux.trainable(source::SinusoidalSource) = (;freq_coefs = source.freq_coefs)
 
-function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
-    freq_coefs = randn(Float32, nfreq) ./ Float32(sqrt(nfreq))
-    return SinusoidalSource(freq_coefs, SinWaveEmbedder(dim, nfreq), freq)
-end
+# function SinusoidalSource(dim::OneDim, nfreq::Int, freq::Float32)
+#     freq_coefs = randn(Float32, nfreq) ./ Float32(sqrt(nfreq))
+#     return SinusoidalSource(freq_coefs, SinWaveEmbedder(dim, nfreq), freq)
+# end
 
-function (source::SinusoidalSource)(t::AbstractVector{Float32})
-    f = source.emb(source.freq_coefs[:, :])
-    return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
-end
+# function (source::SinusoidalSource)(t::AbstractVector{Float32})
+#     f = source.emb(source.freq_coefs[:, :])
+#     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
+# end
 
-struct GaussianSource <: AbstractSource
-    x::AbstractArray
-    μ::AbstractArray
-    σ::AbstractVector
-    a::AbstractVector
-    freq::Float32
-end
+# struct GaussianSource <: AbstractSource
+#     x::AbstractArray
+#     μ::AbstractArray
+#     σ::AbstractVector
+#     a::AbstractVector
+#     freq::Float32
+# end
 
-Flux.@functor GaussianSource
-Flux.trainable(source::GaussianSource) = (;source.μ, source.σ, source.a)
-GaussianSource(dim::AbstractDim, args...) = GaussianSource(build_grid(dim), args...)
+# Flux.@functor GaussianSource
+# Flux.trainable(source::GaussianSource) = (;source.μ, source.σ, source.a)
+# GaussianSource(dim::AbstractDim, args...) = GaussianSource(build_grid(dim), args...)
 
-function (source::GaussianSource)(t::AbstractVector)
-    f = build_normal(source.x, source.μ, exp.(source.σ), source.a)
-    return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
-end
+# function (source::GaussianSource)(t::AbstractVector)
+#     f = build_normal(source.x, source.μ, exp.(source.σ), source.a)
+#     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
+# end
 
 """
 WaveInputLayer is an abstract input layer which handles the conversion from a WaveEnvState

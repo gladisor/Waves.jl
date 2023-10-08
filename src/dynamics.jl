@@ -79,6 +79,14 @@ function add_gradients(::Nothing, gs)
     return gs
 end
 
+function add_gradients(g1::AbstractArray{Float32}, g2::AbstractArray{Float32})
+    return g1 .+ g2
+end
+
+function add_gradients(g1::Vector, g2::Vector)
+    return add_gradients.(g1, g2)
+end
+
 """
 adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
 
@@ -180,7 +188,9 @@ function (dyn::AcousticDynamics{TwoDim})(x, t::AbstractVector{Float32}, θ)
 end
 
 function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
-    C, F = θ
+    C, F, PML = θ
+    pml_scale = dyn.pml[[1]]
+    σ = pml_scale .* PML
     ∇ = dyn.grad
 
     U_tot = x[:, 1, :]
@@ -191,11 +201,11 @@ function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Flo
     c = C(t)
     f = F(t)
 
-    dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- dyn.pml .* U_tot
-    dV_tot = ∇ * (U_tot .+ f) .- dyn.pml .* V_tot
+    dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- σ .* U_tot
+    dV_tot = ∇ * (U_tot .+ f) .- σ .* V_tot
 
-    dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- dyn.pml .* U_inc
-    dV_inc = ∇ * (U_inc .+ f) .- dyn.pml .* V_inc
+    dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- σ .* U_inc
+    dV_inc = ∇ * (U_inc .+ f) .- σ .* V_inc
 
     return hcat(
         Flux.unsqueeze(dU_tot, 2) .* dyn.bc,

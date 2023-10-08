@@ -61,24 +61,24 @@ function plot_predicted_energy(tspan::Vector{Float32}, true_energy::Vector{Float
     save(path, fig)
 end
 
-function plot_latent_source(model::AcousticEnergyModel; path::String)
-    period = collect(0.0f0:model.iter.dt:(0.5f0/model.F.freq))
+# function plot_latent_source(model::AcousticEnergyModel; path::String)
+#     period = collect(0.0f0:model.iter.dt:(0.5f0/model.F.freq))
 
-    t = Flux.device!(Flux.device(model)) do
-        return gpu(period[:, :])
-    end
+#     t = Flux.device!(Flux.device(model)) do
+#         return gpu(period[:, :])
+#     end
 
-    F = model.F
-    f = cpu(hcat([F(t[i, :]) for i in axes(t, 1)]...))
-    dim = cpu(model.iter.dynamics.dim)
-    tspan = cpu(t[:, 1])
+#     F = model.F
+#     f = cpu(hcat([F(t[i, :]) for i in axes(t, 1)]...))
+#     dim = cpu(model.iter.dynamics.dim)
+#     tspan = cpu(t[:, 1])
 
-    fig = Figure()
-    ax1 = Axis(fig[1, 1], title = "One Period of Force Function", xlabel = "Time (s)", ylabel = "Space (m)")
-    hm = heatmap!(ax1, tspan, dim.x, permutedims(f), colormap = :ice)
-    Colorbar(fig[1, 2], hm)
+#     fig = Figure()
+#     ax1 = Axis(fig[1, 1], title = "One Period of Force Function", xlabel = "Time (s)", ylabel = "Space (m)")
+#     hm = heatmap!(ax1, tspan, dim.x, permutedims(f), colormap = :ice)
+#     Colorbar(fig[1, 2], hm)
     
-    ax2 = Axis(fig[2, 1], title = "Shape of Force Function", xlabel = "Space (m)")
-    lines!(ax2, dim.x, cpu(F(t[end÷2, :])[:, 1]))
-    save(path, fig)
-end
+#     ax2 = Axis(fig[2, 1], title = "Shape of Force Function", xlabel = "Space (m)")
+#     lines!(ax2, dim.x, cpu(F(t[end÷2, :])[:, 1]))
+#     save(path, fig)
+# end

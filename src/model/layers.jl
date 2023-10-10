@@ -64,6 +64,31 @@ function (block::ResidualBlock)(x::AbstractArray{Float32})
     return (block.main(x) .+ block.skip(x)) |> block.activation |> block.pool
 end
 
+struct ResidualUpsampleBlock
+    main::Chain
+    skip::Conv
+    activation::Function
+    up::Upsample
+end
+
+Flux.@functor ResidualUpsampleBlock
+
+function ResidualUpsampleBlock(k::Tuple, in_channels::Int, out_channels::Int, activation::Function)
+    main = Chain(
+        Conv(k, in_channels => out_channels, pad = SamePad()),
+        activation,
+        Conv(k, out_channels => out_channels, pad = SamePad())
+    )
+
+    skip = Conv((1, 1), in_channels => out_channels, pad = SamePad())
+
+    return ResidualUpsampleBlock(main, skip, activation, Upsample((2, 2)))
+end
+
+function (block::ResidualUpsampleBlock)(x::AbstractArray{Float32})
+    return (block.main(x) .+ block.skip(x)) |> block.activation |> block.up
+end
+
 struct LocalizationLayer
     coords::AbstractArray{Float32, 4}
 end

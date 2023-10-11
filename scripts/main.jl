@@ -27,15 +27,20 @@ function make_plots(model::AcousticEnergyModel, batch; path::String, samples::In
     return nothing
 end
 
+function make_plots(model::WaveReconstructionModel, batch; path::String, samples::Int = 1)
+
+    make_plots(model.energy_model, batch, path = path, samples = samples)
+end
+
 """
 measures average loss on dataset
 """
-function validate!(model::AcousticEnergyModel, val_loader::Flux.DataLoader, batches::Int)
+function validate(model, loss_func, val_loader::Flux.DataLoader, batches::Int)
     val_loss = []
 
     for (i,batch) in enumerate(val_loader)
-        s, a, t, y = gpu(Flux.batch.(batch))
-        @time loss = Flux.mse(model(s, a, t), y)
+        batch = gpu(Flux.batch.(batch))
+        @time loss = loss_func(model, batch...)
         push!(val_loss, loss)
         println("Val Batch: $i")
 
@@ -59,7 +64,11 @@ function plot_loss(metrics::Dict, val_every::Int; path::String)
     save(path, fig)
 end
 
-function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLoader, val_loader::Flux.DataLoader, val_every::Int, val_batches::Int, epochs::Int, path::String = "")
+function train!(;
+        model, opt_state, loss_func,
+        train_loader::Flux.DataLoader, val_loader::Flux.DataLoader, 
+        val_every::Int, val_batches::Int, 
+        epochs::Int, path::String)
 
     step = 0
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
@@ -67,8 +76,9 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
 
     for epoch in 1:epochs
         for batch in train_loader
-            s, a, t, y = gpu(Flux.batch.(batch))
-            loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
+            batch = gpu(Flux.batch.(batch))
+            # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
+            loss, back = Flux.pullback(m -> loss_func(m, batch...))
             @time gs = back(one(loss))[1]
             opt_state, model = Optimisers.update(opt_state, model, gs)
             push!(train_loss_accumulator, loss)
@@ -88,7 +98,7 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
                     path = checkpoint_path, samples = 4)
 
                 ## run validation
-                @time val_loss = validate!(model, val_loader, val_batches)
+                @time val_loss = validate(model, loss_func, val_loader, val_batches)
                 push!(metrics[:train_loss], Flux.mean(train_loss_accumulator))
                 push!(metrics[:val_loss], val_loss)
                 empty!(train_loss_accumulator)
@@ -103,12 +113,6 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
     end
 
     return model, opt_state
-end
-
-function get_reconstruction_indexes(integration_steps::Int, horizon::Int)
-    n = integration_steps + 1
-    return vec(collect((n - 2 * Waves.FRAMESKIP):Waves.FRAMESKIP:n) .+ integration_steps * collect(0:horizon-1)')
-    # return collect((n - 2 * Waves.FRAMESKIP):Waves.FRAMESKIP:n) .+ integration_steps * collect(0:horizon-1)'
 end
 
 function prepare_reconstruction_data(ep::Episode{S, Matrix{Float32}}, horizon::Int) where S
@@ -143,8 +147,8 @@ h_size = 256
 activation = leakyrelu
 nfreq = 500
 elements = 1024
-horizon = 3 #20
-batchsize = 1 #32
+horizon = 2 #20
+batchsize = 2 #32
 val_every = 20
 val_batches = val_every
 epochs = 10
@@ -174,50 +178,41 @@ wave_encoder = WaveEncoder(env, h_size, activation, nfreq, latent_dim)
 design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
 dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
 iter = Integrator(runge_kutta, dyn, env.dt)
-model = gpu(AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq))
-
-idx = gpu(get_reconstruction_indexes(env.integration_steps, horizon))
+energy_model = AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq)
 
 train_loader = Flux.DataLoader(prepare_reconstruction_data(data[1], horizon); data_loader_kwargs...)
-;;
-# s, a, t, y, w = prepare_reconstruction_data(data[1], 5)
+val_loader = Flux.DataLoader(prepare_reconstruction_data(data[2], horizon); data_loader_kwargs...)
 
-# wave = w[10]
-
-# fig = Figure(resolution = (1920, 1080))
-# for i in axes(wave, 4)
-#     for j in axes(wave, 3)
-#         ax = Axis(fig[i, j], aspect = 1.0)
-#         heatmap!(ax, env.dim.x, env.dim.y, wave[:, :, j, i], colormap = :ice)
-#     end
-# end
-# save("wave.png", fig)
-
-# ;;
 ## grab sample data
-s, a, t, y, w = gpu(Flux.batch.(first(train_loader)))
-# s, a, t, y = gpu(Flux.batch.(first(val_loader)))
-@time z = generate_latent_solution(model, s, a, t)
+batch = gpu(Flux.batch.(first(train_loader)))
 ;;
 
-u_tot_z = z[:, 1, :, :]
-u_tot_z = permutedims(u_tot_z, (1, 3, 2))
-u_tot_z_samples = u_tot_z[:, idx, :]
-x = reshape(u_tot_z_samples, (16, 16, 4, length(idx), batchsize))
-x = reshape(x, (16, 16, 4, length(idx) * batchsize))
+model = gpu(WaveReconstructionModel(energy_model, activation))
+loss_func = gpu(WaveReconstructionLoss(env, horizon))
+# validate(model, loss_func, train_loader, val_batches)
 
-upsample = gpu(ResidualUpsampleBlock((3, 3), 4, 16, leakyrelu))
-upsample(x) |> size
+opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 
-# t[idx, :]
-# wave = cpu(s[1].wave)
-# fig = Figure()
-# ax = Axis(fig[1, 1], aspect = 1.0f0)
-# heatmap!(ax, env.dim.x, env.dim.y, wave[:, :, 1], colormap = :ice)
-# save("wave.png", fig)
+for i in 1:30
+    loss, back = Flux.pullback(model) do m
+        return loss_func(m, batch...)
+    end
 
+    println(loss)
+    @time gs = back(one(loss))[1]
+    opt_state, model = Optimisers.update(opt_state, model, gs)
+end
 
+s, a, t, y, w = batch
+y_hat, w_hat = cpu(model(s, a, t, idx))
 
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+heatmap!(ax, env.dim.x, env.dim.y, cpu(w_hat[:, :, 1, 1]), colormap = :ice)
+
+ax = Axis(fig[1, 2], aspect = 1.0f0)
+heatmap!(ax, env.dim.x, env.dim.y, cpu(w[:, :, 1, 1]), colormap = :ice)
+save("reconstructed_wave.png", fig)
 
 
 

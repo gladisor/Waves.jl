@@ -72,3 +72,89 @@ function render_latent_solution(model::AcousticEnergyModel, s::Vector{WaveEnvSta
         lines!(ax, latent_dim.x, u_sc[:, i], color = :blue)
     end
 end
+
+struct WaveReconstructionModel
+    energy_model::AcousticEnergyModel
+    decoder::Chain
+end
+
+Flux.@functor WaveReconstructionModel
+
+function (model::WaveReconstructionModel)(s, a, t, idx)
+    nsample = length(idx) ## how many images per batch are we reconstructing
+    batchsize = length(s)
+
+    ## unroll latent dynamics
+    z = generate_latent_solution(model.energy_model, s, a, t)
+
+    ## grab only total latent field
+    u_tot_z = z[:, 1, :, :]
+    
+    ## place batch dim at end
+    u_tot_z = permutedims(u_tot_z, (1, 3, 2))
+
+    ## select only points in time we are going to reconstruct
+    u_tot_z_samples = u_tot_z[:, idx, :]
+
+    ## reshape latent solution into 16 x 16 feature maps
+    x = reshape(u_tot_z_samples, (16, 16, 4, nsample, batchsize))
+
+    ## flatten the samples into batch dim
+    x = reshape(x, (16, 16, 4, nsample * batchsize))
+
+    w_hat = model.decoder(x)
+
+    ## static (128 x 128) image size assumption!!!
+    w_hat = reshape(w_hat, (128, 128, 1, nsample, batchsize))
+    return compute_latent_energy(z, model.energy_model.dx),  dropdims(w_hat, dims = 3)
+end
+
+function WaveReconstructionModel(energy_model::AcousticEnergyModel, activation::Function)
+
+    decoder = Chain(
+        Conv((3, 3), 4 => 64, activation, pad = SamePad()),
+        Conv((3, 3), 64 => 128, activation, pad = SamePad()),
+        Upsample((2, 2)),
+
+        Conv((3, 3), 128 => 128, activation, pad = SamePad()),
+        Conv((3, 3), 128 => 128, activation, pad = SamePad()),
+        Upsample((2, 2)),
+
+        Conv((3, 3), 128 => 128, activation, pad = SamePad()),
+        Conv((3, 3), 128 => 128, activation, pad = SamePad()),
+        Upsample((2, 2)),
+
+        Conv((3, 3), 128 => 64, activation, pad = SamePad()),
+        Conv((3, 3), 64 => 64, activation, pad = SamePad()),
+        Conv((1, 1), 64 => 1, w -> 3.0f0 * tanh.(w)))
+
+    return WaveReconstructionModel(energy_model, decoder)
+end
+
+struct WaveReconstructionLoss
+    idx::AbstractVector{Int}
+    real_dx::Float32
+    real_dy::Float32
+end
+
+Flux.@functor WaveReconstructionLoss
+Flux.trainable(::WaveReconstructionLoss) = (;)
+
+function (loss::WaveReconstructionLoss)(model::WaveReconstructionModel, s, a, t, y, w)
+    y_hat, w_hat = model(s, a, t, loss.idx)
+    L_recons = Flux.mean(sum((w .- w_hat) .^ 2, dims = (1, 2)) * loss.real_dx * loss.real_dy)
+    L_energy = Flux.mse(y_hat, y)
+    return L_recons + L_energy
+end
+
+function get_reconstruction_indexes(integration_steps::Int, horizon::Int)
+    n = integration_steps + 1
+    return vec(collect((n - 2 * Waves.FRAMESKIP):Waves.FRAMESKIP:n) .+ integration_steps * collect(0:horizon-1)')
+end
+
+function WaveReconstructionLoss(env::WaveEnv, horizon::Int)
+    dx = get_dx(env.dim) * length(env.dim.x) / env.resolution[1]
+    dy = get_dy(env.dim) * length(env.dim.y) / env.resolution[2]
+    idx = get_reconstruction_indexes(env.integration_steps, horizon)
+    return WaveReconstructionLoss(idx, dx, dy)
+end

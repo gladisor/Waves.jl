@@ -33,7 +33,7 @@ function make_plots(
         path::String, 
         samples::Int)
 
-    make_plots(model.energy_model, s, a, t, y, path = path, samples = samples)
+    make_plots(model.energy_model, loss_func, s, a, t, y, path = path, samples = samples)
     image_path = mkpath(joinpath(path, "images"))
     _, w_hat = cpu(model(s, a, t, loss_func.idx))
 
@@ -166,6 +166,10 @@ function prepare_reconstruction_data(ep::Episode{S, Matrix{Float32}}, horizon::I
     return s, a, t, y, w
 end
 
+function prepare_reconstruction_data(args...)
+    return vcat.(prepare_reconstruction_data.(args...)...)
+end
+
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
 ## declaring hyperparameters
 h_size = 256
@@ -186,7 +190,7 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
 # @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -195,8 +199,8 @@ train_data, val_data = data[1:idx], data[idx+1:end]
 ## preparing DataLoader(s)
 # train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
 # val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
-train_loader = Flux.DataLoader(prepare_reconstruction_data(data[1], horizon); data_loader_kwargs...)
-val_loader = Flux.DataLoader(prepare_reconstruction_data(data[2], horizon); data_loader_kwargs...)
+train_loader = Flux.DataLoader(prepare_reconstruction_data(train_data, horizon); data_loader_kwargs...)
+val_loader = Flux.DataLoader(prepare_reconstruction_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 ## contstruct model & train
@@ -208,7 +212,7 @@ iter = Integrator(runge_kutta, dyn, env.dt)
 energy_model = AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq)
 
 ## grab sample data
-batch = gpu(Flux.batch.(first(train_loader)))
+batch = gpu(Flux.batch.(first(val_loader)))
 ;;
 
 model = gpu(WaveReconstructionModel(energy_model, activation))
@@ -249,17 +253,17 @@ opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 # @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 # # path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
 
-make_plots(model, loss_func, batch..., path = mkpath("plotting"), samples = 4)
+# make_plots(model, loss_func, batch..., path = mkpath("plotting"), samples = 4)
 
-# path = "testing"
-# model, opt_state = @time train!(;
-#     model, opt_state,
-#     loss_func,
-#     train_loader, 
-#     val_loader, 
-#     val_every,
-#     val_batches,
-#     epochs,
-#     path = path
-#     # path = joinpath(DATA_PATH, path)
-#     )
+path = "reconstruction"
+model, opt_state = @time train!(;
+    model, opt_state,
+    loss_func,
+    train_loader, 
+    val_loader, 
+    val_every,
+    val_batches,
+    epochs,
+    path = path
+    # path = joinpath(DATA_PATH, path)
+    )

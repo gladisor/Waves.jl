@@ -50,10 +50,9 @@ function render_latent_solution(model::AcousticEnergyModel, s::Vector{WaveEnvSta
     latent_dim = cpu(model.iter.dynamics.dim)
 
     fig = Figure()
-    ax = Axis(fig[1, 1])
+    ax = Axis(fig[1, 1], title = "Total Latent Wave", xlabel = "Space (m)", ylabel = "Space (m)")
     xlims!(ax, latent_dim.x[1], latent_dim.x[end])
     ylims!(ax, -2.0f0, 2.0f0)
-
     record(fig, joinpath(path, "u_tot.mp4"), axes(t, 1)) do i
         empty!(ax)
         lines!(ax, latent_dim.x, u_tot[:, i], color = :blue)
@@ -61,12 +60,21 @@ function render_latent_solution(model::AcousticEnergyModel, s::Vector{WaveEnvSta
         lines!(ax, latent_dim.x, C(cpu(t[i, :]))[:, 1],  color = :green)
     end
 
+
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Incident Latent Wave", xlabel = "Space (m)", ylabel = "Space (m)")
+    xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
     record(fig, joinpath(path, "u_inc.mp4"), axes(t, 1)) do i
         empty!(ax)
         lines!(ax, latent_dim.x, u_inc[:, i], color = :blue)
         lines!(ax, latent_dim.x, PML[:, 1], color = :red)
     end
 
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Scattered Latent Wave", xlabel = "Space (m)", ylabel = "Space (m)")
+    xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
     record(fig, joinpath(path, "u_sc.mp4"), axes(t, 1)) do i
         empty!(ax)
         lines!(ax, latent_dim.x, u_sc[:, i], color = :blue)

@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(0)
+Flux.device!(1)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -11,8 +11,7 @@ include("../src/model/wave_encoder.jl")
 include("../src/model/design_encoder.jl")
 include("../src/model/model.jl")
 
-function make_plots(model::AcousticEnergyModel, batch; path::String, samples::Int = 1)
-    s, a, t, y = batch
+function make_plots(model::AcousticEnergyModel, loss_func, s, a, t, y; path::String, samples::Int)
     render_latent_solution(model, s, a, t; path)
 
     y_hat = cpu(model(s, a, t))
@@ -27,9 +26,32 @@ function make_plots(model::AcousticEnergyModel, batch; path::String, samples::In
     return nothing
 end
 
-function make_plots(model::WaveReconstructionModel, batch; path::String, samples::Int = 1)
+function make_plots(
+        model::WaveReconstructionModel, 
+        loss_func::WaveReconstructionLoss, 
+        s, a, t, y, w; 
+        path::String, 
+        samples::Int)
 
-    make_plots(model.energy_model, batch, path = path, samples = samples)
+    make_plots(model.energy_model, s, a, t, y, path = path, samples = samples)
+    image_path = mkpath(joinpath(path, "images"))
+    _, w_hat = cpu(model(s, a, t, loss_func.idx))
+
+    w_hat = cpu(w_hat)
+    w = cpu(w)
+    tspan = cpu(t[loss_func.idx, :])
+
+    fig = Figure()
+    ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Predicted")
+    ax2 = Axis(fig[1, 2], aspect = 1.0, title = "Ground Truth")
+
+    for i in axes(w, 3)
+        empty!(ax1)
+        empty!(ax2)
+        heatmap!(ax1, w_hat[:, :, i, 1], colormap = :ice)
+        heatmap!(ax2, w[:, :, i, 1], colormap = :ice)
+        save(joinpath(image_path, "$i.png"), fig)
+    end
 end
 
 """
@@ -78,7 +100,7 @@ function train!(;
         for batch in train_loader
             batch = gpu(Flux.batch.(batch))
             # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
-            loss, back = Flux.pullback(m -> loss_func(m, batch...))
+            loss, back = Flux.pullback(m -> loss_func(m, batch...), model)
             @time gs = back(one(loss))[1]
             opt_state, model = Optimisers.update(opt_state, model, gs)
             push!(train_loss_accumulator, loss)
@@ -93,9 +115,12 @@ function train!(;
                 BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model = cpu(model))
 
                 ## plot some predictions
-                make_plots(model, 
-                    gpu(Flux.batch.(first(val_loader))), 
-                    path = checkpoint_path, samples = 4)
+                make_plots(
+                    model,
+                    loss_func,
+                    gpu(Flux.batch.(first(val_loader)))...;
+                    path = checkpoint_path,
+                    samples = 4)
 
                 ## run validation
                 @time val_loss = validate(model, loss_func, val_loader, val_batches)
@@ -161,15 +186,17 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
 # @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
 
 ## preparing DataLoader(s)
-train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
-val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
+# train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
+# val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
+train_loader = Flux.DataLoader(prepare_reconstruction_data(data[1], horizon); data_loader_kwargs...)
+val_loader = Flux.DataLoader(prepare_reconstruction_data(data[2], horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 ## contstruct model & train
@@ -180,39 +207,34 @@ dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
 iter = Integrator(runge_kutta, dyn, env.dt)
 energy_model = AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq)
 
-train_loader = Flux.DataLoader(prepare_reconstruction_data(data[1], horizon); data_loader_kwargs...)
-val_loader = Flux.DataLoader(prepare_reconstruction_data(data[2], horizon); data_loader_kwargs...)
-
 ## grab sample data
 batch = gpu(Flux.batch.(first(train_loader)))
 ;;
 
 model = gpu(WaveReconstructionModel(energy_model, activation))
 loss_func = gpu(WaveReconstructionLoss(env, horizon))
-# validate(model, loss_func, train_loader, val_batches)
-
 opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 
-for i in 1:30
-    loss, back = Flux.pullback(model) do m
-        return loss_func(m, batch...)
-    end
+# for i in 1:30
+#     loss, back = Flux.pullback(model) do m
+#         return loss_func(m, batch...)
+#     end
 
-    println(loss)
-    @time gs = back(one(loss))[1]
-    opt_state, model = Optimisers.update(opt_state, model, gs)
-end
+#     println(loss)
+#     @time gs = back(one(loss))[1]
+#     opt_state, model = Optimisers.update(opt_state, model, gs)
+# end
 
-s, a, t, y, w = batch
-y_hat, w_hat = cpu(model(s, a, t, idx))
+# s, a, t, y, w = batch
+# y_hat, w_hat = cpu(model(s, a, t, loss_func.idx))
 
-fig = Figure()
-ax = Axis(fig[1, 1], aspect = 1.0f0)
-heatmap!(ax, env.dim.x, env.dim.y, cpu(w_hat[:, :, 1, 1]), colormap = :ice)
+# fig = Figure()
+# ax = Axis(fig[1, 1], aspect = 1.0f0)
+# heatmap!(ax, env.dim.x, env.dim.y, cpu(w_hat[:, :, 1, 1]), colormap = :ice)
 
-ax = Axis(fig[1, 2], aspect = 1.0f0)
-heatmap!(ax, env.dim.x, env.dim.y, cpu(w[:, :, 1, 1]), colormap = :ice)
-save("reconstructed_wave.png", fig)
+# ax = Axis(fig[1, 2], aspect = 1.0f0)
+# heatmap!(ax, env.dim.x, env.dim.y, cpu(w[:, :, 1, 1]), colormap = :ice)
+# save("reconstructed_wave.png", fig)
 
 
 
@@ -226,8 +248,13 @@ save("reconstructed_wave.png", fig)
 
 # @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 # # path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+
+make_plots(model, loss_func, batch..., path = mkpath("plotting"), samples = 4)
+
 # path = "testing"
-# model, opt_state = @time train!(model, opt_state;
+# model, opt_state = @time train!(;
+#     model, opt_state,
+#     loss_func,
 #     train_loader, 
 #     val_loader, 
 #     val_every,

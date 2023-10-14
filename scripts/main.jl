@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(3)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -54,6 +54,10 @@ function make_plots(
     end
 end
 
+function make_plots(model::WaveReconstructionModel, loss_func::LatentConsistencyLoss, args...; kwargs...)
+    return make_plots(model, loss_func.reconstruction_loss, args...; kwargs...)
+end
+
 """
 measures average loss on dataset
 """
@@ -61,7 +65,7 @@ function validate(model, loss_func, val_loader::Flux.DataLoader, batches::Int)
     val_loss = []
 
     for (i,batch) in enumerate(val_loader)
-        batch = gpu(Flux.batch.(batch))
+        batch = gpu(batch)
         @time loss = loss_func(model, batch...)
         push!(val_loss, loss)
         println("Val Batch: $i")
@@ -78,11 +82,16 @@ function plot_loss(metrics::Dict, val_every::Int; path::String)
 
     steps = collect(1:length(metrics[:train_loss])) * val_every
 
-    fig = Figure()
-    ax = Axis(fig[1, 1], xlabel = "Batch Update", ylabel = "Average Loss")
-    lines!(ax, steps, metrics[:train_loss], color = :blue, label = "Train")
-    lines!(ax, steps, metrics[:val_loss], color = :orange, label = "Val")
-    axislegend(ax)
+    fig = Figure(resolution = (1920, 1080))
+    ax1 = Axis(fig[1, 1], xlabel = "Batch Update", ylabel = "Average Loss")
+    lines!(ax1, steps, metrics[:train_loss], color = :blue, label = "Train")
+    lines!(ax1, steps, metrics[:val_loss], color = :orange, label = "Val")
+    axislegend(ax1)
+
+    ax2 = Axis(fig[1, 2], xlabel = "Batch Update", ylabel = "Log Scale Average Loss")
+    lines!(ax2, steps, log.(metrics[:train_loss]), color = :blue, label = "Train")
+    lines!(ax2, steps, log.(metrics[:val_loss]), color = :orange, label = "Val")
+    axislegend(ax2)
     save(path, fig)
 end
 
@@ -98,8 +107,7 @@ function train!(;
 
     for epoch in 1:epochs
         for batch in train_loader
-            batch = gpu(Flux.batch.(batch))
-            # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
+            batch = gpu(batch)
             loss, back = Flux.pullback(m -> loss_func(m, batch...), model)
             @time gs = back(one(loss))[1]
             opt_state, model = Optimisers.update(opt_state, model, gs)
@@ -118,7 +126,7 @@ function train!(;
                 make_plots(
                     model,
                     loss_func,
-                    gpu(Flux.batch.(first(val_loader)))...;
+                    gpu(first(val_loader))...;
                     path = checkpoint_path,
                     samples = 4)
 
@@ -170,14 +178,45 @@ function prepare_reconstruction_data(args...)
     return vcat.(prepare_reconstruction_data.(args...)...)
 end
 
+function get_reconstruction_data(ep::Episode, horizon::Int, idx::Int)
+    boundary = idx + horizon - 1
+    s = ep.s[idx]
+    a = ep.a[idx:boundary]
+    t = flatten_repeated_last_dim(hcat(ep.t[idx:boundary]...))
+    y = cat(ep.y[idx:boundary]..., dims = 3)
+    y = permutedims(flatten_repeated_last_dim(permutedims(y, (2, 1, 3))))
+    w = cat([ep.s[j].wave for j in idx+1:boundary+1]..., dims = 3)
+    return (s, a, t, y, w)
+end
+
+struct EpisodeDataset
+    episodes::Vector{Episode}
+    horizon::Int
+end
+
+function Base.length(dataset::EpisodeDataset)
+    return sum(length.(dataset.episodes) .- dataset.horizon)
+end
+
+function Base.getindex(dataset::EpisodeDataset, idx::Int)
+    episode_length = length(dataset.episodes[1]) - dataset.horizon
+    episode_idx = (idx - 1) ÷ episode_length + 1
+    data_idx = (idx - 1) % episode_length + 1
+    return get_reconstruction_data(dataset.episodes[episode_idx], horizon, data_idx)
+end
+
+function Base.getindex(dataset::EpisodeDataset, idxs::AbstractVector)
+    Flux.batch.(zip([getindex(dataset, idx) for idx in idxs]...))
+end
+
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
 ## declaring hyperparameters
 h_size = 256
 activation = leakyrelu
 nfreq = 500
 elements = 1024
-horizon = 2 #20
-batchsize = 2 #32
+horizon = 20
+batchsize = 4 #32
 val_every = 20
 val_batches = val_every
 epochs = 10
@@ -189,18 +228,16 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
 
 ## preparing DataLoader(s)
-# train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
-# val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
-train_loader = Flux.DataLoader(prepare_reconstruction_data(train_data, horizon); data_loader_kwargs...)
-val_loader = Flux.DataLoader(prepare_reconstruction_data(val_data, horizon); data_loader_kwargs...)
+train_loader = Flux.DataLoader(EpisodeDataset(train_data, horizon); data_loader_kwargs...)
+val_loader = Flux.DataLoader(EpisodeDataset(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 ## contstruct model & train
@@ -212,58 +249,22 @@ iter = Integrator(runge_kutta, dyn, env.dt)
 energy_model = AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq)
 
 ## grab sample data
-batch = gpu(Flux.batch.(first(val_loader)))
-;;
-
 model = gpu(WaveReconstructionModel(energy_model, activation))
-loss_func = gpu(WaveReconstructionLoss(env, horizon))
+# loss_func = gpu(WaveReconstructionLoss(env, horizon))
+loss_func = gpu(LatentConsistencyLoss(env, horizon))
 opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
+# s, a, t, y, w = gpu(first(val_loader))
 
-# for i in 1:30
-#     loss, back = Flux.pullback(model) do m
-#         return loss_func(m, batch...)
-#     end
-
-#     println(loss)
-#     @time gs = back(one(loss))[1]
-#     opt_state, model = Optimisers.update(opt_state, model, gs)
-# end
-
-# s, a, t, y, w = batch
-# y_hat, w_hat = cpu(model(s, a, t, loss_func.idx))
-
-# fig = Figure()
-# ax = Axis(fig[1, 1], aspect = 1.0f0)
-# heatmap!(ax, env.dim.x, env.dim.y, cpu(w_hat[:, :, 1, 1]), colormap = :ice)
-
-# ax = Axis(fig[1, 2], aspect = 1.0f0)
-# heatmap!(ax, env.dim.x, env.dim.y, cpu(w[:, :, 1, 1]), colormap = :ice)
-# save("reconstructed_wave.png", fig)
-
-
-
-
-
-
-
-
-## load a model?
-# model = gpu(BSON.load("tranable_source/checkpoint_step=2640/checkpoint.bson")[:model])
-
-# @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
-# # path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
-
-# make_plots(model, loss_func, batch..., path = mkpath("plotting"), samples = 4)
-
-path = "reconstruction"
+path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
 model, opt_state = @time train!(;
-    model, opt_state,
+    model, 
+    opt_state,
     loss_func,
     train_loader, 
     val_loader, 
     val_every,
     val_batches,
     epochs,
-    path = path
-    # path = joinpath(DATA_PATH, path)
+    path = joinpath(DATA_PATH, path)
+    # path = "testing"
     )

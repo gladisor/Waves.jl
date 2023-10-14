@@ -86,6 +86,7 @@ function RLBase.reset!(env::WaveEnv)
     return nothing
 end
 
+NUM_FRAMES = 101
 FRAMESKIP = 10
 function (env::WaveEnv)(action::AbstractDesign)
     tspan = build_tspan(env)

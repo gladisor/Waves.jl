@@ -88,16 +88,13 @@ end
 
 Flux.@functor WaveReconstructionModel
 
-function (model::WaveReconstructionModel)(s, a, t, idx)
+function predict_wave_images(model::WaveReconstructionModel, z::AbstractArray{Float32, 4}, idx::AbstractVector{Int})
     nsample = length(idx) ## how many images per batch are we reconstructing
-    batchsize = length(s)
-
-    ## unroll latent dynamics
-    z = generate_latent_solution(model.energy_model, s, a, t)
+    batchsize = size(z, 3)
 
     ## grab only total latent field
     u_tot_z = z[:, 1, :, :]
-    
+
     ## place batch dim at end
     u_tot_z = permutedims(u_tot_z, (1, 3, 2))
 
@@ -114,7 +111,13 @@ function (model::WaveReconstructionModel)(s, a, t, idx)
 
     ## static (128 x 128) image size assumption!!!
     w_hat = reshape(w_hat, (128, 128, 1, nsample, batchsize))
-    return compute_latent_energy(z, model.energy_model.dx),  dropdims(w_hat, dims = 3)
+    return dropdims(w_hat, dims = 3)
+end
+
+function (model::WaveReconstructionModel)(s, a, t, idx)
+    ## unroll latent dynamics
+    z = generate_latent_solution(model.energy_model, s, a, t)
+    return compute_latent_energy(z, model.energy_model.dx), predict_wave_images(model, z, idx)
 end
 
 function WaveReconstructionModel(energy_model::AcousticEnergyModel, activation::Function)
@@ -165,4 +168,45 @@ function WaveReconstructionLoss(env::WaveEnv, horizon::Int)
     dy = get_dy(env.dim) * length(env.dim.y) / env.resolution[2]
     idx = get_reconstruction_indexes(env.integration_steps, horizon)
     return WaveReconstructionLoss(idx, dx, dy)
+end
+
+function get_action_indexes(integration_steps::Int, horizon::Int)
+    return integration_steps * collect(1:horizon) .+ 1
+end
+
+struct LatentConsistencyLoss
+    reconstruction_loss::WaveReconstructionLoss
+    action_indexes::AbstractVector{Int}
+    num_frames::Int
+    horizon::Int
+end
+
+Flux.@functor LatentConsistencyLoss
+Flux.trainable(::LatentConsistencyLoss) = (;)
+
+function LatentConsistencyLoss(env::WaveEnv, horizon::Int)
+    return LatentConsistencyLoss(
+        WaveReconstructionLoss(env, horizon), 
+        get_action_indexes(env.integration_steps, horizon),
+        3, 
+        horizon)
+end
+
+function (loss::LatentConsistencyLoss)(model::WaveReconstructionModel, s, a, t, y, w)
+    z = generate_latent_solution(model.energy_model, s, a, t)
+    y_hat = compute_latent_energy(z, model.energy_model.dx)
+    w_hat = predict_wave_images(model, z, loss.reconstruction_loss.idx)
+    
+    L_recons = Flux.mean(sum((w .- w_hat) .^ 2, dims = (1, 2)) * loss.reconstruction_loss.real_dx * loss.reconstruction_loss.real_dy)
+    L_energy = Flux.mse(y_hat, y)
+
+    batchsize = size(w_hat, 4)
+    image_size = (size(w_hat, 1), size(w_hat, 2), loss.num_frames, loss.horizon * batchsize)
+    z_hat = reshape(w_hat, image_size) |> model.energy_model.wave_encoder.base[2:end] |> model.energy_model.wave_encoder.head
+    z_hat = reshape(z_hat, (size(z_hat, 1), size(z_hat, 2), loss.horizon, batchsize))
+    z_hat = z_hat[:, 1:4, :, :]
+    z_true = permutedims(z[:, 1:4, :, loss.action_indexes], (1, 2, 4, 3))
+    L_consistency = Flux.mean(sum((z_true .- z_hat) .^ 2, dims = 1) * model.energy_model.dx)
+    
+    return L_energy + L_recons + L_consistency
 end

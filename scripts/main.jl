@@ -228,8 +228,8 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:20]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -248,23 +248,23 @@ dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
 iter = Integrator(runge_kutta, dyn, env.dt)
 energy_model = AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq)
 
-## grab sample data
-model = gpu(WaveReconstructionModel(energy_model, activation))
-# loss_func = gpu(WaveReconstructionLoss(env, horizon))
-loss_func = gpu(LatentConsistencyLoss(env, horizon))
-opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
-# s, a, t, y, w = gpu(first(val_loader))
+# ## grab sample data
+# model = gpu(WaveReconstructionModel(energy_model, activation))
+# # loss_func = gpu(WaveReconstructionLoss(env, horizon))
+# loss_func = gpu(LatentConsistencyLoss(env, horizon))
+# opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
+# # s, a, t, y, w = gpu(first(val_loader))
 
-path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
-model, opt_state = @time train!(;
-    model, 
-    opt_state,
-    loss_func,
-    train_loader, 
-    val_loader, 
-    val_every,
-    val_batches,
-    epochs,
-    path = joinpath(DATA_PATH, path)
-    # path = "testing"
-    )
+# path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+# model, opt_state = @time train!(;
+#     model, 
+#     opt_state,
+#     loss_func,
+#     train_loader, 
+#     val_loader, 
+#     val_every,
+#     val_batches,
+#     epochs,
+#     path = joinpath(DATA_PATH, path)
+#     # path = "testing"
+#     )

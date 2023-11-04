@@ -39,6 +39,12 @@ function (model::AcousticEnergyModel)(s::Vector{WaveEnvState}, a::Matrix{<: Abst
     return compute_latent_energy(z, model.dx)
 end
 
+struct EnergyLoss end
+
+function (loss::EnergyLoss)(model::AcousticEnergyModel, s, a, t, y)
+    return Flux.mse(model(s, a, t), y)
+end
+
 function render_latent_solution(model::AcousticEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32}; path::String)
     z0, θ = embed(model, s, a, t)
     z = cpu(model.iter(z0, t, θ))

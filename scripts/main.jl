@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(3)
+Flux.device!(0)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -11,7 +11,7 @@ include("../src/model/wave_encoder.jl")
 include("../src/model/design_encoder.jl")
 include("../src/model/model.jl")
 
-function make_plots(model::AcousticEnergyModel, loss_func, s, a, t, y; path::String, samples::Int)
+function make_plots(model::AcousticEnergyModel, loss_func::EnergyLoss, s, a, t, y; path::String, samples::Int)
     render_latent_solution(model, s, a, t; path)
 
     y_hat = cpu(model(s, a, t))
@@ -189,6 +189,16 @@ function get_reconstruction_data(ep::Episode, horizon::Int, idx::Int)
     return (s, a, t, y, w)
 end
 
+function get_energy_data(ep::Episode, horizon::Int, idx::Int)
+    boundary = idx + horizon - 1
+    s = ep.s[idx]
+    a = ep.a[idx:boundary]
+    t = flatten_repeated_last_dim(hcat(ep.t[idx:boundary]...))
+    y = cat(ep.y[idx:boundary]..., dims = 3)
+    y = permutedims(flatten_repeated_last_dim(permutedims(y, (2, 1, 3))))
+    return (s, a, t, y)
+end
+
 struct EpisodeDataset
     episodes::Vector{Episode}
     horizon::Int
@@ -202,21 +212,23 @@ function Base.getindex(dataset::EpisodeDataset, idx::Int)
     episode_length = length(dataset.episodes[1]) - dataset.horizon
     episode_idx = (idx - 1) ÷ episode_length + 1
     data_idx = (idx - 1) % episode_length + 1
-    return get_reconstruction_data(dataset.episodes[episode_idx], horizon, data_idx)
+    # return get_reconstruction_data(dataset.episodes[episode_idx], horizon, data_idx)
+    return get_energy_data(dataset.episodes[episode_idx], dataset.horizon, data_idx)
 end
 
 function Base.getindex(dataset::EpisodeDataset, idxs::AbstractVector)
     Flux.batch.(zip([getindex(dataset, idx) for idx in idxs]...))
 end
 
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
+# DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
+DATA_PATH = "../AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/"
 ## declaring hyperparameters
 h_size = 256
 activation = leakyrelu
 nfreq = 500
 elements = 1024
 horizon = 20
-batchsize = 4 #32
+batchsize = 32
 val_every = 20
 val_batches = val_every
 epochs = 10
@@ -228,8 +240,8 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:20]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:10]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -246,25 +258,22 @@ wave_encoder = WaveEncoder(env, h_size, activation, nfreq, latent_dim)
 design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
 dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
 iter = Integrator(runge_kutta, dyn, env.dt)
-energy_model = AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq)
-
-# ## grab sample data
-# model = gpu(WaveReconstructionModel(energy_model, activation))
-# # loss_func = gpu(WaveReconstructionLoss(env, horizon))
-# loss_func = gpu(LatentConsistencyLoss(env, horizon))
-# opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
-# # s, a, t, y, w = gpu(first(val_loader))
+model = gpu(AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq))
+opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
+loss_func = EnergyLoss()
+# s, a, t, y = gpu(first(val_loader))
 
 # path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
-# model, opt_state = @time train!(;
-#     model, 
-#     opt_state,
-#     loss_func,
-#     train_loader, 
-#     val_loader, 
-#     val_every,
-#     val_batches,
-#     epochs,
-#     path = joinpath(DATA_PATH, path)
-#     # path = "testing"
-#     )
+path = "rebuttal"
+model, opt_state = @time train!(;
+    model,
+    opt_state,
+    loss_func,
+    train_loader, 
+    val_loader, 
+    val_every,
+    val_batches,
+    epochs,
+    path = joinpath(DATA_PATH, path)
+    # path = "testing"
+    )

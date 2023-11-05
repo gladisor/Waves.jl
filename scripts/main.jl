@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(0)
+Flux.device!(1)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -11,6 +11,7 @@ include("../src/model/wave_encoder.jl")
 include("../src/model/design_encoder.jl")
 include("../src/model/model.jl")
 include("dataset.jl")
+include("../src/model/node.jl")
 
 function make_plots(model::AcousticEnergyModel, loss_func::EnergyLoss, s, a, t, y; path::String, samples::Int)
     render_latent_solution(model, s, a, t; path)
@@ -177,23 +178,29 @@ idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
 
 ## preparing DataLoader(s)
-train_loader = Flux.DataLoader(EpisodeDataset(train_data, horizon); data_loader_kwargs...)
-val_loader = Flux.DataLoader(EpisodeDataset(val_data, horizon); data_loader_kwargs...)
+data_func = get_energy_data
+train_loader = Flux.DataLoader(EpisodeDataset(train_data, horizon, data_func); data_loader_kwargs...)
+val_loader = Flux.DataLoader(EpisodeDataset(val_data, horizon, data_func); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 ## contstruct model & train
 latent_dim = OneDim(latent_gs, elements)
-wave_encoder = WaveEncoder(env, h_size, activation, nfreq, latent_dim)
-design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
-dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
-iter = Integrator(runge_kutta, dyn, env.dt)
-model = gpu(AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq))
+
+# wave_encoder = WaveEncoder(env, h_size, activation, nfreq, latent_dim)
+# design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
+# dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
+# iter = Integrator(runge_kutta, dyn, env.dt)
+# model = gpu(AcousticEnergyModel(wave_encoder, design_encoder, iter, get_dx(latent_dim), env.source.freq))
+# loss_func = EnergyLoss()
+
+model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
+loss_func = NODEEnergyLoss()
+
 opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
-loss_func = EnergyLoss()
 # s, a, t, y = gpu(first(val_loader))
 
 # path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
-path = "rebuttal_no_pml"
+path = "rebuttal_node"
 model, opt_state = @time train!(;
     model,
     opt_state,
@@ -204,5 +211,4 @@ model, opt_state = @time train!(;
     val_batches,
     epochs,
     path = joinpath(DATA_PATH, path)
-    # path = "testing"
     )

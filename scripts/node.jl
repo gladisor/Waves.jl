@@ -43,36 +43,36 @@ val_loader = Flux.DataLoader(EpisodeDataset(val_data, horizon, data_func); data_
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 latent_dim = OneDim(latent_gs, elements)
-wave_encoder = WaveEncoder(
-    build_cnn_base(env, 3, activation, h_size),
-    Chain(Dense(h_size, elements)))
+# wave_encoder = WaveEncoder(
+#     build_cnn_base(env, 3, activation, h_size),
+#     Chain(Dense(h_size, elements)))
 
-design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
+# design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
 
-# mlp = MLP(
-#     Dense(2 * elements, h_size, activation), 
-#     Dense(h_size, elements, activation))
+# mlp = Chain(
+#     Dense(2 * elements, h_size, activation),
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, elements)
+# )
 
-mlp = Chain(
-    Dense(2 * elements, h_size, activation),
-    Dense(h_size, h_size, activation),
-    Dense(h_size, elements)
-)
+# params, re = Flux.destructure(mlp)
 
-params, re = Flux.destructure(mlp)
+# dyn = NODEDynamics(re)
+# iter = Integrator(runge_kutta, dyn, env.dt)
+# model = gpu(NODEEnergyModel(wave_encoder, design_encoder, iter, params, get_dx(latent_dim)))
 
-dyn = NODEDynamics(re)
-iter = Integrator(runge_kutta, dyn, env.dt)
-model = gpu(NODEEnergyModel(wave_encoder, design_encoder, iter, params, get_dx(latent_dim)))
+model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
 loss_func = NODEEnergyLoss()
 
 s, a, t, y = gpu(first(val_loader))
 
-@time begin
-    loss, back = Flux.pullback(model) do m
-        loss_func(m, s, a, t, y)
-    end
+model(s,a,t)
 
-    gs = back(one(loss))[1]
-end;
-;
+# @time begin
+#     loss, back = Flux.pullback(model) do m
+#         loss_func(m, s, a, t, y)
+#     end
+
+#     gs = back(one(loss))[1]
+# end;
+# ;

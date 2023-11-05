@@ -1,14 +1,15 @@
 export NODEEnergyModel, NODEDynamics, NODEEnergyLoss, MLP
 
-struct MLP
-    d1::Dense
-    d2::Dense
+struct NODEDynamics <: AbstractDynamics 
+    re
 end
 
-Flux.@functor MLP
+Flux.@functor NODEDynamics
+Flux.trainable(::NODEDynamics) = (;)
 
-function (mlp::MLP)(x::AbstractArray{Float32})
-    return x |> mlp.d1 |> mlp.d2
+function (dyn::NODEDynamics)(x::AbstractArray{Float32}, t::AbstractVector{Float32}, θ)
+    C, params = θ
+    return dyn.re(params)(vcat(x, Flux.unsqueeze(C(t), 2)))
 end
 
 struct NODEEnergyModel
@@ -21,6 +22,32 @@ end
 
 Flux.@functor NODEEnergyModel
 
+function NODEEnergyModel(env::WaveEnv, activation::Function, h_size::Int, nfreq::Int, latent_dim::OneDim)
+
+    elements = size(latent_dim)[1]
+
+    nframes = size(env.wave, 4)
+    
+    wave_encoder = WaveEncoder(
+        build_cnn_base(env, nframes, activation, h_size),
+        Chain(Dense(h_size, elements)))
+
+    design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
+
+    mlp = Chain(
+        Dense(2 * elements, elements, activation),
+        Dense(elements, elements, activation),
+        Dense(elements, elements, activation),
+        Dense(elements, elements)
+    )
+
+    params, re = Flux.destructure(mlp)
+
+    dyn = NODEDynamics(re)
+    iter = Integrator(runge_kutta, dyn, env.dt)
+    return NODEEnergyModel(wave_encoder, design_encoder, iter, params, get_dx(latent_dim))
+end
+
 function generate_latent_solution(model::NODEEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z0 = Flux.unsqueeze(model.wave_encoder(s), 2)
     C = model.design_encoder(s, a, t)
@@ -31,18 +58,6 @@ end
 function (model::NODEEnergyModel)(s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z = generate_latent_solution(model, s, a, t)
     return permutedims(dropdims(sum(z .^ 2, dims = 1) * model.dx, dims = (1, 2)), (2, 1))
-end
-
-struct NODEDynamics <: AbstractDynamics 
-    re
-end
-
-Flux.@functor NODEDynamics
-Flux.trainable(::NODEDynamics) = (;)
-
-function (dyn::NODEDynamics)(x::AbstractArray{Float32}, t::AbstractVector{Float32}, θ)
-    C, params = θ
-    return dyn.re(params)(vcat(x, Flux.unsqueeze(C(t), 2)))
 end
 
 struct NODEEnergyLoss end
@@ -60,7 +75,7 @@ function make_plots(model::NODEEnergyModel, loss_func::NODEEnergyLoss, s, a, t, 
 
     for i in 1:min(length(s), samples)
         tspan = cpu(t[:, i])
-        Waves.plot_predicted_energy(tspan, y[:, i], y_hat[:, 3, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
+        Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
     end
 
     return nothing

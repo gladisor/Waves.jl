@@ -4,7 +4,7 @@
 			"path": "."
 		},
 		{
-			"path": "../../../scratch/cmpe299-fa22/tristan/data"
+			"path": "../AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
 		}
 	],
 	"settings": {}

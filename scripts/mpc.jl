@@ -44,16 +44,43 @@ function (mpc::RandomShooting)(env::WaveEnv)
     return a[1, idx]
 end
 
-env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/env.bson")[:env])
+random_ep1 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode495.bson")
+random_ep2 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode496.bson")
+random_ep3 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode497.bson")
+random_ep4 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode498.bson")
+random_ep5 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode499.bson")
+random_ep6 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode500.bson")
+_, _, t, y1 = get_energy_data(random_ep1, length(random_ep1), 1)
+_, _, _, y2 = get_energy_data(random_ep2, length(random_ep2), 1)
+_, _, _, y3 = get_energy_data(random_ep3, length(random_ep3), 1)
+_, _, _, y4 = get_energy_data(random_ep4, length(random_ep4), 1)
+_, _, _, y5 = get_energy_data(random_ep5, length(random_ep5), 1)
+_, _, _, y6 = get_energy_data(random_ep6, length(random_ep6), 1)
 
-pml_checkpoint = 2920
+y_random = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
+
+fig = Figure()
+ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
+lines!(ax, t, y_random[:, 3], label = "Random Control")
+save("random_control.png", fig)
+
+env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/env.bson")[:env])
+pml_checkpoint = 3180
 pml_model = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/rebuttal/checkpoint_step=$pml_checkpoint/checkpoint.bson")[:model])
 
 policy = RandomDesignPolicy(action_space(env))
-
-horizon = 20
+horizon = 5
 shots = 256
 alpha = 1.0
-
 mpc = RandomShooting(policy, pml_model, horizon, shots, alpha)
-@time a = mpc(env)
+
+reset!(env)
+env.actions = 50
+mpc_ep1 = generate_episode!(mpc, env)
+_, _, _, y_mpc = get_energy_data(mpc_ep1, env.actions, 1)
+
+fig = Figure()
+ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
+lines!(ax, t, y_random[:, 3], label = "Random Control")
+lines!(ax, t[1:size(y_mpc, 1)], y_mpc[:, 3], label = "MPC")
+save("random_control.png", fig)

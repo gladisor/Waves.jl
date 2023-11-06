@@ -1,7 +1,7 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
 Flux.CUDA.allowscalar(false)
-Flux.device!(0)
+Flux.device!(2)
 display(Flux.device())
 include("model_modifications.jl")
 

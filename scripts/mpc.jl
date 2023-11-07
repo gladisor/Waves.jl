@@ -68,54 +68,51 @@ y_random = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
 y_random = y_random[1]
 t = t[1]
 
-fig = Figure()
-ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
-lines!(ax, t, y_random[:, 3], label = "Random Control")
-save("random_control.png", fig)
-
 env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/env.bson")[:env])
 pml_checkpoint = 2300
 MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$pml_checkpoint/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 
 policy = RandomDesignPolicy(action_space(env))
-horizon = 5
+
+## horizon = 100, shots = 32 works
+horizon = 10
 shots = 256
+println("Horizon = $horizon, Shots = $shots")
 alpha = 1.0
 mpc = RandomShooting(policy, model, horizon, shots, alpha)
 
-# reset!(env)
-# env.actions = 10
-# mpc_ep1 = generate_episode!(mpc, env)
-# save(mpc_ep1, "mpc_ep1.bson")
-# mpc_ep2 = generate_episode!(mpc, env)
-# save(mpc_ep2, "mpc_ep2.bson")
-# mpc_ep3 = generate_episode!(mpc, env)
-# save(mpc_ep3, "mpc_ep3.bson")
-# mpc_ep4 = generate_episode!(mpc, env)
-# save(mpc_ep4, "mpc_ep4.bson")
-# mpc_ep5 = generate_episode!(mpc, env)
-# save(mpc_ep5, "mpc_ep5.bson")
-# mpc_ep6 = generate_episode!(mpc, env)
-# save(mpc_ep6, "mpc_ep6.bson")
+reset!(env)
+mpc_ep1 = generate_episode!(mpc, env)
+save(mpc_ep1, "pml_mpc_ep1_h=$(horizon)_shots=$(shots).bson")
+mpc_ep2 = generate_episode!(mpc, env)
+save(mpc_ep2, "pml_mpc_ep2_h=$(horizon)_shots=$(shots).bson")
+mpc_ep3 = generate_episode!(mpc, env)
+save(mpc_ep3, "pml_mpc_ep3_h=$(horizon)_shots=$(shots).bson")
+mpc_ep4 = generate_episode!(mpc, env)
+save(mpc_ep4, "pml_mpc_ep4_h=$(horizon)_shots=$(shots).bson")
+mpc_ep5 = generate_episode!(mpc, env)
+save(mpc_ep5, "pml_mpc_ep5_h=$(horizon)_shots=$(shots).bson")
+mpc_ep6 = generate_episode!(mpc, env)
+save(mpc_ep6, "pml_mpc_ep6_h=$(horizon)_shots=$(shots).bson")
 
-mpc_ep1 = Episode(path = "mpc_ep1.bson")
-_, _, _, y1 = prepare_data(mpc_ep1, env.actions)
-y1 = y1[1]
-_, _, _, y2 = prepare_data(mpc_ep2, env.actions)
-y2 = y2[1]
-_, _, _, y3 = prepare_data(mpc_ep3, env.actions)
-y3 = y4[1]
-_, _, _, y4 = prepare_data(mpc_ep4, env.actions)
-y4 = y4[1]
-_, _, _, y5 = prepare_data(mpc_ep5, env.actions)
-y5 = y5[1]
-_, _, _, y6 = prepare_data(mpc_ep6, env.actions)
-y6 = y6[1]
-y_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
+# mpc_ep1 = Episode(path = "mpc_ep1.bson")
+# _, _, _, y1 = prepare_data(mpc_ep1, env.actions)
+# y1 = y1[1]
+# _, _, _, y2 = prepare_data(mpc_ep2, env.actions)
+# y2 = y2[1]
+# _, _, _, y3 = prepare_data(mpc_ep3, env.actions)
+# y3 = y4[1]
+# _, _, _, y4 = prepare_data(mpc_ep4, env.actions)
+# y4 = y4[1]
+# _, _, _, y5 = prepare_data(mpc_ep5, env.actions)
+# y5 = y5[1]
+# _, _, _, y6 = prepare_data(mpc_ep6, env.actions)
+# y6 = y6[1]
+# y_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
 
-fig = Figure()
-ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
-lines!(ax, t, y_random[:, 3], label = "Random Control")
-lines!(ax, t, y_mpc[:, 3], label = "MPC")
-save("mpc_comparison.png", fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
+# lines!(ax, t, y_random[:, 3], label = "Random Control")
+# lines!(ax, t, y_mpc[:, 3], label = "MPC")
+# save("mpc_comparison.png", fig)

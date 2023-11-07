@@ -76,7 +76,7 @@ model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
 ## horizon = 100, shots = 32 works
-horizon = 10
+horizon = 20
 shots = 256
 println("Horizon = $horizon, Shots = $shots")
 alpha = 1.0

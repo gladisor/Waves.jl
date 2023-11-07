@@ -5,7 +5,7 @@ Flux.CUDA.allowscalar(false)
 using ReinforcementLearning
 
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -59,33 +59,30 @@ _, _, _, y6 = get_energy_data(random_ep6, length(random_ep6), 1)
 y_random = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
 
 env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/env.bson")[:env])
-# pml_checkpoint = 3180
-# pml_model = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/rebuttal/checkpoint_step=$pml_checkpoint/checkpoint.bson")[:model])
-
 node_model = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/rebuttal_node/checkpoint_step=2300/checkpoint.bson")[:model])
 
 policy = RandomDesignPolicy(action_space(env))
-horizon = 30
-shots = 256
+horizon = 100
+shots = 32
 alpha = 1.0
 mpc = RandomShooting(policy, node_model, horizon, shots, alpha)
 
 reset!(env)
 
 @time mpc(env)
-## running mpc
-# node_mpc_ep1 = generate_episode!(mpc, env)
-# save(node_mpc_ep1, "node_mpc_h=$(horizon)_ep1.bson")
-# node_mpc_ep2 = generate_episode!(mpc, env)
-# save(node_mpc_ep2, "node_mpc_h=$(horizon)_ep2.bson")
-# node_mpc_ep3 = generate_episode!(mpc, env)
-# save(node_mpc_ep3, "node_mpc_h=$(horizon)_ep3.bson")
-# node_mpc_ep4 = generate_episode!(mpc, env)
-# save(node_mpc_ep4, "node_mpc_h=$(horizon)_ep4.bson")
-# node_mpc_ep5 = generate_episode!(mpc, env)
-# save(node_mpc_ep5, "node_mpc_h=$(horizon)_ep5.bson")
-# node_mpc_ep6 = generate_episode!(mpc, env)
-# save(node_mpc_ep6, "node_mpc_h=$(horizon)_ep6.bson")
+# running mpc
+node_mpc_ep1 = generate_episode!(mpc, env)
+save(node_mpc_ep1, "node_mpc_h=$(horizon)_shots=$(shots)_ep1.bson")
+node_mpc_ep2 = generate_episode!(mpc, env)
+save(node_mpc_ep2, "node_mpc_h=$(horizon)_shots=$(shots)_ep2.bson")
+node_mpc_ep3 = generate_episode!(mpc, env)
+save(node_mpc_ep3, "node_mpc_h=$(horizon)_shots=$(shots)_ep3.bson")
+node_mpc_ep4 = generate_episode!(mpc, env)
+save(node_mpc_ep4, "node_mpc_h=$(horizon)_shots=$(shots)_ep4.bson")
+node_mpc_ep5 = generate_episode!(mpc, env)
+save(node_mpc_ep5, "node_mpc_h=$(horizon)_shots=$(shots)_ep5.bson")
+node_mpc_ep6 = generate_episode!(mpc, env)
+save(node_mpc_ep6, "node_mpc_h=$(horizon)_shots=$(shots)_ep6.bson")
 
 # ## loading pml mpc results
 # pml_mpc_ep1 = Episode(path = "rebuttal/pml_mpc_h=5_ep1.bson")

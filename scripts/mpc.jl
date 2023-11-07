@@ -4,7 +4,7 @@ using Images: imresize
 using ReinforcementLearning
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 include("model_modifications.jl")
 

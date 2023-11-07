@@ -5,7 +5,7 @@ Flux.CUDA.allowscalar(false)
 using ReinforcementLearning
 
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(2)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -62,14 +62,12 @@ env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0
 node_model = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/rebuttal_node/checkpoint_step=2300/checkpoint.bson")[:model])
 
 policy = RandomDesignPolicy(action_space(env))
-horizon = 100
-shots = 32
+horizon = 20
+shots = 256
 alpha = 1.0
 mpc = RandomShooting(policy, node_model, horizon, shots, alpha)
 
 reset!(env)
-
-@time mpc(env)
 # running mpc
 node_mpc_ep1 = generate_episode!(mpc, env)
 save(node_mpc_ep1, "node_mpc_h=$(horizon)_shots=$(shots)_ep1.bson")
@@ -84,13 +82,13 @@ save(node_mpc_ep5, "node_mpc_h=$(horizon)_shots=$(shots)_ep5.bson")
 node_mpc_ep6 = generate_episode!(mpc, env)
 save(node_mpc_ep6, "node_mpc_h=$(horizon)_shots=$(shots)_ep6.bson")
 
-# ## loading pml mpc results
-# pml_mpc_ep1 = Episode(path = "rebuttal/pml_mpc_h=5_ep1.bson")
-# pml_mpc_ep2 = Episode(path = "rebuttal/pml_mpc_h=5_ep2.bson")
-# pml_mpc_ep3 = Episode(path = "rebuttal/pml_mpc_h=5_ep3.bson")
-# pml_mpc_ep4 = Episode(path = "rebuttal/pml_mpc_h=5_ep4.bson")
-# pml_mpc_ep5 = Episode(path = "rebuttal/pml_mpc_h=5_ep5.bson")
-# pml_mpc_ep6 = Episode(path = "rebuttal/pml_mpc_h=5_ep6.bson")
+# # ## loading pml mpc results
+# pml_mpc_ep1 = Episode(path = "pml_mpc_ep1_h=10_shots=256.bson")
+# pml_mpc_ep2 = Episode(path = "pml_mpc_ep2_h=10_shots=256.bson")
+# pml_mpc_ep3 = Episode(path = "pml_mpc_ep3_h=10_shots=256.bson")
+# pml_mpc_ep4 = Episode(path = "pml_mpc_ep4_h=10_shots=256.bson")
+# pml_mpc_ep5 = Episode(path = "pml_mpc_ep5_h=10_shots=256.bson")
+# pml_mpc_ep6 = Episode(path = "pml_mpc_ep6_h=10_shots=256.bson")
 # _, _, _, y1 = get_energy_data(pml_mpc_ep1, env.actions, 1)
 # _, _, _, y2 = get_energy_data(pml_mpc_ep2, env.actions, 1)
 # _, _, _, y3 = get_energy_data(pml_mpc_ep3, env.actions, 1)
@@ -100,12 +98,12 @@ save(node_mpc_ep6, "node_mpc_h=$(horizon)_shots=$(shots)_ep6.bson")
 # y_pml_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
 
 # ## loading NODE mpc results
-# node_mpc_ep1 = Episode(path = "node_mpc_ep1.bson")
-# node_mpc_ep2 = Episode(path = "node_mpc_ep2.bson")
-# node_mpc_ep3 = Episode(path = "node_mpc_ep3.bson")
-# node_mpc_ep4 = Episode(path = "node_mpc_ep4.bson")
-# node_mpc_ep5 = Episode(path = "node_mpc_ep5.bson")
-# node_mpc_ep6 = Episode(path = "node_mpc_ep6.bson")
+# node_mpc_ep1 = Episode(path = "node_mpc_h=10_shots=256_ep1.bson")
+# node_mpc_ep2 = Episode(path = "node_mpc_h=10_shots=256_ep2.bson")
+# node_mpc_ep3 = Episode(path = "node_mpc_h=10_shots=256_ep3.bson")
+# node_mpc_ep4 = Episode(path = "node_mpc_h=10_shots=256_ep4.bson")
+# node_mpc_ep5 = Episode(path = "node_mpc_h=10_shots=256_ep5.bson")
+# node_mpc_ep6 = Episode(path = "node_mpc_h=10_shots=256_ep6.bson")
 # _, _, _, y1 = get_energy_data(node_mpc_ep1, env.actions, 1)
 # _, _, _, y2 = get_energy_data(node_mpc_ep2, env.actions, 1)
 # _, _, _, y3 = get_energy_data(node_mpc_ep3, env.actions, 1)

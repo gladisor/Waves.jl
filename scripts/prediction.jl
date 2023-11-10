@@ -11,8 +11,10 @@ include("model_modifications.jl")
 
 data_loader_kwargs = Dict(:batchsize => 32, :shuffle => true, :partial => false)
 
-pml_checkpoint = 2300
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$pml_checkpoint/checkpoint.bson"
+# pml_checkpoint = 2300
+# MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$pml_checkpoint/checkpoint.bson"
+MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/validate_pml_model/checkpoint_step=700/checkpoint.bson"
+
 model = gpu(BSON.load(MODEL_PATH)[:model])
 
 ep = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode500.bson")

@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 include("model_modifications.jl")
 
@@ -179,13 +179,13 @@ s, a, t, y = gpu(Flux.batch.(first(val_loader)))
 # model = gpu(BSON.load("tranable_source/checkpoint_step=2640/checkpoint.bson")[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 
-path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+# path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+path = "validate_pml_model"
 model, opt_state = @time train!(model, opt_state;
     train_loader, 
     val_loader, 
     val_every,
     val_batches,
     epochs,
-    # path = path
     path = joinpath(DATA_PATH, path)
     )

@@ -51,7 +51,7 @@ function prepare_data(ep::Episode{S, Matrix{Float32}}, horizon::Int) where S
 end
 
 function prepare_data(eps::Vector{Episode{S, Y}}, horizon::Int) where {S, Y}
-    return vcat.(prepare_data.(eps, horizon)...)
+    return Flux.batch.(vcat.(prepare_data.(eps, horizon)...))
 end
 
 function FileIO.save(episode::Episode, path::String)

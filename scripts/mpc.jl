@@ -5,7 +5,7 @@ Flux.CUDA.allowscalar(false)
 using ReinforcementLearning
 
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -84,15 +84,15 @@ mpc = RandomShooting(policy, node_model, horizon, shots, alpha)
 
 
 
-h = 20
+h = 10
 shots = 256
 # ## loading pml mpc results
-pml_mpc_ep1 = Episode(path = "pml_mpc_ep1_h=$(h)_shots=$(shots).bson")
-pml_mpc_ep2 = Episode(path = "pml_mpc_ep2_h=$(h)_shots=$(shots).bson")
-pml_mpc_ep3 = Episode(path = "pml_mpc_ep3_h=$(h)_shots=$(shots).bson")
-pml_mpc_ep4 = Episode(path = "pml_mpc_ep4_h=$(h)_shots=$(shots).bson")
-pml_mpc_ep5 = Episode(path = "pml_mpc_ep5_h=$(h)_shots=$(shots).bson")
-pml_mpc_ep6 = Episode(path = "pml_mpc_ep6_h=$(h)_shots=$(shots).bson")
+pml_mpc_ep1 = Episode(path = "rebuttal/pml_mpc_ep1_h=$(h)_shots=$(shots).bson")
+pml_mpc_ep2 = Episode(path = "rebuttal/pml_mpc_ep2_h=$(h)_shots=$(shots).bson")
+pml_mpc_ep3 = Episode(path = "rebuttal/pml_mpc_ep3_h=$(h)_shots=$(shots).bson")
+pml_mpc_ep4 = Episode(path = "rebuttal/pml_mpc_ep4_h=$(h)_shots=$(shots).bson")
+pml_mpc_ep5 = Episode(path = "rebuttal/pml_mpc_ep5_h=$(h)_shots=$(shots).bson")
+pml_mpc_ep6 = Episode(path = "rebuttal/pml_mpc_ep6_h=$(h)_shots=$(shots).bson")
 _, _, _, y1 = get_energy_data(pml_mpc_ep1, env.actions, 1)
 _, _, _, y2 = get_energy_data(pml_mpc_ep2, env.actions, 1)
 _, _, _, y3 = get_energy_data(pml_mpc_ep3, env.actions, 1)
@@ -102,12 +102,12 @@ _, _, _, y6 = get_energy_data(pml_mpc_ep6, env.actions, 1)
 y_pml_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
 
 # ## loading NODE mpc results
-node_mpc_ep1 = Episode(path = "node_mpc_h=$(h)_shots=$(shots)_ep1.bson")
-node_mpc_ep2 = Episode(path = "node_mpc_h=$(h)_shots=$(shots)_ep2.bson")
-node_mpc_ep3 = Episode(path = "node_mpc_h=$(h)_shots=$(shots)_ep3.bson")
-node_mpc_ep4 = Episode(path = "node_mpc_h=$(h)_shots=$(shots)_ep4.bson")
-node_mpc_ep5 = Episode(path = "node_mpc_h=$(h)_shots=$(shots)_ep5.bson")
-node_mpc_ep6 = Episode(path = "node_mpc_h=$(h)_shots=$(shots)_ep6.bson")
+node_mpc_ep1 = Episode(path = "rebuttal/node_mpc_h=$(h)_shots=$(shots)_ep1.bson")
+node_mpc_ep2 = Episode(path = "rebuttal/node_mpc_h=$(h)_shots=$(shots)_ep2.bson")
+node_mpc_ep3 = Episode(path = "rebuttal/node_mpc_h=$(h)_shots=$(shots)_ep3.bson")
+node_mpc_ep4 = Episode(path = "rebuttal/node_mpc_h=$(h)_shots=$(shots)_ep4.bson")
+node_mpc_ep5 = Episode(path = "rebuttal/node_mpc_h=$(h)_shots=$(shots)_ep5.bson")
+node_mpc_ep6 = Episode(path = "rebuttal/node_mpc_h=$(h)_shots=$(shots)_ep6.bson")
 _, _, _, y1 = get_energy_data(node_mpc_ep1, env.actions, 1)
 _, _, _, y2 = get_energy_data(node_mpc_ep2, env.actions, 1)
 _, _, _, y3 = get_energy_data(node_mpc_ep3, env.actions, 1)
@@ -120,7 +120,7 @@ y_node_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
 lines!(ax, t, y_random[:, 3], label = "Random Control")
-lines!(ax, t, y_node_mpc[:, 3], label = "NeuralODE MPC")
-lines!(ax, t, y_pml_mpc[:, 3], label = "Ours (PML) MPC")
+# lines!(ax, t, y_node_mpc[:, 3], label = "NeuralODE MPC")
+lines!(ax, t, y_pml_mpc[:, 3], label = "Ours (PML) MPC", color = :green)
 axislegend(ax, position = :rb)
 save("control_comparison_h=$(h).png", fig)

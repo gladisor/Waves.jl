@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(3)
 display(Flux.device())
 
 include("../src/model/layers.jl")
@@ -150,8 +150,8 @@ function train!(;
     return model, opt_state
 end
 
-# DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
-DATA_PATH = "../AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
+# DATA_PATH = "../AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/"
 ## declaring hyperparameters
 h_size = 256
 activation = leakyrelu
@@ -178,14 +178,16 @@ idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
 
 ## preparing DataLoader(s)
-data_func = get_energy_data
-train_loader = Flux.DataLoader(EpisodeDataset(train_data, horizon, data_func); data_loader_kwargs...)
-val_loader = Flux.DataLoader(EpisodeDataset(val_data, horizon, data_func); data_loader_kwargs...)
+# data_func = get_energy_data
+# train_loader = Flux.DataLoader(EpisodeDataset(train_data, horizon, data_func); data_loader_kwargs...)
+# val_loader = Flux.DataLoader(EpisodeDataset(val_data, horizon, data_func); data_loader_kwargs...)
+
+train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
+val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
-## contstruct model & train
+# ## contstruct model & train
 latent_dim = OneDim(latent_gs, elements)
-
 # wave_encoder = WaveEncoder(env, h_size, activation, nfreq, latent_dim)
 # design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
 # dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
@@ -199,8 +201,8 @@ loss_func = NODEEnergyLoss()
 opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 # s, a, t, y = gpu(first(val_loader))
 
-# path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
-path = "rebuttal_node"
+# # path = "latent_consistency_loss_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+path = "validate_node_model_new_code_old_dataloader"
 model, opt_state = @time train!(;
     model,
     opt_state,

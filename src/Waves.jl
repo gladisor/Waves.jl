@@ -4,7 +4,7 @@ export
     AbstractDim, 
     AbstractDesign, 
     AbstractSource,
-    AbstractInitialDesign, 
+    # AbstractInitialDesign, 
     AbstractDynamics
 
 using SparseArrays

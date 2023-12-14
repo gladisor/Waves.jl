@@ -4,7 +4,7 @@ using Images: imresize
 using ReinforcementLearning
 
 Flux.CUDA.allowscalar(false)
-Flux.device!(1)
+Flux.device!(0)
 display(Flux.device())
 println("Loaded Packages")
 
@@ -17,11 +17,15 @@ include("../src/model/node.jl")
 include("../src/model/mpc.jl")
 
 ep = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode500.bson")
-horizon = 200
-s, a, t, y = gpu(get_energy_data(ep, horizon, 1))
+horizon = 100
+
+idx = 1
+# s, a, t, y = gpu(get_energy_data(ep, horizon, idx))
+s, a, t, y = prepare_data(ep, horizon)
+s, a, t, y = gpu((s[idx], a[idx], t[idx], y[idx]))
 y = cpu(y)
 
-checkpoint_step = 1880
+checkpoint_step = 2300
 pml_model = gpu(BSON.load("/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/validate_pml_model_new_code_old_dataloader/checkpoint_step=$(checkpoint_step)/checkpoint.bson")[:model])
 # no_pml_model = gpu(BSON.load("../AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/rebuttal_no_pml/checkpoint_step=$(checkpoint_step)/checkpoint.bson")[:model])
 
@@ -40,6 +44,7 @@ pml_model = gpu(BSON.load("/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{T
 # heatmap!(ax2, dim.x, t, z_no_pml_sc, colormap = :inferno, colorrange = (0.0, 1.0))
 # save("latent.png", fig)
 
+
 @time y_hat_pml = cpu(pml_model([s], a[:, :], t[:, :]))
 
 node_model = gpu(BSON.load("/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/validate_node_model_new_code_old_dataloader/checkpoint_step=$(checkpoint_step)/checkpoint.bson")[:model])
@@ -52,7 +57,12 @@ lines!(ax, t, y[:, 3], color = :blue, label = "Ground Truth")
 lines!(ax, t, y_hat_pml[:, 3], color = (:green, 0.6), label = "Ours (PML)")
 lines!(ax, t, y_hat_node[:, 1], color = (:red, 0.6), label = "NeuralODE")
 axislegend(ax, position = :lt)
-save("prediction_new_code_step=$(checkpoint_step).png", fig)
+# save("prediction_new_code_step=$(checkpoint_step).png", fig)
+save("test.png", fig)
+
+
+
+
 
 
 

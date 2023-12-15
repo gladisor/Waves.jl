@@ -14,8 +14,7 @@ function (layer::LocalizationLayer)(x)
     return cat(
         x,
         repeat(layer.coords, 1, 1, 1, size(x, 4)),
-        dims = 3
-    )
+        dims = 3)
 end
 
 function Waves.build_wave_encoder(;

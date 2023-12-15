@@ -3,7 +3,7 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(2)
 display(Flux.device())
 include("model_modifications.jl")
 
@@ -142,7 +142,9 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
     return model, opt_state
 end
 
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
+# dataset_name = "AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
+dataset_name = "AdditionalDatasetAcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
 ## declaring hyperparameters
 h_size = 256
 nfreq = 500
@@ -160,8 +162,8 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 11:20]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:10]
+@time data = [Episode(path = joinpath(DATA_PATH, "episode$i.bson")) for i in 1:33]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -173,14 +175,26 @@ val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
 ## contstruct model & train
-latent_dim = OneDim(latent_gs, elements)
-@time model = gpu(AcousticEnergyModel(;env, h_size, nfreq, pml_width, pml_scale, latent_dim))
+# latent_dim = OneDim(latent_gs, elements)
+# @time model = gpu(AcousticEnergyModel(;env, h_size, nfreq, pml_width, pml_scale, latent_dim))
 s, a, t, y = gpu(Flux.batch.(first(val_loader)))
-# model = gpu(BSON.load("tranable_source/checkpoint_step=2640/checkpoint.bson")[:model])
-@time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
 
-# path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
-path = "validate_pml_model"
+MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/validate_pml_model_sanity_test/checkpoint_step=2360/checkpoint.bson"
+model = gpu(BSON.load(MODEL_PATH)[:model])
+# @time opt_state = Optimisers.setup(Optimisers.Adam(1f-4), model)
+
+y = cpu(y)
+y_hat = cpu(model(s, a, t))
+
+idx = 10
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, y[:, 3, idx])
+lines!(ax, y_hat[:, 3, idx])
+save("pred.png", fig)
+
+# # path = "trainable_pml_localization_horizon=$(horizon)_batchsize=$(batchsize)_h_size=$(h_size)_latent_gs=$(latent_gs)_pml_width=$(pml_width)_nfreq=$nfreq"
+path = "continue_training_validate_pml_model_sanity_test"
 model, opt_state = @time train!(model, opt_state;
     train_loader, 
     val_loader, 

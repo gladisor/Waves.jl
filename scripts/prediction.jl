@@ -3,21 +3,23 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 include("model_modifications.jl")
 
-@time data = [Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode$i.bson") for i in 468:500]
+# @time data = [Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode$i.bson") for i in 468:500]
+# data_loader_kwargs = Dict(:batchsize => 32, :shuffle => true, :partial => false)
 
-data_loader_kwargs = Dict(:batchsize => 32, :shuffle => true, :partial => false)
-
-# pml_checkpoint = 2300
+checkpoint = 2260
 # MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$pml_checkpoint/checkpoint.bson"
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/validate_pml_model/checkpoint_step=700/checkpoint.bson"
+# name = "trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500"
+name = "validate_pml_model_sanity_test"
+MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/$name/checkpoint_step=$checkpoint/checkpoint.bson"
 
 model = gpu(BSON.load(MODEL_PATH)[:model])
 
-ep = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode500.bson")
+episode_number = 495
+ep = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode$episode_number.bson")
 s, a, t, y = gpu(Flux.batch.(prepare_data(ep, 200)))
 y = cpu(y)
 @time y_hat = cpu(model(s, a, t))
@@ -27,9 +29,9 @@ fig = Figure()
 ax = Axis(fig[1, 1])
 lines!(ax, t[:, 1], y[:, 3])
 lines!(ax, t[:, 1], y_hat[:, 3])
-save("prediction.png", fig)
-BSON.bson("pml_prediction.bson", y_hat = y_hat)
+save("temp/$name,_checkpoint=$checkpoint,episode=$episode_number.png", fig)
 
+# BSON.bson("pml_prediction.bson", y_hat = y_hat)
 # # horizon = collect(20:10:200)
 # horizon = collect(20:10:200)
 # pml_error = Vector{Float32}[]

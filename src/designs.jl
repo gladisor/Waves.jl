@@ -196,6 +196,7 @@ struct AdjustablePositionScatterers <: AbstractScatterers
 end
 
 Flux.@functor AdjustablePositionScatterers
+# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
 Flux.trainable(design::AdjustablePositionScatterers) = (;design.cylinders.pos)
 Base.vec(design::AdjustablePositionScatterers) = vec(design.cylinders.pos)
 

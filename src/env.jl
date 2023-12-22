@@ -83,6 +83,7 @@ function RLBase.reset!(env::WaveEnv)
     env.wave *= 0.0f0
     env.design = rand(env.design_space)
     env.signal *= 0.0f0
+    Waves.reset!(env.source) ## randomization of source
     return nothing
 end
 
@@ -123,6 +124,7 @@ function RLBase.state(env::WaveEnv)
     ## only the total wave is observable
     # w = cpu(cat(env.wave[:, :, 1, :], env.source.shape, dims = 3))
     # x = imresize(w, env.resolution)
+
     x = imresize(cpu(env.wave[:, :, 1, :]), env.resolution)
     return WaveEnvState(cpu(env.dim), build_tspan(env), x, cpu(env.design))
 end

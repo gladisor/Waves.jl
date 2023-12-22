@@ -8,7 +8,7 @@ function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.ac
     u_tots = []
     # u_incs = []
 
-    reset!(env)
+    RLBase.reset!(env)
     while !is_terminated(env)
         tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
         push!(tspans, tspan)

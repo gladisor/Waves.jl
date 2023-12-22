@@ -1,5 +1,9 @@
 export NoSource, Source
 
+function Waves.reset!(source::AbstractSource)
+    return nothing
+end
+
 struct NoSource <: AbstractSource end
 (source::NoSource)(t) = 0.0f0
 

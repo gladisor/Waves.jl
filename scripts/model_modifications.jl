@@ -61,6 +61,7 @@ end
 function Waves.AcousticEnergyModel(;
         env::WaveEnv, 
         latent_dim::OneDim,
+        in_channels::Int,
         h_size::Int, 
         nfreq::Int, 
         pml_width::Float32,
@@ -70,6 +71,7 @@ function Waves.AcousticEnergyModel(;
         latent_dim, 
         h_size, 
         nfreq,
+        in_channels,
         c0 = env.iter.dynamics.c0)
 
     mlp = Chain(

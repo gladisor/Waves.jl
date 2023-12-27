@@ -1,5 +1,31 @@
 export AcousticEnergyModel, SinWaveEmbedder, plot_energy
+export LocalizationLayer
 
+"""
+Layer which adds two channels of coordinates to 2D images.
+"""
+struct LocalizationLayer
+    coords::AbstractArray{Float32, 4}
+end
+
+Flux.@functor LocalizationLayer
+Flux.trainable(::LocalizationLayer) = (;)
+
+function LocalizationLayer(dim::TwoDim, resolution::Tuple{Int, Int})
+    x = imresize(build_grid(dim), resolution) ./ maximum(dim.x)
+    return LocalizationLayer(x[:, :, :, :])
+end
+
+function (layer::LocalizationLayer)(x)
+    return cat(
+        x,
+        repeat(layer.coords, 1, 1, 1, size(x, 4)),
+        dims = 3)
+end
+
+"""
+Calculates the energy of the latent 1D solution for total, incident, and scattered energy fields.
+"""
 function compute_latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
     tot = z[:, 1, :, :]
     inc = z[:, 3, :, :]
@@ -11,6 +37,9 @@ function compute_latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
     return permutedims(vcat(tot_energy, inc_energy, sc_energy), (3, 1, 2))
 end
 
+"""
+Layer which takes in frequency coeficients and outputs functions over 1D space.
+"""
 struct SinWaveEmbedder
     frequencies::AbstractMatrix{Float32}
 end
@@ -30,14 +59,12 @@ end
 
 function (embedder::SinWaveEmbedder)(x::AbstractMatrix{Float32})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
-    # x_norm = x
     y = (embedder.frequencies * x_norm)
     return y
 end
 
 function (embedder::SinWaveEmbedder)(x::AbstractArray{Float32, 3})
     x_norm = x ./ Float32(sqrt(size(embedder.frequencies, 2)))
-    # x_norm = x
     y = batched_mul(embedder.frequencies, x_norm)
     return y
 end
@@ -114,24 +141,64 @@ function (block::ResidualBlock)(x::AbstractArray{Float32})
     return (block.main(x) .+ block.skip(x)) |> block.activation |> block.pool
 end
 
+# function build_wave_encoder(;
+#         latent_dim::OneDim,
+#         nfields::Int,
+#         nfreq::Int,
+#         c0::Float32,
+#         k::Tuple{Int, Int} = (3, 3),
+#         in_channels::Int = 3,
+#         activation::Function = leakyrelu,
+#         h_size::Int = 256)
+
+#     return Chain(
+#         TotalWaveInput(),
+#         ResidualBlock(k, in_channels, 32, activation),
+#         ResidualBlock(k, 32, 64, activation),
+#         ResidualBlock(k, 64, h_size, activation),
+#         GlobalMaxPool(),
+#         Flux.flatten,
+#         Dense(h_size, nfields * nfreq),
+#         b -> reshape(b, nfreq, nfields, :),
+#         SinWaveEmbedder(latent_dim, nfreq),
+#         x -> hcat(
+#             x[:, [1], :],       # u_tot
+#             x[:, [2], :] ./ c0, # v_tot
+#             x[:, [3], :],       # u_inc
+#             x[:, [4], :] ./ c0, # v_inc
+#             x[:, [5], :]        # f
+#             )
+#         )
+# end
+
 function build_wave_encoder(;
         latent_dim::OneDim,
-        nfields::Int,
+        h_size::Int,
         nfreq::Int,
         c0::Float32,
         k::Tuple{Int, Int} = (3, 3),
         in_channels::Int = 3,
-        activation::Function = leakyrelu,
-        h_size::Int = 256)
+        activation::Function = leakyrelu)
+
+    nfields = 6
 
     return Chain(
-        TotalWaveInput(),
-        ResidualBlock(k, in_channels, 32, activation),
-        ResidualBlock(k, 32, 64, activation),
-        ResidualBlock(k, 64, h_size, activation),
+        Waves.TotalWaveInput(),
+        LocalizationLayer(env.dim, env.resolution),
+        Waves.ResidualBlock(k, 2 + in_channels, 32, activation),
+        Waves.ResidualBlock(k, 32, 64, activation),
+        Waves.ResidualBlock(k, 64, h_size, activation),
         GlobalMaxPool(),
         Flux.flatten,
-        Dense(h_size, nfields * nfreq),
+        Parallel(
+            vcat,
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+        ),
         b -> reshape(b, nfreq, nfields, :),
         SinWaveEmbedder(latent_dim, nfreq),
         x -> hcat(
@@ -139,7 +206,8 @@ function build_wave_encoder(;
             x[:, [2], :] ./ c0, # v_tot
             x[:, [3], :],       # u_inc
             x[:, [4], :] ./ c0, # v_inc
-            x[:, [5], :]        # f
+            x[:, [5], :],       # f
+            x[:, [6], :] .^ 2   # pml
             )
         )
 end
@@ -188,13 +256,28 @@ end
 Flux.@functor AcousticEnergyModel
 Flux.trainable(model::AcousticEnergyModel) = (;model.wave_encoder, model.design_encoder, model.F)
 
-function generate_latent_solution(model::AcousticEnergyModel, s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
-    uvf = model.wave_encoder(s)
+# function generate_latent_solution(model::AcousticEnergyModel, s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
+#     uvf = model.wave_encoder(s)
     
-    z0 = uvf[:, 1:4, :]
-    F = Source(uvf[:, 5, :], model.F.freq)
+#     z0 = uvf[:, 1:4, :]
+#     F = Source(uvf[:, 5, :], model.F.freq)
+#     C = model.design_encoder(s, a, t)
+#     θ = [C, F]
+#     return model.iter(z0, t, θ)
+# end
+
+function get_parameters_and_initial_condition(model::AcousticEnergyModel, s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
+    x = model.wave_encoder(s)
+    z0 = x[:, 1:4, :]
+    F = Source(x[:, 5, :], model.F.freq)
+    PML = x[:, 6, :]
     C = model.design_encoder(s, a, t)
-    θ = [C, F]
+    θ = [C, F, PML]
+    return z0, θ
+end
+
+function generate_latent_solution(model::AcousticEnergyModel, s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
+    z0, θ = get_parameters_and_initial_condition(model, s, a, t)
     return model.iter(z0, t, θ)
 end
 
@@ -203,19 +286,51 @@ function (model::AcousticEnergyModel)(s::AbstractVector{WaveEnvState}, a::Abstra
     return compute_latent_energy(z, model.dx)
 end
 
+# function AcousticEnergyModel(;
+#         env::WaveEnv, 
+#         latent_dim::OneDim, 
+#         nfreq::Int, 
+#         h_size::Int,
+#         pml_width::Float32,
+#         pml_scale::Float32)
+
+#     wave_encoder = build_wave_encoder(;
+#         latent_dim, 
+#         h_size, 
+#         nfreq,
+#         nfields = 5,
+#         c0 = env.iter.dynamics.c0)
+
+#     mlp = Chain(
+#         Dense(length(vec(env.design)), h_size, leakyrelu), 
+#         Dense(h_size, h_size, leakyrelu), 
+#         Dense(h_size, h_size, leakyrelu),
+#         Dense(h_size, h_size, leakyrelu), 
+#         Dense(h_size, nfreq),
+#         SinWaveEmbedder(latent_dim, nfreq),
+#         c -> 2.0f0 * sigmoid.(c))
+
+#     design_encoder = DesignEncoder(env.design_space, mlp, env.integration_steps)
+#     F = SinusoidalSource(latent_dim, nfreq, env.source.freq)
+#     dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
+#     iter = Integrator(runge_kutta, dyn, env.dt)
+#     return AcousticEnergyModel(wave_encoder, design_encoder, F, iter, get_dx(latent_dim))
+# end
+
 function AcousticEnergyModel(;
         env::WaveEnv, 
-        latent_dim::OneDim, 
+        latent_dim::OneDim,
+        in_channels::Int,
+        h_size::Int, 
         nfreq::Int, 
-        h_size::Int,
         pml_width::Float32,
         pml_scale::Float32)
 
-    wave_encoder = build_wave_encoder(;
+    wave_encoder = Waves.build_wave_encoder(;
         latent_dim, 
         h_size, 
         nfreq,
-        nfields = 5,
+        in_channels,
         c0 = env.iter.dynamics.c0)
 
     mlp = Chain(
@@ -227,8 +342,8 @@ function AcousticEnergyModel(;
         SinWaveEmbedder(latent_dim, nfreq),
         c -> 2.0f0 * sigmoid.(c))
 
-    design_encoder = DesignEncoder(env.design_space, mlp, env.integration_steps)
-    F = SinusoidalSource(latent_dim, nfreq, env.source.freq)
+    design_encoder = Waves.DesignEncoder(env.design_space, mlp, env.integration_steps)
+    F = Waves.SinusoidalSource(latent_dim, nfreq, env.source.freq)
     dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
     iter = Integrator(runge_kutta, dyn, env.dt)
     return AcousticEnergyModel(wave_encoder, design_encoder, F, iter, get_dx(latent_dim))

@@ -3,41 +3,31 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(2)
 display(Flux.device())
-include("model_modifications.jl")
+include("random_pos_gaussian_source.jl")
 
-# name = "continue_training_validate_pml_model_sanity_test"
-# name = "more_training_with_451_episodes_lr=1.0e-5"
-name = "more_training_with_362_episodes"
-checkpoint = 5540
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AdditionalDatasetAcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/$name/checkpoint_step=$checkpoint/checkpoint.bson"
+checkpoint = 7040
+dataset_name = "variable_source_yaxis_x=-10.0"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+name = "horizon=20,lr=0.0001"
+MODEL_PATH = joinpath(DATA_PATH, "models/$name/checkpoint_step=$checkpoint/checkpoint.bson")
 model = gpu(BSON.load(MODEL_PATH)[:model])
 
-episode_number = 495
-ep = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode$episode_number.bson")
-s, a, t, y = gpu(Flux.batch.(prepare_data(ep, 200)))
+episode_number = 499
+ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
+
+horizon = 200
+s, a, t, y = gpu(Flux.batch.(prepare_data(ep, horizon)))
 y = cpu(y)
-@time y_hat = cpu(model(s, a, t))
+@time y_hat = cpu(model(s[1, :], a[:, [1]], t[:, [1]]))
 
 t = cpu(t)
 fig = Figure()
 ax = Axis(fig[1, 1])
-lines!(ax, t[:, 1], y[:, 3])
-lines!(ax, t[:, 1], y_hat[:, 3], color = (:orange, 0.6))
-save("temp/$name,_checkpoint=$checkpoint,episode=$episode_number.png", fig)
-
-
-
-
-
-
-
-
-
-
-
-
+lines!(ax, t[:, 1], y[:, 3, 1])
+lines!(ax, t[:, 1], y_hat[:, 3, 1], color = (:orange, 0.6))
+save("$name,_checkpoint=$checkpoint,episode=$episode_number.png", fig)
 
 
 

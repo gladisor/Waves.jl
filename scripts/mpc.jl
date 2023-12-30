@@ -6,7 +6,6 @@ Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 Flux.device!(1)
 display(Flux.device())
-include("model_modifications.jl")
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
     return [policy(env) for i in 1:horizon]

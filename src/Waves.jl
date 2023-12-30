@@ -4,7 +4,7 @@ export
     AbstractDim, 
     AbstractDesign, 
     AbstractSource,
-    AbstractInitialDesign, 
+    # AbstractInitialDesign, 
     AbstractDynamics
 
 using SparseArrays
@@ -52,6 +52,12 @@ include("dynamics.jl")                      ## Defines the dynamics of the wave 
 include("env.jl")
 
 include("data.jl")
-include("model.jl")
+# include("model.jl")
+
+include("model/layers.jl")
+include("model/design_encoder.jl")
+include("model/wave_encoder.jl")
+include("model/acoustic_energy_model.jl")
+
 include("plot.jl")
 end

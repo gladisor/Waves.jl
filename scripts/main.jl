@@ -21,7 +21,9 @@ function render_latent_solution!(dim::OneDim, t::Vector{Float32}, z::Array{Float
     end
 end
 
-function make_plots(model::AcousticEnergyModel, batch; path::String, samples::Int = 1)
+function make_plots(
+        model::AcousticEnergyModel, 
+        batch; path::String, samples::Int = 1)
     s, a, t, y = batch
 
     z = cpu(Waves.generate_latent_solution(model, s, a, t))
@@ -52,15 +54,20 @@ function make_plots(model::AcousticEnergyModel, batch; path::String, samples::In
     return nothing
 end
 
+function energy_loss(model, s, a, t, y)
+    return Flux.mse(model(s, a, t), y)
+end
+
 """
 measures average loss on dataset
 """
-function validate!(model::AcousticEnergyModel, val_loader::Flux.DataLoader, batches::Int)
+function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func = energy_loss)
     val_loss = []
 
-    for (i,batch) in enumerate(val_loader)
+    for (i, batch) in enumerate(val_loader)
         s, a, t, y = gpu(Flux.batch.(batch))
-        @time loss = Flux.mse(model(s, a, t), y)
+        # @time loss = Flux.mse(model(s, a, t), y)
+        @time loss = loss_func(model, s, a, t, y)
         push!(val_loss, loss)
         println("Val Batch: $i")
 
@@ -84,7 +91,17 @@ function plot_loss(metrics::Dict, val_every::Int; path::String)
     save(path, fig)
 end
 
-function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLoader, val_loader::Flux.DataLoader, val_every::Int, val_batches::Int, epochs::Int, path::String = "")
+function train!(
+        model, #::AcousticEnergyModel, 
+        opt_state; 
+        train_loader::Flux.DataLoader, 
+        val_loader::Flux.DataLoader, 
+        val_every::Int, 
+        val_batches::Int, 
+        epochs::Int,
+        path::String = "",
+        loss_func = energy_loss
+        )
 
     step = 0
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
@@ -93,7 +110,8 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
     for epoch in 1:epochs
         for batch in train_loader
             s, a, t, y = gpu(Flux.batch.(batch))
-            loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
+            # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
+            loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y), model)
             @time gs = back(one(loss))[1]
             opt_state, model = Optimisers.update(opt_state, model, gs)
             push!(train_loss_accumulator, loss)
@@ -113,7 +131,7 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
                     path = checkpoint_path, samples = 4)
 
                 ## run validation
-                @time val_loss = validate!(model, val_loader, val_batches)
+                @time val_loss = validate!(model, val_loader, val_batches, loss_func = loss_func)
                 push!(metrics[:train_loss], Flux.mean(train_loss_accumulator))
                 push!(metrics[:val_loss], val_loss)
                 empty!(train_loss_accumulator)
@@ -130,11 +148,11 @@ function train!(model::AcousticEnergyModel, opt_state; train_loader::Flux.DataLo
     return model, opt_state
 end
 
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 
-# dataset_name = "variable_source_yaxis_x=-10.0"
-dataset_name = "part2_variable_source_yaxis_x=-10.0"
+dataset_name = "variable_source_yaxis_x=-10.0"
+# dataset_name = "part2_variable_source_yaxis_x=-10.0"
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
 ## declaring hyperparameters
 activation = leakyrelu
@@ -143,7 +161,7 @@ in_channels = 4
 nfreq = 500
 elements = 1024
 horizon = 20
-lr = 1f-4 / 2.0f0 # 1f-4 for initial stage
+lr = 1f-4# / 2.0f0 # 1f-4 for initial stage
 batchsize = 32 ## shorter horizons can use large batchsize
 val_every = 20
 val_batches = val_every
@@ -157,7 +175,7 @@ latent_dim = OneDim(latent_gs, elements)
 
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:10]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
 
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
@@ -168,7 +186,7 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-@time model = gpu(AcousticEnergyModel(;env, h_size,in_channels,nfreq, pml_width, pml_scale, latent_dim))
+# @time model = gpu(AcousticEnergyModel(;env, h_size,in_channels,nfreq, pml_width, pml_scale, latent_dim))
 
 include("node.jl")
 model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
@@ -176,17 +194,19 @@ s, a, t, y = gpu(Flux.batch.(first(train_loader)))
 
 # MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/horizon=20,lr=0.0001/checkpoint_step=6120/checkpoint.bson"
 # model = gpu(BSON.load(MODEL_PATH)[:model])
-# @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
+@time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
 
 # path = "models/transfer_horizon=$horizon,lr=$lr"
-# model, opt_state = @time train!(model, opt_state;
-#     train_loader, 
-#     val_loader, 
-#     val_every,
-#     val_batches,
-#     epochs,
-#     path = joinpath(DATA_PATH, path)
-#     )
+path = "models/node_horizon=$horizon,lr=$lr"
+model, opt_state = @time train!(model, opt_state;
+    train_loader,
+    val_loader, 
+    val_every,
+    val_batches,
+    epochs,
+    path = joinpath(DATA_PATH, path),
+    loss_func = node_loss
+    )
 
 # node.wave_encoder(s)
 # C = node.design_encoder(s, a, t)

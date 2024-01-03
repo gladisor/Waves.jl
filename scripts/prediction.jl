@@ -6,17 +6,21 @@ println("Loaded Packages")
 Flux.device!(2)
 display(Flux.device())
 include("random_pos_gaussian_source.jl")
+include("node.jl")
 
-checkpoint = 10080
+checkpoint = 7360
 dataset_name = "variable_source_yaxis_x=-10.0"
 # dataset_name = "part2_variable_source_yaxis_x=-10.0"
+
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
-name = "horizon=20,lr=0.0001"
+# name = "horizon=20,lr=0.0001"
 # name = "transfer_horizon=20,lr=5.0e-5"
+name = "node_horizon=20,lr=0.0001"
+
 MODEL_PATH = joinpath(DATA_PATH, "models/$name/checkpoint_step=$checkpoint/checkpoint.bson")
 model = gpu(BSON.load(MODEL_PATH)[:model])
 
-episode_number = 481
+episode_number = 500
 ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
 
 horizon = 200
@@ -28,14 +32,16 @@ t = cpu(t)
 fig = Figure()
 ax = Axis(fig[1, 1])
 lines!(ax, t[:, 1], y[:, 3, 1])
-lines!(ax, t[:, 1], y_hat[:, 3, 1], color = (:orange, 0.6))
+# lines!(ax, t[:, 1], y_hat[:, 3, 1], color = (:orange, 0.6))
+lines!(ax, t[:, 1], y_hat[:, 1, 1], color = (:orange, 0.6))
 save("$name,_checkpoint=$checkpoint,episode=$episode_number.png", fig)
 
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-heatmap!(ax, cpu(s[1].wave[:, :, 4]))
-save("source.png", fig)
+
+
+
+
+
 # @time data = [Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode$i.bson") for i in 468:500]
 # data_loader_kwargs = Dict(:batchsize => 32, :shuffle => true, :partial => false)
 

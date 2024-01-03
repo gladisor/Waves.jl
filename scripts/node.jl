@@ -61,23 +61,23 @@ function (model::NODEEnergyModel)(s::Vector{WaveEnvState}, a::Matrix{<: Abstract
     return permutedims(dropdims(sum(z .^ 2, dims = 1) * model.dx, dims = (1, 2)), (2, 1))
 end
 
-# struct NODEEnergyLoss end
-# Flux.@functor NODEEnergyLoss
+function node_loss(model::NODEEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32}, y::AbstractArray{Float32, 3})
+    return Flux.mse(
+        model(s, a, t), 
+        y[:, 3, :]
+    )
+end
 
-# function (loss::NODEEnergyLoss)(model::NODEEnergyModel, s, a, t, y)
-#     y_sc = y[:, 3, :]
-#     return Flux.mse(model(s, a, t), y_sc)
-# end
+function make_plots(model::NODEEnergyModel, batch; path::String, samples::Int)
 
-# function make_plots(model::NODEEnergyModel, loss_func::NODEEnergyLoss, s, a, t, y; path::String, samples::Int)
+    s, a, t, y = batch
+    y_hat = cpu(model(s, a, t))
+    y = cpu(y)
 
-#     y_hat = cpu(model(s, a, t))
-#     y = cpu(y)
+    for i in 1:min(length(s), samples)
+        tspan = cpu(t[:, i])
+        Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
+    end
 
-#     for i in 1:min(length(s), samples)
-#         tspan = cpu(t[:, i])
-#         Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
-#     end
-
-#     return nothing
-# end
+    return nothing
+end

@@ -1,17 +1,23 @@
 export NoSource, Source
 
+function Waves.reset!(source::AbstractSource)
+    return nothing
+end
+
 struct NoSource <: AbstractSource end
-(source::NoSource)(t::Float32) = 0.0f0
+(source::NoSource)(t) = 0.0f0
 
 struct Source <: AbstractSource
-    source::AbstractArray{Float32}
+    shape::AbstractArray{Float32}
     freq::Float32
 end
 
 Flux.@functor Source
 
-Source(source::AbstractArray{Float32}; freq::Float32) = Source(source, freq)
-
 function (source::Source)(t::Float32)
-    return source.source * sin(2.0f0 * pi * t * source.freq)
+    return source.shape * sin(2.0f0 * pi * t * source.freq)
+end
+
+function (source::Source)(t::AbstractVector{Float32})
+    return source.shape .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end

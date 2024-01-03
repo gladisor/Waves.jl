@@ -2,48 +2,30 @@ export WaveEnvState
 export WaveImage, DisplacementImage
 export WaveEnv, RandomDesignPolicy
 
-function Base.convert(
-        ::Type{CircularBuffer{AbstractArray{Float32, 3}}}, 
-        x::Union{
-            Vector{CUDA.CuArray{Float32, 3, CUDA.Mem.DeviceBuffer}},
-            Vector{Array{Float32, 3}}
-            }
-        )
-
-    cb = CircularBuffer{AbstractArray{Float32, 3}}(length(x))
-    [push!(cb, x[i]) for i in axes(x, 1)]
-    return cb
-end
-
 struct WaveEnvState
     dim::TwoDim
     tspan::Vector{Float32}
-    wave_total::AbstractArray{Float32, 3}
+    wave::AbstractArray{Float32}
     design::AbstractDesign
 end
 
 Flux.@functor WaveEnvState
 
-struct WaveImage <: AbstractSensor end
-(sensor::WaveImage)(s::WaveEnvState) = s
-
 mutable struct WaveEnv <: AbstractEnv
-    dim::AbstractDim
-    reset_wave::AbstractInitialWave
-
+    dim::TwoDim
+    
     design_space::DesignSpace
-    action_speed::Float32 ## speed that action is applied over m/s
+    design::AbstractDesign          ## state of design
+    wave::AbstractArray{Float32}    ## state of wave
+    source::AbstractSource          ## source of energy in environment
+    iter::Integrator
 
-    sensor::AbstractSensor
+    signal::AbstractArray{Float32}  ## information saved from integration
+    time_step::Int                  ## time in environment
 
-    wave_total::CircularBuffer{AbstractArray{Float32, 3}}
-    wave_incident::CircularBuffer{AbstractArray{Float32, 3}}
-
-    total_dynamics::WaveDynamics
-    incident_dynamics::WaveDynamics
-
-    σ::Vector{Float32}
-    time_step::Int
+    ## static parameters
+    resolution::Tuple{Int, Int}
+    action_speed::Float32           ## speed that action is applied over m/s
     dt::Float32
     integration_steps::Int
     actions::Int
@@ -54,39 +36,41 @@ Flux.trainable(::WaveEnv) = (;)
 
 function WaveEnv(
         dim::TwoDim;
-        reset_wave::AbstractInitialWave,
         design_space::DesignSpace,
-        action_speed::Float32 = 500.0f0,
+        action_speed::Float32 = 250.0f0,
         source::AbstractSource = NoSource(),
-        sensor::AbstractSensor = WaveImage(),
-        ambient_speed::Float32 = AIR,
+
+        c0::Float32 = WATER,
         pml_width::Float32 = 2.0f0,
         pml_scale::Float32 = 20000.0f0,
-        dt::Float32 = Float32(1e-5),
+
+        resolution::Tuple{Int, Int} = (128, 128), ## this must be less than 
+        dt::Float32 = 1f-5,
         integration_steps::Int = 100,
-        actions::Int = 10
-        )
+        actions::Int = 10)
 
-    wave = reset_wave(build_wave(dim, fields = 6))
-    total_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = rand(design_space), source = source)
-    incident_dynamics = WaveDynamics(dim, ambient_speed = ambient_speed, pml_width = pml_width, pml_scale = pml_scale, design = NoDesign(), source = source)
-    sigma = zeros(Float32, integration_steps + 1)
+    @assert all(size(dim) .> resolution) "Resolution must be less than finite element grid."
 
+    wave = zeros(Float32, size(dim)..., 12, 3)       ## initialize wave state
+    design = rand(design_space)                     ## initialize design state
+    signal = zeros(Float32, integration_steps + 1)  ## initialize signal quanitity
 
-    wave_total = CircularBuffer{AbstractArray{Float32, 3}}(3)
-    wave_incident = CircularBuffer{AbstractArray{Float32, 3}}(3)
+    dyn = AcousticDynamics(dim, c0, pml_width, pml_scale)
+    iter = Integrator(runge_kutta, dyn, dt)
 
-    fill!(wave_total, wave)
-    fill!(wave_incident, wave)
-
-    return WaveEnv(dim, reset_wave, design_space, action_speed, sensor, wave_total, wave_incident, total_dynamics, incident_dynamics, sigma, 0, dt, integration_steps, actions)
+    return WaveEnv(
+        dim, 
+        design_space, design, 
+        wave, source, 
+        iter, signal, 0, 
+        resolution, action_speed, dt, integration_steps, actions)
 end
 
 function Base.time(env::WaveEnv)
     return env.time_step * env.dt
 end
 
-function build_tspan(env::WaveEnv) 
+function Waves.build_tspan(env::WaveEnv)
     return build_tspan(time(env), env.dt, env.integration_steps)
 end
 
@@ -96,72 +80,53 @@ end
 
 function RLBase.reset!(env::WaveEnv)
     env.time_step = 0
-
-    z = gpu(zeros(Float32, size(env.wave_total[end])))
-
-    empty!(env.wave_total)
-    empty!(env.wave_incident)
-
-    fill!(env.wave_total, z)
-    fill!(env.wave_incident, z)
-
-    push!(env.wave_total, env.reset_wave(z))
-    push!(env.wave_incident, env.reset_wave(z))
-
-    design = DesignInterpolator(rand(env.design_space))
-
-    env.total_dynamics = WaveDynamics(
-        env.total_dynamics.ambient_speed, 
-        design, 
-        env.total_dynamics.source, 
-        env.total_dynamics.grid, 
-        env.total_dynamics.grad, 
-        env.total_dynamics.pml, 
-        env.total_dynamics.bc)
-
-    env.σ = zeros(Float32, env.integration_steps + 1)
+    env.wave *= 0.0f0
+    env.design = rand(env.design_space)
+    env.signal *= 0.0f0
+    Waves.reset!(env.source) ## randomization of source
     return nothing
 end
 
+FRAMESKIP = 10
 function (env::WaveEnv)(action::AbstractDesign)
+    tspan = build_tspan(env)
     ti = time(env)
-    tspan = build_tspan(ti, env.dt, env.integration_steps)
 
-    design = env.total_dynamics.design(ti)
-    interp = DesignInterpolator(design, env.design_space(design, gpu(action)), ti, tspan[end])
-    env.total_dynamics = update_design(env.total_dynamics, interp)
+    current_design = env.design
+    next_design = env.design_space(current_design, action)
+    interp = DesignInterpolator(current_design, next_design, ti, tspan[end])
+    grid = build_grid(env.dim) ## need to fix this
+    C = t -> speed(interp(cpu(t)[1]), grid, env.iter.dynamics.c0)
 
-    total_iter = Integrator(runge_kutta, env.total_dynamics, ti, env.dt, env.integration_steps)
-    u_total = unbatch(total_iter(env.wave_total[end]))
-    push!(env.wave_total, u_total[end])
+    ## integrating dynamics
+    sol = env.iter(env.wave[:, :, :, end], gpu(tspan), [C, env.source])
 
-    incident_iter = Integrator(runge_kutta, env.incident_dynamics, ti, env.dt, env.integration_steps)
-    u_incident = unbatch(incident_iter(env.wave_incident[end]))
-    push!(env.wave_incident, u_incident[end])
+    ## seperation of scattered energy
+    u_tot = sol[:, :, 1, :]
+    u_inc = sol[:, :, 7, :]
+    u_sc = u_tot .- u_inc
+    dΩ = get_dx(env.dim) * get_dy(env.dim)
+    tot_energy = vec(sum(u_tot .^ 2, dims = (1, 2))) * dΩ
+    inc_energy = vec(sum(u_inc .^ 2, dims = (1, 2))) * dΩ
+    sc_energy =  vec(sum(u_sc  .^ 2, dims = (1, 2))) * dΩ
 
-    u_scattered = u_total .- u_incident
-    env.σ = sum.(energy.(displacement.(u_scattered))) / 64.0f0
-
+    ## setting environment variables
+    env.signal = hcat(tot_energy, inc_energy, sc_energy)
+    env.design = next_design
+    env.wave = sol[:, :, :, end-(2*FRAMESKIP):FRAMESKIP:end] ## 3 frames with frameskip of 5
     env.time_step += env.integration_steps
-    return (tspan, cpu(u_incident), cpu(u_scattered))
+
+    ## returning some internal information which is not stored
+    return tspan, cpu(interp), cpu(u_tot), cpu(u_inc)
 end
 
 function RLBase.state(env::WaveEnv)
+    ## only the total wave is observable
+    # w = cpu(cat(env.wave[:, :, 1, :], env.source.shape, dims = 3))
+    # x = imresize(w, env.resolution)
 
-    x = cat(
-        convert(Vector{AbstractArray{Float32, 3}}, env.wave_total)...,
-        dims = 4,
-        )
-
-    d = cpu(x[:, :, 1, :]) ## displacement field of 2d membrane
-
-    return env.sensor(WaveEnvState(
-        cpu(env.dim),
-        build_tspan(env), ## forward looking tspan
-        d,
-        cpu(env.total_dynamics.design(time(env))) ## getting the current design
-        )
-    )
+    x = imresize(cpu(env.wave[:, :, 1, :]), env.resolution)
+    return WaveEnvState(cpu(env.dim), build_tspan(env), x, cpu(env.design))
 end
 
 function RLBase.state_space(env::WaveEnv)
@@ -173,16 +138,7 @@ function RLBase.action_space(env::WaveEnv)
 end
 
 function RLBase.reward(env::WaveEnv)
-    return sum(env.σ)
-end
-
-function episode_trajectory(env::WaveEnv)
-    traj = CircularArraySARTTrajectory(
-        capacity = env.actions,
-        state = Vector{WaveEnvState} => (),
-        action = Vector{typeof(env.reset_design())} => ())
-
-    return traj
+    return sum(env.signal)
 end
 
 mutable struct RandomDesignPolicy <: AbstractPolicy

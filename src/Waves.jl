@@ -4,17 +4,14 @@ export
     AbstractDim, 
     AbstractDesign, 
     AbstractSource,
-    AbstractInitialWave, 
-    AbstractInitialDesign, 
-    AbstractDynamics,
-    AbstractSensor
+    # AbstractInitialDesign, 
+    AbstractDynamics
 
 using SparseArrays
 using IntervalSets
 using Distributions: Uniform
 using CairoMakie
-using Interpolations
-using Interpolations: Extrapolation
+using Interpolations: linear_interpolation, Extrapolation
 
 using Flux
 using Flux: 
@@ -33,36 +30,34 @@ using Flux:
 using ChainRulesCore
 using Optimisers
 using ReinforcementLearning
-using ProgressMeter: @showprogress
 using BSON
 using FileIO
 import LinearAlgebra
-using DataStructures: CircularBuffer
+using Images: imresize
 
 abstract type AbstractDim end
-
 abstract type AbstractDesign end
 abstract type AbstractScatterers <: AbstractDesign end
-
 abstract type AbstractSource end
-
-abstract type AbstractInitialWave end
-
 abstract type AbstractDynamics end
-abstract type AbstractSensor end
 
+include("utils.jl")
 include("dims.jl")                          ## Core structures for defining dimensional spaces
-include("metrics.jl")
 include("operators.jl")
 include("pml.jl")                           ## Perfectly Matched Layer
 
 include("designs.jl")
 include("sources.jl")
-include("initial_wave.jl")                  ## Pulses, waves, etc...
 include("dynamics.jl")                      ## Defines the dynamics of the wave simulation
 include("env.jl")
 
 include("data.jl")
-include("model.jl")
+# include("model.jl")
+
+include("model/layers.jl")
+include("model/design_encoder.jl")
+include("model/wave_encoder.jl")
+include("model/acoustic_energy_model.jl")
+
 include("plot.jl")
 end

@@ -1,4 +1,5 @@
-export OneDim, TwoDim, ThreeDim, build_grid, build_wave, dirichlet
+export OneDim, TwoDim, ThreeDim, build_grid, build_wave, build_dirichlet
+export get_dx, get_dy, get_dz
 
 Base.size(dim::AbstractDim, i::Int) = size(dim)[i]
 
@@ -103,17 +104,17 @@ function Base.one(dim::TwoDim)
     return (dim.x * dim.y') .^ 0.0f0
 end
 
-function build_wave(dim::AbstractDim; fields::Int)
+function build_wave(dim::AbstractDim, fields::Int)
     return zeros(Float32, size(dim)..., fields)
 end
 
-function dirichlet(dim::OneDim)
+function build_dirichlet(dim::OneDim)
     bc = ones(Float32, size(dim)[1])
     bc[[1, end]] .= 0.0f0
     return bc
 end
 
-function dirichlet(dim::TwoDim)
+function build_dirichlet(dim::TwoDim)
     bc = one(dim)
     bc[:, 1] .= 0.0f0
     bc[1, :] .= 0.0f0
@@ -121,3 +122,7 @@ function dirichlet(dim::TwoDim)
     bc[end, :] .= 0.0f0
     return bc
 end
+
+get_dx(dim::AbstractDim) = Flux.mean(diff(dim.x))
+get_dy(dim::AbstractDim) = Flux.mean(diff(dim.y))
+get_dz(dim::AbstractDim) = Flux.mean(diff(dim.z))

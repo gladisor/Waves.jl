@@ -1,17 +1,16 @@
 export build_tspan, runge_kutta
 export Integrator
-export WaveDynamics
-export ForceLatentDynamics
+export AcousticDynamics
 
 function build_tspan(ti::Float32, dt::Float32, steps::Int)
-    return range(ti, ti + steps * dt, steps + 1)
+    return collect(range(ti, ti + steps * dt, steps + 1))
 end
 
-function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t, dt::Float32)
-    k1 = f(u, t)
-    k2 = f(u .+ 0.5f0 * dt * k1, t .+ 0.5f0 * dt)
-    k3 = f(u .+ 0.5f0 * dt * k2, t .+ 0.5f0 * dt)
-    k4 = f(u .+ dt * k3,         t .+ dt)
+function runge_kutta(f::AbstractDynamics, u::AbstractArray{Float32}, t, θ, dt::Float32)
+    k1 = f(u,                    t,               θ)
+    k2 = f(u .+ 0.5f0 * dt * k1, t .+ 0.5f0 * dt, θ)
+    k3 = f(u .+ 0.5f0 * dt * k2, t .+ 0.5f0 * dt, θ)
+    k4 = f(u .+ dt * k3,         t .+ dt,         θ)
     du = 1/6f0 * (k1 .+ 2 * k2 .+ 2 * k3 .+ k4)
     return du * dt
 end
@@ -19,45 +18,12 @@ end
 struct Integrator
     integration_function::Function
     dynamics::AbstractDynamics
-    ti::Float32
     dt::Float32
-    steps::Int
 end
 
 Flux.@functor Integrator
 Flux.trainable(iter::Integrator) = (;iter.dynamics,)
-
-build_tspan(iter::Integrator) = build_tspan(iter.ti, iter.dt, iter.steps)
-
-function Base.reverse(iter::Integrator)
-    tf = iter.ti + iter.steps * iter.dt
-    return Integrator(iter.integration_function, iter.dynamics, tf, -iter.dt, iter.steps)
-end
-
-"""
-Works with a time (Float32) or a batch of times (Vector)
-"""
-function (iter::Integrator)(
-        u::AbstractArray{Float32}, 
-        t::Union{Float32, <: AbstractVector{Float32}}
-        )
-
-    return iter.integration_function(iter.dynamics, u, t, iter.dt)
-end
-
-function emit(iter::Integrator, u::AbstractArray{Float32}, t::Float32)
-    u′ = u .+ iter(u, t)
-    return (u′, u′)
-end
-
-"""
-For a single (shared) starting time
-"""
-function (iter::Integrator)(ui::AbstractArray{Float32})
-    tspan = @ignore_derivatives build_tspan(iter.ti, iter.dt, iter.steps)[1:end - 1]
-    recur = Recur((_u, _t) -> emit(iter, _u, _t), ui)
-    return cat(ui, [recur(t) for t in tspan]..., dims = ndims(ui) + 1)
-end
+build_tspan(iter::Integrator, ti::Float32, steps::Int) = build_tspan(ti, iter.dt, steps)
 
 """
 For a batch of predefined time sequences.
@@ -68,10 +34,10 @@ tspan: (timesteps x batch)
 
 This method is specifically for propagating the dynamics for the predefined number of steps.
 """
-function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Float32})
+function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Float32}, θ)
 
     recur = Recur(ui) do _u, _t
-        du = iter(_u, _t)
+        du = iter.integration_function(iter.dynamics, _u, _t, θ, iter.dt)
         u_prime = _u .+ du
         return u_prime, u_prime
     end
@@ -82,102 +48,123 @@ function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractMatrix{Fl
         dims = ndims(ui) + 1)
 end
 
-function adjoint_sensitivity(iter::Integrator, u::A, tspan::AbstractMatrix{Float32}, adj::A) where A <: AbstractArray{Float32}
-    a = selectdim(adj, ndims(adj), size(adj, ndims(adj))) ## selecting last timeseries
-    a = adj[parentindices(a)...] * 0.0f0 ## getting non-view version @ zero
-
-    wave = selectdim(u, ndims(u), size(u, ndims(u)))
-    wave = u[parentindices(wave)...] ## getting non-view version
-
-    _, back = Flux.pullback(_iter -> _iter(wave, tspan[end, :]), iter)
-
-    gs = back(a)[1]
-    tangent = Tangent{typeof(iter.dynamics)}(;gs.dynamics...) * 0.0f0 ## starting gradient accumulation at zero
-
-    for i in reverse(1:size(u, ndims(u)))
-
-        wave = selectdim(u, ndims(u), i) ## current wave state
-        wave = u[parentindices(wave)...] ## getting non-view version
-
-        adjoint_state = selectdim(adj, ndims(adj), i) ## current adjoint state
-        adjoint_state = adj[parentindices(adjoint_state)...] ## getting non-view version
-
-        _, back = Flux.pullback((_iter, _wave) -> _iter(_wave, tspan[i, :]), iter, wave)
-        dparams, dwave = back(adjoint_state) ## computing sensitivity of adjoint to params and wave
-
-        a .+= adjoint_state .+ dwave
-        tangent += Tangent{typeof(iter.dynamics)}(;dparams.dynamics...)
-    end
-
-    return a, tangent
+function (iter::Integrator)(ui::AbstractArray{Float32}, tspan::AbstractVector{Float32}, θ)
+    return iter(ui, tspan[:, :], θ)
 end
 
+"""
+Adds two named tuples together preserving fields. Assumes exact same
+structure for each.
+"""
+function add_gradients(gs1::NamedTuple, gs2::NamedTuple)
+
+    v3 = []
+
+    for ((k1, v1), (k2, v2)) in zip(pairs(gs1), pairs(gs2))
+        if v1 isa NamedTuple
+            push!(v3, Flux.ChainRulesCore.elementwise_add(v1, v2))
+        else
+            push!(v3, v1 .+ v2)
+        end
+    end
+
+    return NamedTuple{keys(gs1)}(v3)
+end
+
+function add_gradients(gs1::Vector{NamedTuple}, gs2::Vector{NamedTuple})
+    return add_gradients.(gs1, gs2)
+end
+
+function add_gradients(::Nothing, gs)
+    return gs
+end
+
+function add_gradients(g1::AbstractArray{Float32}, g2::AbstractArray{Float32})
+    return g1 .+ g2
+end
+
+function add_gradients(g1::Vector, g2::Vector)
+    return Waves.add_gradients.(g1, g2)
+end
 
 """
-Replaces the default autodiff method with a custom adjoint sensitivity method.
+adjoint_sensitivity method specifically for differentiating a batchwise OneDim simulation.
+
+u: (finite elements x fields x batch x time)
+t: (time x batch)
+adj: same as solution (u)
 """
-function Flux.ChainRulesCore.rrule(iter::Integrator, ui::AbstractArray{Float32}, t::AbstractMatrix{Float32})
+function adjoint_sensitivity(iter::Integrator, z::AbstractArray{Float32, 4}, t::AbstractMatrix{Float32}, θ, ∂L_∂z::AbstractArray{Float32, 4})
+    ∂L_∂z₀ = ∂L_∂z[:, :, :, end] * 0.0f0 ## loss accumulator
+    ∂L_∂θ = nothing
 
-    u = iter(ui, t)
+    for i in reverse(axes(z, 4))
+        zᵢ = z[:, :, :, i]      ## current state
+        tᵢ = t[i, :]            ## current time
 
+        _, back = Flux.pullback(zᵢ, θ) do _zᵢ, _θ
+            return iter.integration_function(iter.dynamics, _zᵢ, tᵢ, _θ, iter.dt)
+        end
+
+        aᵢ = ∂L_∂z[:, :, :, i]  ## gradient of loss wrt zᵢ
+        ∂L_∂z₀ .+= aᵢ
+
+        ∂aᵢ_∂tᵢ, ∂aᵢ_∂θ = back(∂L_∂z₀)
+        ∂L_∂z₀ .+= ∂aᵢ_∂tᵢ
+        ∂L_∂θ = add_gradients(∂L_∂θ, ∂aᵢ_∂θ)
+    end
+
+    return ∂L_∂z₀, ∂L_∂θ
+end
+
+function Flux.ChainRulesCore.rrule(iter::Integrator, z0::AbstractArray{Float32, 3}, t::AbstractMatrix{Float32}, θ)
+    z = iter(z0, t, θ)
     function Integrator_back(adj::AbstractArray{Float32})
-        a, tangent = adjoint_sensitivity(iter, u, t, adj)
-        iter_tangent = Tangent{Integrator}(;dynamics = tangent)
-        return iter_tangent, a, nothing
+        gs_z0, gs_θ = adjoint_sensitivity(iter, z, t, θ, adj)
+        return nothing, gs_z0, nothing, gs_θ
     end
 
-    return u, Integrator_back
+    return z, Integrator_back
 end
 
-struct WaveDynamics <: AbstractDynamics
-    ambient_speed::Float32
-    design::DesignInterpolator
-    source::AbstractSource
-    grid::AbstractArray{Float32}
+struct AcousticDynamics{D <: AbstractDim} <: AbstractDynamics
+    dim::D
+    c0::Float32
     grad::AbstractMatrix{Float32}
     pml::AbstractArray{Float32}
     bc::AbstractArray{Float32}
 end
 
-Flux.@functor WaveDynamics
-Flux.trainable(::WaveDynamics) = (;)
+Flux.@functor AcousticDynamics
+Flux.trainable(::AcousticDynamics) = (;)
 
-function WaveDynamics(dim::AbstractDim; 
-        ambient_speed::Float32,
-        pml_width::Float32,
-        pml_scale::Float32,
-        design::AbstractDesign = NoDesign(),
-        source::AbstractSource = NoSource()
-        )
+function AcousticDynamics(dim::AbstractDim, c0::Float32, pml_width::Float32, pml_scale::Float32)
 
-    design = DesignInterpolator(design)
-    grid = build_grid(dim)
-    grad = build_gradient(dim)
-    pml = build_pml(dim, pml_width, pml_scale)
-    bc = dirichlet(dim)
-
-    return WaveDynamics(ambient_speed, design, source, grid, grad, pml, bc)
+    return AcousticDynamics(
+        dim,
+        c0, 
+        build_gradient(dim), 
+        build_pml(dim, pml_width, pml_scale), 
+        build_dirichlet(dim))
 end
 
-function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
-    U = wave[:, :, 1]
-    Vx = wave[:, :, 2]
-    Vy = wave[:, :, 3]
-    Ψx = wave[:, :, 4]
-    Ψy = wave[:, :, 5]
-    Ω = wave[:, :, 6]
+function acoustic_dynamics(x, c, f, ∇, pml, bc)
+    U = x[:, :, 1]
+    Vx = x[:, :, 2]
+    Vy = x[:, :, 3]
+    Ψx = x[:, :, 4]
+    Ψy = x[:, :, 5]
+    Ω = x[:, :, 6]
 
-    C = speed(dyn.design(t), dyn.grid, dyn.ambient_speed)
-    b = C .^ 2
-    ∇ = dyn.grad
-    σx = dyn.pml
+    b = c .^ 2
+
+    σx = pml
     σy = σx'
-    force = dyn.source(t)
 
     Vxx = ∂x(∇, Vx)
     Vyy = ∂y(∇, Vy)
-    Ux = ∂x(∇, U .+ force) #.* mask ## Gradient at boundary of design is 0
-    Uy = ∂y(∇, U .+ force) #.* mask ##
+    Ux = ∂x(∇, U .+ f)
+    Uy = ∂y(∇, U .+ f)
 
     dU = b .* (Vxx .+ Vyy) .+ Ψx .+ Ψy .- (σx .+ σy) .* U .- Ω
     dVx = Ux .- σx .* Vx
@@ -186,9 +173,70 @@ function (dyn::WaveDynamics)(wave::AbstractArray{Float32, 3}, t::Float32)
     dΨy = b .* σy .* Vxx
     dΩ = σx .* σy .* U
 
-    return cat(dyn.bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
+    return cat(bc .* dU, dVx, dVy, dΨx, dΨy, dΩ, dims = 3)
 end
 
-function update_design(dyn::WaveDynamics, interp::DesignInterpolator)
-    return WaveDynamics(dyn.ambient_speed, interp, dyn.source, dyn.grid, dyn.grad, dyn.pml, dyn.bc)
+function (dyn::AcousticDynamics{TwoDim})(x, t::AbstractVector{Float32}, θ)
+    C, F = θ
+
+    c = C(t)
+    f = F(t)
+
+    dtot = acoustic_dynamics(x[:, :, 1:6],        c, f, dyn.grad, dyn.pml, dyn.bc)
+    dinc = acoustic_dynamics(x[:, :, 7:end], dyn.c0, f, dyn.grad, dyn.pml, dyn.bc)
+    return cat(dtot, dinc, dims = 3)
 end
+
+function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
+    C, F, PML = θ
+    pml_scale = dyn.pml[[1]]
+    σ = pml_scale .* PML
+    ∇ = dyn.grad
+
+    U_tot = x[:, 1, :]
+    V_tot = x[:, 2, :]
+    U_inc = x[:, 3, :]
+    V_inc = x[:, 4, :]
+
+    c = C(t)
+    f = F(t)
+
+    dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- σ .* U_tot
+    dV_tot = ∇ * (U_tot .+ f) .- σ .* V_tot
+
+    dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- σ .* U_inc
+    dV_inc = ∇ * (U_inc .+ f) .- σ .* V_inc
+
+    return hcat(
+        Flux.unsqueeze(dU_tot, 2) .* dyn.bc,
+        Flux.unsqueeze(dV_tot, 2),
+        Flux.unsqueeze(dU_inc, 2) .* dyn.bc,
+        Flux.unsqueeze(dV_inc, 2),
+        )
+end
+
+# function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Float32}, θ)
+#     C, F = θ
+#     ∇ = dyn.grad
+
+#     U_tot = x[:, 1, :]
+#     V_tot = x[:, 2, :]
+#     U_inc = x[:, 3, :]
+#     V_inc = x[:, 4, :]
+
+#     c = C(t)
+#     f = F(t)
+
+#     dU_tot = (dyn.c0 ^ 2 * c) .* (∇ * V_tot) .- dyn.pml .* U_tot
+#     dV_tot = ∇ * (U_tot .+ f) .- dyn.pml .* V_tot
+
+#     dU_inc = (dyn.c0 ^ 2) * (∇ * V_inc) .- dyn.pml .* U_inc
+#     dV_inc = ∇ * (U_inc .+ f) .- dyn.pml .* V_inc
+
+#     return hcat(
+#         Flux.unsqueeze(dU_tot, 2) .* dyn.bc,
+#         Flux.unsqueeze(dV_tot, 2),
+#         Flux.unsqueeze(dU_inc, 2) .* dyn.bc,
+#         Flux.unsqueeze(dV_inc, 2),
+#         )
+# end

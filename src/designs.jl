@@ -137,7 +137,6 @@ function stack(c1::Cylinders, c2::Cylinders)
     return Cylinders(pos, r, c)
 end
 
-
 """
 Defining an abstract type to allow for two different types of scatterers. 
 AdjustableRadiiScatterers have fixed position and adjusable radii.
@@ -182,8 +181,6 @@ struct AdjustableRadiiScatterers <: AbstractScatterers
 end
 
 Flux.@functor AdjustableRadiiScatterers
-# Flux.trainable(design::AdjustableRadiiScatterers) = (;design.cylinders.r)
-# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;r = design.cylinders.r))
 Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
 Base.vec(design::AdjustableRadiiScatterers) = design.cylinders.r
 
@@ -199,6 +196,7 @@ struct AdjustablePositionScatterers <: AbstractScatterers
 end
 
 Flux.@functor AdjustablePositionScatterers
+# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
 Flux.trainable(design::AdjustablePositionScatterers) = (;design.cylinders.pos)
 Base.vec(design::AdjustablePositionScatterers) = vec(design.cylinders.pos)
 
@@ -293,6 +291,15 @@ function (interp::DesignInterpolator)(t::Float32)
     return interp.initial + (clamp(t, interp.ti, interp.tf) - interp.ti) * (Δy / Δt)
 end
 
+function Base.:∈(t::Float32, interp::DesignInterpolator)
+    return interp.ti <= t <= interp.tf
+end
+
+function multi_design_interpolation(interps::Vector{DesignInterpolator}, t::Float32)
+    _, idx = findmax(t .∈ interps)
+    return interps[idx](t)
+end
+
 function hexagon_ring(r::Float32)
 
     pos = Vector{Vector{Float32}}()
@@ -309,4 +316,50 @@ function build_2d_rotation_matrix(theta)
     return [
         cos(alpha) -sin(alpha);
         sin(alpha)  cos(alpha)]
+end
+
+## Design Spaces
+function build_simple_radii_design_space()
+    pos = [0.0f0 0.0f0]
+
+    r_low = fill(0.2f0, size(pos, 1))
+    r_high = fill(1.0f0, size(pos, 1))
+    c = fill(AIR, size(pos, 1))
+
+    core = Cylinders([5.0f0, 0.0f0]', [2.0f0], [AIR])
+
+    design_low = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_low, c)), core)
+    design_high = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_high, c)), core)
+
+    return DesignSpace(design_low, design_high)
+end
+
+function build_radii_design_space(pos::AbstractMatrix{Float32})
+
+    DESIGN_SPEED = 3 * AIR
+
+    r_low = fill(0.2f0, size(pos, 1))
+    r_high = fill(1.0f0, size(pos, 1))
+    c = fill(DESIGN_SPEED, size(pos, 1))
+
+    core = Cylinders([5.0f0, 0.0f0]', [2.0f0], [DESIGN_SPEED])
+
+    design_low = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_low, c)), core)
+    design_high = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_high, c)), core)
+
+    return DesignSpace(design_low, design_high)
+end
+
+function build_triple_ring_design_space()
+
+    rot = Float32.(Waves.build_2d_rotation_matrix(30))
+
+    cloak_rings = vcat(
+        Waves.hexagon_ring(3.5f0),
+        Waves.hexagon_ring(4.75f0) * rot,
+        Waves.hexagon_ring(6.0f0)
+    )
+
+    pos = cloak_rings .+ [5.0f0, 0.0f0]'
+    return build_radii_design_space(pos)
 end

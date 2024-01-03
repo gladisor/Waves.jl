@@ -1,80 +1,225 @@
-println("Importing Packages")
-using BSON
-using Flux
-using Flux: flatten, destructure, Scale, Recur, DataLoader
-using ReinforcementLearning
-using FileIO
-using CairoMakie
+using Waves, CairoMakie, Flux, BSON
 using Optimisers
-using Waves
-
+using Images: imresize
 Flux.CUDA.allowscalar(false)
+println("Loaded Packages")
+include("random_pos_gaussian_source.jl")
 
-Flux.device!(0)
-main_path = "..."
-data_path = joinpath(main_path, "episodes")
+function render_latent_solution!(dim::OneDim, t::Vector{Float32}, z::Array{Float32, 3}; path::String)
+    tot = z[:, 1, :]
+    inc = z[:, 3, :]
+    sc = tot .- inc
 
-println("Loading Environment")
-env = gpu(BSON.load(joinpath(data_path, "env.bson"))[:env])
-dim = cpu(env.dim)
-reset!(env)
-policy = RandomDesignPolicy(action_space(env))
-
-println("Declaring Hyperparameters")
-nfreq = 200
-h_size = 256
-activation = leakyrelu
-latent_grid_size = 30.0f0 #15.0f0
-latent_elements = 700 #512
-horizon = 20
-batchsize = 32
-
-pml_width = 10.0f0
-pml_scale = 10000.0f0
-lr = 1e-4
-decay_rate = 1.0f0
-k_size = 2
-steps = 20
-epochs = 500
-loss_func = Flux.mse
-
-MODEL_PATH = mkpath(joinpath(main_path, "models/RERUN/latent_gs=$(latent_grid_size)_latent_elements=$(latent_elements)_horizon=$(horizon)_nfreq=$(nfreq)_pml=$(pml_scale)_lr=$(lr)_batchsize=$(batchsize)"))
-println(MODEL_PATH)
-
-println("Initializing Model Components")
-latent_dim = OneDim(latent_grid_size, latent_elements)
-wave_encoder = build_split_hypernet_wave_encoder(latent_dim = latent_dim, nfreq = nfreq, h_size = h_size, activation = activation)
-design_encoder = HypernetDesignEncoder(env.design_space, action_space(env), nfreq, h_size, activation, latent_dim)
-dynamics = LatentDynamics(latent_dim, ambient_speed = env.total_dynamics.ambient_speed, freq = env.total_dynamics.source.freq, pml_width = pml_width, pml_scale = pml_scale)
-iter = Integrator(runge_kutta, dynamics, 0.0f0, env.dt, env.integration_steps)
-mlp = build_scattered_wave_decoder(latent_elements, h_size, k_size, activation)
-println("Constructing Model")
-model = gpu(ScatteredEnergyModel(wave_encoder, design_encoder, latent_dim, iter, env.design_space, mlp))
-
-println("Initializing DataLoaders")
-@time begin
-    train_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 1:100])
-    val_data = Vector{EpisodeData}([EpisodeData(path = joinpath(data_path, "episode$i/episode.bson")) for i in 101:120])
-    train_loader = DataLoader(prepare_data(train_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
-    val_loader = DataLoader(prepare_data(val_data, horizon), shuffle = true, batchsize = batchsize, partial = false)
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    xlims!(ax, dim.x[1], dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
+    
+    record(fig, joinpath(path, "sc.mp4"), axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, dim.x, sc[:, i], color = :blue)
+    end
 end
 
-opt = Optimisers.OptimiserChain(Optimisers.ClipNorm(), Optimisers.Adam(lr))
-states, actions, tspans, sigmas = gpu(first(train_loader))
+function make_plots(
+        model::AcousticEnergyModel, 
+        batch; path::String, samples::Int = 1)
+    s, a, t, y = batch
 
-println("Training")
-train_loop(
-    model,
-    loss_func = loss_func,
-    train_steps = steps,
-    val_steps = steps,
-    train_loader = train_loader,
-    val_loader = val_loader,
-    epochs = epochs,
-    lr = lr,
-    decay_rate = decay_rate,
-    evaluation_samples = 15,
-    checkpoint_every = 10,
-    path = MODEL_PATH,
-    opt = opt
+    z = cpu(Waves.generate_latent_solution(model, s, a, t))
+    latent_dim = cpu(model.iter.dynamics.dim)
+    render_latent_solution!(latent_dim, cpu(t[:, 1]), z[:, :, 1, :], path = path)
+
+    z0, (C, F, PML) = Waves.get_parameters_and_initial_condition(model, s, a, t)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, latent_dim.x, cpu(PML[:, 1]))
+    save(joinpath(path, "pml.png"), fig)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, latent_dim.x, cpu(F.shape[:, 1]))
+    save(joinpath(path, "force.png"), fig)
+
+    y_hat = cpu(model(s, a, t))
+    y = cpu(y)
+    for i in 1:min(length(s), samples)
+        tspan = cpu(t[:, i])
+        Waves.plot_predicted_energy(tspan, y[:, 1, i], y_hat[:, 1, i], title = "Total Energy", path = joinpath(path, "tot$i.png"))
+        Waves.plot_predicted_energy(tspan, y[:, 2, i], y_hat[:, 2, i], title = "Incident Energy", path = joinpath(path, "inc$i.png"))
+        Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, 3, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
+    end
+
+    return nothing
+end
+
+function energy_loss(model, s, a, t, y)
+    return Flux.mse(model(s, a, t), y)
+end
+
+"""
+measures average loss on dataset
+"""
+function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func = energy_loss)
+    val_loss = []
+
+    for (i, batch) in enumerate(val_loader)
+        s, a, t, y = gpu(Flux.batch.(batch))
+        # @time loss = Flux.mse(model(s, a, t), y)
+        @time loss = loss_func(model, s, a, t, y)
+        push!(val_loss, loss)
+        println("Val Batch: $i")
+
+        if i == batches
+            break
+        end
+    end
+
+    return Flux.mean(val_loss)
+end
+
+function plot_loss(metrics::Dict, val_every::Int; path::String)
+
+    steps = collect(1:length(metrics[:train_loss])) * val_every
+
+    fig = Figure()
+    ax = Axis(fig[1, 1], xlabel = "Batch Update", ylabel = "Average Loss")
+    lines!(ax, steps, metrics[:train_loss], color = :blue, label = "Train")
+    lines!(ax, steps, metrics[:val_loss], color = :orange, label = "Val")
+    axislegend(ax)
+    save(path, fig)
+end
+
+function train!(
+        model, #::AcousticEnergyModel, 
+        opt_state; 
+        train_loader::Flux.DataLoader, 
+        val_loader::Flux.DataLoader, 
+        val_every::Int, 
+        val_batches::Int, 
+        epochs::Int,
+        path::String = "",
+        loss_func = energy_loss
+        )
+
+    step = 0
+    metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
+    train_loss_accumulator = Vector{Float32}()
+
+    for epoch in 1:epochs
+        for batch in train_loader
+            s, a, t, y = gpu(Flux.batch.(batch))
+            # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
+            loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y), model)
+            @time gs = back(one(loss))[1]
+            opt_state, model = Optimisers.update(opt_state, model, gs)
+            push!(train_loss_accumulator, loss)
+            step += 1
+
+            if step % val_every == 0
+
+                ## creating checkpoint directory
+                checkpoint_path = mkpath(joinpath(path, "checkpoint_step=$step"))
+
+                ## save model checkpoint
+                BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model = cpu(model))
+
+                ## plot some predictions
+                make_plots(model, 
+                    gpu(Flux.batch.(first(val_loader))), 
+                    path = checkpoint_path, samples = 4)
+
+                ## run validation
+                @time val_loss = validate!(model, val_loader, val_batches, loss_func = loss_func)
+                push!(metrics[:train_loss], Flux.mean(train_loss_accumulator))
+                push!(metrics[:val_loss], val_loss)
+                empty!(train_loss_accumulator)
+
+                ## plot the losses
+                plot_loss(metrics, val_every, path = joinpath(checkpoint_path, "loss.png"))
+
+                ## print to command line
+                println("Step: $(step), Train Loss: $(metrics[:train_loss][end]), Val Loss: $(metrics[:val_loss][end])")
+            end
+        end
+    end
+
+    return model, opt_state
+end
+
+Flux.device!(1)
+display(Flux.device())
+
+dataset_name = "variable_source_yaxis_x=-10.0"
+# dataset_name = "part2_variable_source_yaxis_x=-10.0"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+## declaring hyperparameters
+activation = leakyrelu
+h_size = 256
+in_channels = 4
+nfreq = 500
+elements = 1024
+horizon = 20
+lr = 1f-4# / 2.0f0 # 1f-4 for initial stage
+batchsize = 32 ## shorter horizons can use large batchsize
+val_every = 20
+val_batches = val_every
+epochs = 10
+latent_gs = 100.0f0
+pml_width = 10.0f0
+pml_scale = 10000.0f0
+train_val_split = 0.90 ## choosing percentage of data for val
+data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial => false)
+latent_dim = OneDim(latent_gs, elements)
+
+## loading environment and data
+@time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+
+## spliting data
+idx = Int(round(length(data) * train_val_split))
+train_data, val_data = data[1:idx], data[idx+1:end]
+
+## preparing DataLoader(s)
+train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
+val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
+println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
+## contstruct model & train
+# @time model = gpu(AcousticEnergyModel(;env, h_size,in_channels,nfreq, pml_width, pml_scale, latent_dim))
+
+include("node.jl")
+model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
+s, a, t, y = gpu(Flux.batch.(first(train_loader)))
+
+# MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/horizon=20,lr=0.0001/checkpoint_step=6120/checkpoint.bson"
+# model = gpu(BSON.load(MODEL_PATH)[:model])
+@time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
+
+# path = "models/transfer_horizon=$horizon,lr=$lr"
+path = "models/node_horizon=$horizon,lr=$lr"
+model, opt_state = @time train!(model, opt_state;
+    train_loader,
+    val_loader, 
+    val_every,
+    val_batches,
+    epochs,
+    path = joinpath(DATA_PATH, path),
+    loss_func = node_loss
     )
+
+# node.wave_encoder(s)
+# C = node.design_encoder(s, a, t)
+# y_hat = cpu(node(s, a, t))
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, y_hat[:, 1, 1])
+# lines!(ax, y_hat[:, 2, 1])
+# lines!(ax, y_hat[:, 3, 1])
+# save("node.png", fig)
+
+# loss, back = Flux.pullback(node) do m
+#     Flux.mse(m(s, a, t), y)
+# end
+
+# gs = back(one(loss))

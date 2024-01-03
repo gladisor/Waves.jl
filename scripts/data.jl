@@ -1,116 +1,81 @@
-using ReinforcementLearning
-using Flux
-using BSON
-using FileIO
 using Waves
+using Flux
+using ReinforcementLearning
+using CairoMakie
+using BSON
+using Images: imresize
 
-function build_simple_radii_design_space()
-    pos = [0.0f0 0.0f0]
+include("random_pos_gaussian_source.jl")
 
-    r_low = fill(0.2f0, size(pos, 1))
-    r_high = fill(1.0f0, size(pos, 1))
-    c = fill(Waves.AIR, size(pos, 1))
+function build_rectangular_grid(nx::Int, ny::Int, r::Float32)
 
-    core = Cylinders([5.0f0, 0.0f0]', [2.0f0], [AIR])
+    x = []
 
-    design_low = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_low, c)), core)
-    design_high = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_high, c)), core)
+    for i in 1:nx
+        for j in 1:ny
+            push!(x, [(i-1) * 2 * r, (j-1) * 2 * r])
+        end
+    end
 
-    return DesignSpace(design_low, design_high)
+    x = hcat(x...)
+
+    return x .- Flux.mean(x, dims = 2)
 end
 
-function build_radii_design_space(pos::AbstractMatrix{Float32})
+function build_rectangular_grid_design_space()
 
-    DESIGN_SPEED = 3 * AIR
+    pos = Matrix(build_rectangular_grid(5, 5, 1.0f0 + 0.1f0)')
+    M = size(pos, 1)
 
-    r_low = fill(0.2f0, size(pos, 1))
-    r_high = fill(1.0f0, size(pos, 1))
-    c = fill(DESIGN_SPEED, size(pos, 1))
-
-    core = Cylinders([5.0f0, 0.0f0]', [2.0f0], [DESIGN_SPEED])
-
-    design_low = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_low, c)), core)
-    design_high = Cloak(AdjustableRadiiScatterers(Cylinders(pos, r_high, c)), core)
-
-    return DesignSpace(design_low, design_high)
+    low = AdjustableRadiiScatterers(Cylinders(pos, fill(0.2f0, M), fill(3 * AIR, M)))
+    high = AdjustableRadiiScatterers(Cylinders(pos, fill(1.0f0, M), fill(3 * AIR, M)))
+    return DesignSpace(low, high)
 end
 
-function build_triple_ring_design_space()
+Flux.device!(2)
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/"
 
-    rot = Float32.(Waves.build_2d_rotation_matrix(30))
+dim = TwoDim(15.0f0, 700)
+μ_low = [-10.0f0 -10.0f0]
+μ_high = [-10.0f0 10.0f0]
+σ = [0.3f0]
+a = [1.0f0]
 
-    cloak_rings = vcat(
-        Waves.hexagon_ring(3.5f0),
-        Waves.hexagon_ring(4.75f0) * rot,
-        Waves.hexagon_ring(6.0f0)
-    )
+# ## single pulse
+# μ = zeros(Float32, 1, 2)
+# μ[1, :] .= [-10.0f0, 0.0f0]
+# σ = [0.3f0]
+# a = [1.0f0]
+# pulse = build_normal(build_grid(dim), μ, σ, a)
 
-    pos = cloak_rings .+ [5.0f0, 0.0f0]'
-    return build_radii_design_space(pos)
-end
-
-## selecting gpu
-# Flux.device!(0)
-## setting discretization in space and time
-grid_size = 15.0f0
-elements = 128
-dt = 1e-5
-## various environment parameters
-action_speed = 500.0f0
-# freq = 2000.0f0
-freq = 500.0f0
-pml_width = 5.0f0
-pml_scale = 10000.0f0
-actions = 20
-integration_steps = 100
-## point source settings
-pulse_x = -10.0f0
-pulse_y = 0.0f0
-pulse_intensity = 1.0f0 #10.0f0
-## number of episodes to generate
-episodes = 1000
-## declaring name of dataset
-design_space_func = build_triple_ring_design_space
-name = "actions=$(actions)_design_space=$(design_space_func)_freq=$(freq)"
-
-## building FEM grid
-dim = TwoDim(grid_size, elements)
-grid = build_grid(dim)
-pulse = build_pulse(grid, pulse_x, pulse_y, pulse_intensity)
-
-## initializing environment with settings
-println("Building WaveEnv")
-
-env = WaveEnv(
-    dim,
-    reset_wave = Silence(),
-    design_space = design_space_func(),
-    action_speed = action_speed,
-    source = Source(pulse, freq = freq),
-    sensor = WaveImage(),
-    ambient_speed = WATER,
-    pml_width = pml_width,
-    pml_scale = pml_scale,
-    dt = Float32(dt),
-    integration_steps = integration_steps,
-    actions = actions) |> gpu
+env = gpu(WaveEnv(dim; 
+    # design_space = build_rectangular_grid_design_space(),
+    design_space = Waves.build_triple_ring_design_space(),
+    # source = Source(pulse, 1000.0f0),
+    source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
+    integration_steps = 100,
+    actions = 200
+    ))
 
 policy = RandomDesignPolicy(action_space(env))
+# render!(policy, env, path = "vid.mp4")
 
-# saving environment
-# STORAGE_PATH = ""
-# data_path = mkpath(joinpath(STORAGE_PATH, "$name/episodes"))
-# BSON.bson(joinpath(data_path, "env.bson"), env = cpu(env))
+# name =  "AdditionalDataset" *
+#         "$(typeof(env.iter.dynamics))_" *
+#         "$(typeof(env.design))_" *
+#         "Pulse_" * 
+#         "dt=$(env.dt)_" *
+#         "steps=$(env.integration_steps)_" *
+#         "actions=$(env.actions)_" *
+#         "actionspeed=$(env.action_speed)_" *
+#         "resolution=$(env.resolution)"
 
-# rendering a sample animation
-println("Rendering Example")
-@time render!(policy, env, path = "test_vid.mp4", seconds = env.actions * 0.5f0, minimum_value = -0.5f0, maximum_value = 0.5f0)
+name = "part2_variable_source_yaxis_x=-10.0"
 
-# # starting data generation loop
-# println("Generating Data")
-# for i in 1:episodes
-#     path = mkpath(joinpath(data_path, "episode$i"))
-#     @time episode = generate_episode_data(policy, env)
-#     save(episode, joinpath(path, "episode.bson"))
-#     plot_sigma!(episode, path = joinpath(path, "sigma.png"))
-# end
+path = mkpath(joinpath(DATA_PATH, name))
+BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
+
+for i in 1:500
+    ep = generate_episode!(policy, env)
+    save(ep, joinpath(path, "episode$i.bson"))
+end

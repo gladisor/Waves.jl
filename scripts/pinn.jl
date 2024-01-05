@@ -1,7 +1,7 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
 Flux.CUDA.allowscalar(false)
-Flux.device!(2)
+Flux.device!(0)
 display(Flux.device())
 include("random_pos_gaussian_source.jl")
 
@@ -13,7 +13,7 @@ function main()
     nfreq = 500
     elements = 1024
     horizon = 1
-    lr = 1f-4 / 2.0f0 # 1f-4 for initial stage
+    lr = 1f-3 # 1f-4 for initial stage
     batchsize = 32 ## shorter horizons can use large batchsize
     val_every = 20
     val_batches = val_every
@@ -55,7 +55,7 @@ function main()
 
     z0 = wave_encoder(s)
     # f = z0[:, 5, 1]
-    f = gpu(build_normal(latent_dim.x, [0.0f0], [0.3f0], [1.0f0]))
+    f = gpu(build_normal(latent_dim.x, [0.0f0, 5.0f0], [0.3f0, 0.3f0], [1.0f0, 1.0f0]))
 
     grad_t = gpu(Waves.gradient(tspan))
     grad_x = gpu(Waves.gradient(x))
@@ -65,10 +65,10 @@ function main()
         Dense(2, h_size, activation),
         Dense(h_size, h_size, activation),
         Dense(h_size, h_size, activation),
-        # Dense(h_size, h_size, activation),
-        # Dense(h_size, h_size, activation),
-        # Dense(h_size, h_size, activation),
-        # Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
         Dense(h_size, 2),
     ))
 
@@ -76,7 +76,12 @@ function main()
 
     opt_state = Optimisers.setup(Optimisers.Adam(1e-4), pinn)
 
-    for i in 1:1000
+    # u = reshape(pinn(pinn_grid_flat), 2, 1024, 101)
+    # u_tot = u[1, :, :]
+
+
+
+    for i in 1:2000
 
         loss, back = Flux.pullback(pinn) do _pinn
             u = reshape(_pinn(pinn_grid_flat), 2, 1024, 101)
@@ -86,12 +91,15 @@ function main()
             force = f .* sin.(2000.0f0 * 2.0f0 * pi * tspan)'
             N_u = WATER * grad_x * (v_tot)
             N_v = WATER * grad_x * (u_tot .+ force)
+            
+            physics_loss = Flux.mean((((grad_t * u_tot')' .- N_u) .+ ((grad_t * v_tot')' .- N_v)) .^ 2)
+            energy_loss = Flux.mean((y[:, 1, 1] .- vec(sum(u_tot .^ 2, dims = 1))) .^ 2)
+            boundary_loss = sum(u_tot[[1, end], :] .^ 2)
 
-            # energy_loss = sum(u_tot .^ 2, dims = 1)
-            Flux.mean((((grad_t * u_tot')' .- N_u) .+ ((grad_t * v_tot')' .- N_v)) .^ 2)
+            physics_loss + energy_loss + boundary_loss
         end
+        
         println(loss)
-
         gs = back(one(loss))[1]
         opt_state, pinn = Optimisers.update(opt_state, pinn, gs)
     end

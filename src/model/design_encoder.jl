@@ -44,3 +44,17 @@ function DesignEncoder(env::WaveEnv, h_size::Int, activation::Function, nfreq::I
         c -> 2.0f0 * sigmoid.(c))
     return DesignEncoder(env.design_space, mlp, env.integration_steps)
 end
+
+
+# function Waves.DesignEncoder(env::WaveEnv, h_size::Int, activation::Function, nfreq::Int, latent_dim::OneDim)
+#     mlp = Chain(
+#         Dense(length(vec(env.design)), h_size, activation), 
+#         Dense(h_size, h_size, activation), 
+#         Dense(h_size, h_size, activation),
+#         Dense(h_size, h_size, activation), 
+#         Dense(h_size, nfreq),
+#         SinWaveEmbedder(latent_dim, nfreq),
+#         c -> 2.0f0 * sigmoid.(c))
+
+#     design_encoder = DesignEncoder(env.design_space, mlp, env.integration_steps)
+# end

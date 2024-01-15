@@ -54,10 +54,10 @@ end
 
 Flux.device!(0)
 
-dt = 1f-6
-integration_steps = 1000
+dt = 1f-7
+integration_steps = 500
 latent_gs = 5.0f0
-elements = 100
+elements = 500
 latent_dim = OneDim(latent_gs, elements)
 dx = get_dx(latent_dim)
 
@@ -72,6 +72,7 @@ t = build_tspan(0.0f0, dt, integration_steps)
 pinn_grid = build_pinn_grid(latent_dim, t)
 
 wave = zeros(Float32, elements, 2, 1)
+wave[:, 1, :] .= build_normal(latent_dim.x, [0.0f0, 2.0f0], [0.3f0, 0.3f0], [1.0f0, -1.0f0])
 wave = gpu(wave)
 
 grad_x = gpu(Waves.gradient(latent_dim.x))
@@ -80,28 +81,20 @@ grad_t = gpu(Waves.gradient(t))
 t = gpu(t[:, :])
 
 F = gpu(Source(
-    build_normal(latent_dim.x, [0.0f0], [0.3f0], [1.0f0]),
+    zeros(Float32, length(latent_dim.x)),
+    # build_normal(latent_dim.x, [0.0f0, 2.0f0], [0.3f0, 0.3f0], [1.0f0, -1.0f0]),
     1000.0f0))
+
 f = hcat([F(t[i, :]) for i in axes(t, 1)]...)
 
 z = iter(wave, t, F)
 u = z[:, 1, 1, :]
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-# ylims!(ax, -2.0f0, 2.0f0)
-# record(fig, "vid.mp4", axes(u, 2)) do i
-#     empty!(ax)
-#     lines!(ax, latent_dim.x, cpu(u[:, i]), color = :blue)
-# end
-
-
 energy = dropdims(sum(u .^ 2, dims = 1) * dx, dims = 1)
 
-h_size = 512
-activation = leakyrelu
-# scale = gpu([1.0f0, WATER])
-U = gpu(Chain(
+h_size = 256
+activation = relu
+U = gpu(
+    Chain(
         Dense(2, h_size, activation),  
         Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation), 
@@ -109,27 +102,35 @@ U = gpu(Chain(
         Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation),
+        Dense(h_size, h_size, activation), 
+        Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation), 
         Dense(h_size, h_size, activation),
-        Dense(h_size, 2),
-        # uv -> uv ./ scale
-        ))
+        Dense(h_size, h_size, activation),  
+        Dense(h_size, 2)))
 
-
-opt_state = Optimisers.setup(Optimisers.Adam(5f-4), U)
+opt_state = Optimisers.setup(Optimisers.Adam(1f-4), U)
 
 for i in 1:300
-
     loss, back = Flux.pullback(U) do _U
         z_pinn = reshape(_U(pinn_grid), 2, elements, integration_steps + 1, :)
-        z_pinn = permutedims(z_pinn, (2, 1, 4, 3))[:, :, 1, :]
-        z_pinn_next = runge_kutta(dyn, z_pinn, vec(t), F, dt)
+        z_pinn = permutedims(z_pinn, (2, 1, 4, 3))[:, :, 1, :] # (space, fields, time)
         u_pinn = z_pinn[:, 1, :]
-        energy_pinn = dropdims(sum(u_pinn .^ 2, dims = 1) * dx, dims = 1)
+        v_pinn = z_pinn[:, 2, :]
+        
+        u_pinn_t = (grad_t * u_pinn')'
+        N_u_pinn = WATER * (grad_x * v_pinn)
 
-        physics_loss = Flux.mse(z_pinn[:, :, 2:end], z_pinn_next[:, :, 1:end-1])
+        v_pinn_t = (grad_t * v_pinn')'
+        N_v_pinn = WATER * (grad_x * u_pinn)
+
+        physics_loss = Flux.mse(u_pinn_t, N_u_pinn)# + Flux.mse(v_pinn_t, N_v_pinn)
+        energy_pinn = dropdims(sum(u_pinn .^ 2, dims = 1) * dx, dims = 1)
+        # z_pinn_next = runge_kutta(dyn, z_pinn, vec(t), F, dt)
+        # physics_loss = Flux.mse(z_pinn[:, :, 2:end], z_pinn_next[:, :, 1:end-1])
         boundary_loss = Flux.mean(u_pinn[1, :] .^ 2) + Flux.mean(u_pinn[end, :] .^ 2)
         energy_loss = Flux.mse(energy, energy_pinn)
         initial_condition_loss = Flux.mse(z_pinn[:, :, 1], z[:, :, 1, 1])
@@ -140,10 +141,6 @@ for i in 1:300
     gs = back(one(loss))[1]
     opt_state, U = Optimisers.update(opt_state, U, gs)
 end
-
-
-
-
 
 
 
@@ -171,6 +168,7 @@ lines!(ax, cpu(energy))
 lines!(ax, cpu(energy_pinn))
 save("energy.png", fig)
 
+u = cpu(u)
 u_pinn = cpu(u_pinn)
 fig = Figure()
 ax = Axis(fig[1, 1])
@@ -179,5 +177,6 @@ ylims!(ax, -2.0f0, 2.0f0)
 
 record(fig, "vid.mp4", axes(u_pinn, 2)) do i
     empty!(ax)
-    lines!(ax, latent_dim.x, u_pinn[:, i], color = :blue)
+    lines!(ax, latent_dim.x, u[:, i], color = :blue)
+    lines!(ax, latent_dim.x, u_pinn[:, i], color = :orange)
 end

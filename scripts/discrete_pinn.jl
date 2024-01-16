@@ -47,8 +47,10 @@ end
 
 Flux.device!(0)
 
-dt = 5f-6
-integration_steps = 400
+# dt = 5f-6
+# integration_steps = 400
+dt = 1f-5
+integration_steps = 100 #200
 latent_gs = 10.0f0
 elements = 1024
 latent_dim = OneDim(latent_gs, elements)
@@ -71,7 +73,7 @@ t = gpu(t[:, :])
 
 F = gpu(
     Source(
-        build_normal(latent_dim.x, [-2.0f0, 2.0f0], [0.3f0, 0.3f0], [1.0f0, -1.0f0]),
+        build_normal(latent_dim.x, [0.0f0], [0.3f0], [1.0f0]),
         1000.0f0)
         )
 f = hcat([F(t[i, :]) for i in axes(t, 1)]...)
@@ -82,7 +84,7 @@ v = z[:, 2, 1, :]
 energy = vec(sum(u .^ 2, dims = 1) * dx)
 
 h_size = 256
-activation = relu
+activation = leakyrelu
 
 function main()
     U = gpu(
@@ -94,19 +96,18 @@ function main()
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation),
-            Dense(h_size, h_size, activation),
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation),
             Dense(h_size, h_size, activation),  
             Dense(h_size, 2)))
     
-    opt_state = Optimisers.setup(Optimisers.Adam(1f-4), U)
+    opt_state = Optimisers.setup(Optimisers.Adam(1f-3), U)
+    # opt_state = Optimisers.setup(Optimisers.Adam(1f-4), U)
 
-    for i in 1:1000
+    for i in 1:5000
 
         U_LOSS = nothing
         V_LOSS = nothing
@@ -127,8 +128,8 @@ function main()
 
             energy_pinn = vec(sum(u_pinn .^ 2, dims = 1) * dx)
 
-            u_loss = Flux.mse(u_t, N_u)
-            v_loss = Flux.mse(v_t, N_v)
+            u_loss = Flux.mse(u_t, N_u) / WATER
+            v_loss = Flux.mse(v_t, N_v) / WATER
             boundary_loss = Flux.mean(u_pinn[1, :] .^ 2) + Flux.mean(u_pinn[end, :] .^ 2)
             ic_loss = Flux.mse(z_pinn[:, :, 1], z[:, :, 1, 1])
             energy_loss = Flux.mse(energy_pinn, energy)
@@ -141,7 +142,7 @@ function main()
                 ENERGY_LOSS = energy_loss
             end
 
-            return u_loss + v_loss + boundary_loss + ic_loss + energy_loss
+            return u_loss + v_loss + 1.0f0 * (boundary_loss + 1000.0f0 * ic_loss + energy_loss)
         end
 
         println("u: $U_LOSS, v: $V_LOSS, b: $BOUNDARY_LOSS, ic: $IC_LOSS, energy: $ENERGY_LOSS")
@@ -165,6 +166,12 @@ lines!(ax, cpu(energy))
 lines!(ax, cpu(energy_pinn))
 save("energy.png", fig)
 
+fig = Figure()
+ax = Axis(fig[1, 1])
+heatmap!(ax, cpu(u))
+ax = Axis(fig[1, 2])
+heatmap!(ax, cpu(u_pinn))
+save("sol.png", fig)
 
 fig = Figure()
 ax = Axis(fig[1, 1])
@@ -172,6 +179,7 @@ xlims!(ax, latent_dim.x[1], latent_dim.x[end])
 ylims!(ax, -2.0f0, 2.0f0)
 record(fig, "vid.mp4", axes(u, 2)) do i
     empty!(ax)
-    lines!(ax, latent_dim.x, cpu(u_pinn[:, i]), color = :blue)
+    lines!(ax, latent_dim.x, cpu(u[:, i]), color = :blue)
+    lines!(ax, latent_dim.x, cpu(u_pinn[:, i]), color = :orange)
 end
 

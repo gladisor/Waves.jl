@@ -4,7 +4,6 @@ export
     AbstractDim, 
     AbstractDesign, 
     AbstractSource,
-    # AbstractInitialDesign, 
     AbstractDynamics
 
 using SparseArrays
@@ -58,6 +57,7 @@ include("model/layers.jl")
 include("model/design_encoder.jl")
 include("model/wave_encoder.jl")
 include("model/acoustic_energy_model.jl")
+include("model/pinn.jl")
 
 include("plot.jl")
 end

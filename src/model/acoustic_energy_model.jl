@@ -34,6 +34,7 @@ function (source::SinusoidalSource)(t::AbstractVector{Float32})
 end
 
 function build_wave_encoder(;
+        env::WaveEnv,
         latent_dim::OneDim,
         h_size::Int,
         nfreq::Int,
@@ -45,11 +46,11 @@ function build_wave_encoder(;
     nfields = 6
 
     return Chain(
-        Waves.TotalWaveInput(),
+        TotalWaveInput(),
         LocalizationLayer(env.dim, env.resolution),
-        Waves.ResidualBlock(k, 2 + in_channels, 32, activation),
-        Waves.ResidualBlock(k, 32, 64, activation),
-        Waves.ResidualBlock(k, 64, h_size, activation),
+        ResidualBlock(k, 2 + in_channels, 32, activation),
+        ResidualBlock(k, 32, 64, activation),
+        ResidualBlock(k, 64, h_size, activation),
         GlobalMaxPool(),
         Flux.flatten,
         Parallel(
@@ -65,9 +66,9 @@ function build_wave_encoder(;
         SinWaveEmbedder(latent_dim, nfreq),
         x -> hcat(
             x[:, [1], :],       # u_tot
-            x[:, [2], :] ./ c0, # v_tot
+            x[:, [2], :], # ./ c0, # v_tot
             x[:, [3], :],       # u_inc
-            x[:, [4], :] ./ c0, # v_inc
+            x[:, [4], :], # ./ c0, # v_inc
             x[:, [5], :],       # f
             x[:, [6], :] .^ 2   # pml
             )
@@ -115,6 +116,7 @@ function AcousticEnergyModel(;
         pml_scale::Float32)
 
     wave_encoder = Waves.build_wave_encoder(;
+        env,
         latent_dim, 
         h_size, 
         nfreq,

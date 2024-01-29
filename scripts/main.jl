@@ -1,7 +1,11 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
 using Images: imresize
+
+Flux.device!(1)
+display(Flux.device())
 Flux.CUDA.allowscalar(false)
+
 println("Loaded Packages")
 include("random_pos_gaussian_source.jl")
 
@@ -23,9 +27,10 @@ end
 
 function make_plots(
         model::AcousticEnergyModel, 
-        batch; path::String, samples::Int = 1)
-    s, a, t, y = batch
+        batch; path::String, 
+        samples::Int = 1)
 
+    s, a, t, y = batch
     z = cpu(Waves.generate_latent_solution(model, s, a, t))
     latent_dim = cpu(model.iter.dynamics.dim)
     render_latent_solution!(latent_dim, cpu(t[:, 1]), z[:, :, 1, :], path = path)
@@ -61,12 +66,11 @@ end
 """
 measures average loss on dataset
 """
-function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func = energy_loss)
+function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func)
     val_loss = []
 
     for (i, batch) in enumerate(val_loader)
         s, a, t, y = gpu(Flux.batch.(batch))
-        # @time loss = Flux.mse(model(s, a, t), y)
         @time loss = loss_func(model, s, a, t, y)
         push!(val_loss, loss)
         println("Val Batch: $i")
@@ -92,7 +96,7 @@ function plot_loss(metrics::Dict, val_every::Int; path::String)
 end
 
 function train!(
-        model, #::AcousticEnergyModel, 
+        model,
         opt_state; 
         train_loader::Flux.DataLoader, 
         val_loader::Flux.DataLoader, 
@@ -100,7 +104,7 @@ function train!(
         val_batches::Int, 
         epochs::Int,
         path::String = "",
-        loss_func = energy_loss
+        loss_func
         )
 
     step = 0
@@ -110,7 +114,6 @@ function train!(
     for epoch in 1:epochs
         for batch in train_loader
             s, a, t, y = gpu(Flux.batch.(batch))
-            # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
             loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y), model)
             @time gs = back(one(loss))[1]
             opt_state, model = Optimisers.update(opt_state, model, gs)
@@ -148,11 +151,7 @@ function train!(
     return model, opt_state
 end
 
-Flux.device!(1)
-display(Flux.device())
-
 dataset_name = "variable_source_yaxis_x=-10.0"
-# dataset_name = "part2_variable_source_yaxis_x=-10.0"
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
 ## declaring hyperparameters
 activation = leakyrelu
@@ -161,7 +160,7 @@ in_channels = 4
 nfreq = 500
 elements = 1024
 horizon = 20
-lr = 1f-4# / 2.0f0 # 1f-4 for initial stage
+lr = 1f-4
 batchsize = 32 ## shorter horizons can use large batchsize
 val_every = 20
 val_batches = val_every
@@ -186,18 +185,58 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-# @time model = gpu(AcousticEnergyModel(;env, h_size,in_channels,nfreq, pml_width, pml_scale, latent_dim))
-
 include("node.jl")
-model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
-s, a, t, y = gpu(Flux.batch.(first(train_loader)))
+include("wave_control_pinn.jl")
+
+@time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
+
+# @time model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
+# base = build_cnn_base(env, in_channels, activation, h_size)
+# head = build_pinn_wave_encoder_head(h_size, activation, nfreq, latent_dim)
+# W = WaveEncoder(base, head)
+# D = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
+# compressor_size = 16
+# R = build_compressor(8, h_size, activation, compressor_size)
+# U = Chain(
+#     Dense(compressor_size + 2, h_size, activation),
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation), 
+#     Dense(h_size, h_size, activation),
+#     Dense(h_size, 4))
+
+# tspan = build_tspan(0.0f0, env.dt, env.integration_steps)
+# pinn_grid = build_pinn_grid(latent_dim, tspan)
+
+# model = gpu(WaveControlPINN(
+#     W, D, R, U, 
+#     pinn_grid,
+#     env.source.freq,
+#     get_dx(latent_dim)))
+
+# loss_func = gpu(WaveControlPINNLoss(
+#     env.iter.dynamics.c0, 
+#     env.source.freq,
+#     Matrix{Float32}(Waves.gradient(latent_dim.x)),
+#     Matrix{Float32}(Waves.gradient(tspan)),
+#     build_dirichlet(latent_dim))
+#     )
+
+## sample data
+# s, a, t, y = gpu(Flux.batch.(first(train_loader)))
 
 # MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/horizon=20,lr=0.0001/checkpoint_step=6120/checkpoint.bson"
 # model = gpu(BSON.load(MODEL_PATH)[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
-
-# path = "models/transfer_horizon=$horizon,lr=$lr"
-path = "models/node_horizon=$horizon,lr=$lr"
+path = "models/ours_balanced_field_scale"
 model, opt_state = @time train!(model, opt_state;
     train_loader,
     val_loader, 
@@ -205,21 +244,5 @@ model, opt_state = @time train!(model, opt_state;
     val_batches,
     epochs,
     path = joinpath(DATA_PATH, path),
-    loss_func = node_loss
+    loss_func = energy_loss
     )
-
-# node.wave_encoder(s)
-# C = node.design_encoder(s, a, t)
-# y_hat = cpu(node(s, a, t))
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, y_hat[:, 1, 1])
-# lines!(ax, y_hat[:, 2, 1])
-# lines!(ax, y_hat[:, 3, 1])
-# save("node.png", fig)
-
-# loss, back = Flux.pullback(node) do m
-#     Flux.mse(m(s, a, t), y)
-# end
-
-# gs = back(one(loss))

@@ -1,95 +1,123 @@
-using Waves, CairoMakie, Flux, Optimisers, BSON
-
-struct SimpleWave <: AbstractDynamics
-    grad::AbstractMatrix{Float32}
-    c0::Float32
-    bc::AbstractArray{Float32}
-end
-
-Flux.@functor SimpleWave
-Flux.trainable(::SimpleWave) = (;)
-
-function (dyn::SimpleWave)(x::AbstractArray{Float32, 3}, t::AbstractVector{Float32}, theta)
-
-    F = theta
-    f = F(t)
-
-    u = x[:, 1, :]
-    v = x[:, 2, :]
-    u_t = WATER * dyn.grad * v
-    v_t = WATER * dyn.grad * (u .+ f)
-
-    return hcat(
-        Flux.unsqueeze(u_t, dims = 2) .* dyn.bc,
-        Flux.unsqueeze(v_t, dims = 2)
-        )
-end
-
-function runge_kutta_stages(f::AbstractDynamics, u::AbstractArray{Float32}, t, θ, dt::Float32)
-    k1 = f(u,                    t,               θ)
-    k2 = f(u .+ 0.5f0 * dt * k1, t .+ 0.5f0 * dt, θ)
-    k3 = f(u .+ 0.5f0 * dt * k2, t .+ 0.5f0 * dt, θ)
-    k4 = f(u .+ dt * k3,         t .+ dt,         θ)
-    return k1
-end
-
-function build_pinn_grid(latent_dim::OneDim, t::Vector{Float32})
-    latent_gs = maximum(latent_dim.x)
-    elements = length(latent_dim.x)
-    dt = Flux.mean(diff(vec(t)))
-    integration_steps = length(t)
-
-    t_grid = repeat(reshape(t, 1, 1, integration_steps), 1, size(latent_dim.x, 1), 1) / (dt * integration_steps)
-    x_grid = repeat(reshape(latent_dim.x, 1, elements, 1), 1, 1, integration_steps) / latent_gs
-    pinn_grid = vcat(x_grid, t_grid)
-    return reshape(pinn_grid, 2, :, 1)
-end
+using Waves, Flux, CairoMakie, BSON
+using Optimisers
 
 Flux.device!(0)
+Flux.CUDA.allowscalar(false)
+display(Flux.device())
 
-# dt = 5f-6
-# integration_steps = 400
-dt = 1f-5
-integration_steps = 100 #200
-latent_gs = 10.0f0
+include("wave_control_pinn.jl")
+
+"""
+Computes the time derivative of a batch of one dimentional scalar fields. The dimentionality
+of the field should be (space x time x batch).
+"""
+function batched_time_derivative(grad_t::AbstractMatrix, field::AbstractArray{Float32, 3})
+    return batched_transpose(batched_mul(grad_t, batched_transpose(field)))
+end
+
+function evaluate_over_time(f, t::AbstractMatrix{Float32})
+    hcat([Flux.unsqueeze(f(t[i, :]), 2) for i in axes(t, 1)]...)
+end
+
+function compute_acoustic_wave_physics_loss(
+        grad_x::AbstractMatrix{Float32},
+        grad_t::AbstractMatrix{Float32},
+        sol::AbstractArray{Float32, 4}, # (fields, space, batch, time)
+        c0::Float32,
+        C::LinearInterpolation,
+        F::Source,
+        pml::AbstractMatrix{Float32},
+        bc::AbstractMatrix{Float32},
+        t::AbstractMatrix{Float32})
+
+    sol = permutedims(sol, (1, 2, 4, 3))
+
+    ## unpack fields from solution
+    u_tot = sol[:, 1, :, :] ## (space, time, batch)
+    v_tot = sol[:, 2, :, :]
+    u_inc = sol[:, 3, :, :]
+    v_inc = sol[:, 4, :, :]
+
+    ## compute derivatives
+    ## u_tot
+    u_tot_t = batched_time_derivative(grad_t, u_tot)
+    ## v_tot
+    v_tot_t = batched_time_derivative(grad_t, v_tot)
+    ## u_inc
+    u_inc_t = batched_time_derivative(grad_t, u_inc)
+    ## v_inc
+    v_inc_t = batched_time_derivative(grad_t, v_inc)
+
+    c = evaluate_over_time(C, t) ## design encoder
+    f = evaluate_over_time(F, t) ## wave encoder 
+    pml = Flux.unsqueeze(pml, 2) ## wave encoder
+    bc = Flux.unsqueeze(bc, 2)
+
+    pml_scale = 10000.0f0
+
+    N_u_tot = (c0 * c .* batched_mul(grad_x, v_tot) .- pml_scale * pml .* u_tot) .* bc
+    N_v_tot = (c0 * c .* batched_mul(grad_x, u_tot .+ f) .- pml_scale * pml .* v_tot)
+
+    N_u_inc = (c0 * batched_mul(grad_x, v_inc) .- pml_scale * pml .* u_inc) .* bc
+    N_v_inc = (c0 * batched_mul(grad_x, u_inc .+ f) .- pml_scale * pml .* v_inc)
+
+    return (
+        Flux.mse(u_tot_t, N_u_tot) + 
+        Flux.mse(v_tot_t, N_v_tot) + 
+        Flux.mse(u_inc_t, N_u_inc) + 
+        Flux.mse(v_inc_t, N_v_inc))
+end
+
+function call_acoustic_wave_pinn(U::Chain, grid::AbstractArray{Float32, 3})
+    return permutedims(reshape(U(grid), 4, 1024, 101, :), (2, 1, 4, 3))
+end
+
+dataset_name = "variable_source_yaxis_x=-10.0"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+## declaring hyperparameters
+activation = relu
+h_size = 256
+in_channels = 4
+nfreq = 500
 elements = 1024
+horizon = 1
+lr = 1f-4
+batchsize = 4 #32 ## shorter horizons can use large batchsize
+val_every = 20
+val_batches = val_every
+epochs = 10
+latent_gs = 100.0f0
+pml_width = 10.0f0
+pml_scale = 10000.0f0
+train_val_split = 0.90 ## choosing percentage of data for val
+data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial => false)
 latent_dim = OneDim(latent_gs, elements)
 dx = get_dx(latent_dim)
 
-dyn = gpu(SimpleWave(
-    build_gradient(latent_dim), 
-    WATER, 
-    build_dirichlet(latent_dim)))
+## loading environment and data
+@time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:5]
 
-iter = gpu(Integrator(runge_kutta, dyn, dt))
-t = build_tspan(0.0f0, dt, integration_steps)
-pinn_grid = gpu(build_pinn_grid(latent_dim, t))
+## spliting data
+idx = Int(round(length(data) * train_val_split))
+train_data, val_data = data[1:idx], data[idx+1:end]
 
-grad_x = gpu(Waves.gradient(latent_dim.x))
-grad_t = gpu(Waves.gradient(t))
+## preparing DataLoader(s)
+train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
+val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
+println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
-wave = gpu(zeros(Float32, elements, 2, 1))
-t = gpu(t[:, :])
+## contstruct
+base = build_cnn_base(env, in_channels, activation, h_size)
+head = build_pinn_wave_encoder_head(h_size, activation, nfreq, latent_dim)
+W = gpu(WaveEncoder(base, head))
+D = gpu(DesignEncoder(env, h_size, activation, nfreq, latent_dim))
+dyn = AcousticDynamics(latent_dim, WATER, 1.0f0, 10000.0f0)
+iter = gpu(Integrator(runge_kutta, dyn, env.dt))
 
-F = gpu(
-    Source(
-        build_normal(latent_dim.x, [0.0f0], [0.3f0], [1.0f0]),
-        1000.0f0)
-        )
-f = hcat([F(t[i, :]) for i in axes(t, 1)]...)
-
-z = iter(wave, t, F)
-u = z[:, 1, 1, :]
-v = z[:, 2, 1, :]
-energy = vec(sum(u .^ 2, dims = 1) * dx)
-
-h_size = 256
-activation = leakyrelu
-
-function main()
-    U = gpu(
+U = gpu(
         Chain(
-            Dense(2, h_size, activation),  
+            Dense(64 + 2, h_size, activation),  
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation), 
@@ -97,89 +125,102 @@ function main()
             Dense(h_size, h_size, activation), 
             Dense(h_size, h_size, activation),
             Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation),  
-            Dense(h_size, 2)))
-    
-    opt_state = Optimisers.setup(Optimisers.Adam(1f-3), U)
-    # opt_state = Optimisers.setup(Optimisers.Adam(1f-4), U)
+            Parallel(
+                vcat,
+                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1)),
+                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1)),
+                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1)),
+                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1))
+            )
+        )
+    )
 
-    for i in 1:5000
+R = gpu(build_compressor(8, h_size, activation, 64))
+s, a, t, y = gpu(Flux.batch.(first(train_loader)))
 
-        U_LOSS = nothing
-        V_LOSS = nothing
-        BOUNDARY_LOSS = nothing
-        IC_LOSS = nothing
-        ENERGY_LOSS = nothing
+tspan = build_tspan(0.0f0, env.dt, env.integration_steps)
+grid = gpu(build_pinn_grid(latent_dim, tspan))
+grad_x = gpu(Matrix{Float32}(Waves.gradient(latent_dim.x)))
+grad_t = gpu(Matrix{Float32}(Waves.gradient(tspan)))
+c0 = env.iter.dynamics.c0
+bc = gpu(build_dirichlet(latent_dim))[:, :]
 
-        loss, back = Flux.pullback(U) do _U
-            z_pinn = reshape(_U(pinn_grid), 2, elements, integration_steps + 1, :)
-            z_pinn = permutedims(z_pinn, (2, 1, 4, 3))[:, :, 1, :] # (space, fields, time)
-            u_pinn = z_pinn[:, 1, :]
-            v_pinn = z_pinn[:, 2, :]
+opt_state = Optimisers.setup(Optimisers.Adam(5f-4), (U, R, W, D))
 
-            u_t = (grad_t * u_pinn')' .* dyn.bc
-            N_u =  WATER * (grad_x * v_pinn) .* dyn.bc
-            v_t = (grad_t * v_pinn')'
-            N_v = WATER * (grad_x * (u_pinn .+ f))
+for i in 1:2000
 
-            energy_pinn = vec(sum(u_pinn .^ 2, dims = 1) * dx)
+    ENERGY_LOSS = nothing
+    PHYSICS_LOSS = nothing
 
-            u_loss = Flux.mse(u_t, N_u) / WATER
-            v_loss = Flux.mse(v_t, N_v) / WATER
-            boundary_loss = Flux.mean(u_pinn[1, :] .^ 2) + Flux.mean(u_pinn[end, :] .^ 2)
-            ic_loss = Flux.mse(z_pinn[:, :, 1], z[:, :, 1, 1])
-            energy_loss = Flux.mse(energy_pinn, energy)
+    loss, back = Flux.pullback((U, R, W, D)) do (_U, _R, _W, _D)
+        z = _W(s) ## initial conditions, force, pml
+        C = _D(s, a, t) ## interpolation of material properties
+        l = _R(hcat(z, Flux.unsqueeze(C(t[1, :]), 2), Flux.unsqueeze(C(t[end, :]), 2)))
+        pinn_input = vcat(repeat(Flux.unsqueeze(l, 2), 1, size(grid, 2), 1), repeat(grid, 1, 1, size(l, 2)))
+        pinn_sol = call_acoustic_wave_pinn(_U, pinn_input)
 
-            Flux.ignore() do
-                U_LOSS = u_loss
-                V_LOSS = v_loss
-                BOUNDARY_LOSS = boundary_loss
-                IC_LOSS = ic_loss
-                ENERGY_LOSS = energy_loss
-            end
+        F = Source(z[:, 5, :], env.source.freq)
+        pml = z[:, 6, :]
 
-            return u_loss + v_loss + 1.0f0 * (boundary_loss + 1000.0f0 * ic_loss + energy_loss)
+        physics_loss = compute_acoustic_wave_physics_loss(grad_x, grad_t, pinn_sol, c0, C, F, pml, bc, t)
+        ic_loss = Flux.mse(pinn_sol[:, :, :, 1], z[:, 1:4, :])
+        bc_loss = Flux.mean(pinn_sol[[1, end], [1, 3], :, :] .^ 2)
+
+        y_hat = compute_latent_energy(pinn_sol, dx)
+        energy_loss = Flux.mse(y_hat, y)
+        L_physics = 100.0f0 * c0 * (ic_loss + bc_loss) + physics_loss / c0
+
+        Flux.ignore() do
+            ENERGY_LOSS = energy_loss
+            PHYSICS_LOSS = L_physics
         end
 
-        println("u: $U_LOSS, v: $V_LOSS, b: $BOUNDARY_LOSS, ic: $IC_LOSS, energy: $ENERGY_LOSS")
-        gs = back(one(loss))[1]
-        opt_state, U = Optimisers.update(opt_state, U, gs)
+        # return energy_loss + 0.001f0 * L_physics
+        return energy_loss + 0.01f0 * L_physics
     end
-
-    return U
+    
+    println("$i: Energy Loss: $ENERGY_LOSS, Physics Loss: $PHYSICS_LOSS")
+    gs = back(one(loss))[1]
+    opt_state, (U, R, W, D) = Optimisers.update(opt_state, (U, R, W, D), gs)
 end
 
-U = main()
-
-z_pinn = reshape(U(pinn_grid), 2, elements, integration_steps + 1, :)
-z_pinn = permutedims(z_pinn, (2, 1, 4, 3))[:, :, 1, :] # (space, fields, time)
-u_pinn = z_pinn[:, 1, :]
-energy_pinn = vec(sum(u_pinn .^ 2, dims = 1) * dx)
+z = W(s)
+C = D(s, a, t)
+l = R(hcat(z, Flux.unsqueeze(C(t[1, :]), 2), Flux.unsqueeze(C(t[end, :]), 2)))
+pinn_input = vcat(repeat(Flux.unsqueeze(l, 2), 1, size(grid, 2), 1), repeat(grid, 1, 1, size(l, 2)))
+pinn_sol = call_acoustic_wave_pinn(U, pinn_input)
+y_hat = compute_latent_energy(pinn_sol, dx)
 
 fig = Figure()
 ax = Axis(fig[1, 1])
-lines!(ax, cpu(energy))
-lines!(ax, cpu(energy_pinn))
+lines!(ax, cpu(z[:, 5, 1]), label = "Force")
+ax = Axis(fig[2, 1])
+lines!(ax, cpu(z[:, 6, 1]), label = "PML")
+save("parameters.png", fig)
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, cpu(y[:, 1, 1]))
+lines!(ax, cpu(y_hat[:, 1, 1]))
+ax = Axis(fig[2, 1])
+lines!(ax, cpu(y[:, 2, 1]))
+lines!(ax, cpu(y_hat[:, 2, 1]))
+ax = Axis(fig[3, 1])
+lines!(ax, cpu(y[:, 3, 1]))
+lines!(ax, cpu(y_hat[:, 3, 1]))
 save("energy.png", fig)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-heatmap!(ax, cpu(u))
-ax = Axis(fig[1, 2])
-heatmap!(ax, cpu(u_pinn))
-save("sol.png", fig)
+pinn_tot = pinn_sol[:, 1, 1, :]
+pinn_inc = pinn_sol[:, 3, 1, :]
+pinn_sc = pinn_tot .- pinn_inc
 
 fig = Figure()
 ax = Axis(fig[1, 1])
 xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-ylims!(ax, -2.0f0, 2.0f0)
-record(fig, "vid.mp4", axes(u, 2)) do i
+ylims!(ax, -1.0f0, 1.0f0)
+record(fig, "vid.mp4", axes(tspan, 1)) do i
     empty!(ax)
-    lines!(ax, latent_dim.x, cpu(u[:, i]), color = :blue)
-    lines!(ax, latent_dim.x, cpu(u_pinn[:, i]), color = :orange)
+    lines!(ax, latent_dim.x, cpu(pinn_tot[:, i]), color = :blue)
+    lines!(ax, latent_dim.x, cpu(pinn_inc[:, i]), color = :orange)
+    lines!(ax, latent_dim.x, cpu(pinn_sc[:, i]), color = :green)
 end
-

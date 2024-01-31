@@ -12,26 +12,26 @@ function build_pinn_grid(latent_dim::OneDim, t::Vector{Float32})
     return reshape(pinn_grid, 2, :, 1)
 end
 
-function build_pinn_wave_encoder_head(h_size::Int, activation::Function, nfreq::Int, latent_dim::OneDim)
-    return Chain(
-        Parallel(
-            vcat,
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq))
-            ),
-        b -> reshape(b, nfreq, 6, :),
-        SinWaveEmbedder(latent_dim, nfreq),
-        x -> hcat(
-            x[:, [1], :],       # u_tot
-            x[:, [2], :],       # v_tot
-            x[:, [3], :],       # u_inc
-            x[:, [4], :],       # v_inc
-            x[:, [5], :],       # f
-            x[:, [6], :] .^ 2
-            )
-        )
-end
+# function build_pinn_wave_encoder_head(h_size::Int, activation::Function, nfreq::Int, latent_dim::OneDim)
+#     return Chain(
+#         Parallel(
+#             vcat,
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq))
+#             ),
+#         b -> reshape(b, nfreq, 6, :),
+#         SinWaveEmbedder(latent_dim, nfreq),
+#         x -> hcat(
+#             x[:, [1], :],       # u_tot
+#             x[:, [2], :],       # v_tot
+#             x[:, [3], :],       # u_inc
+#             x[:, [4], :],       # v_inc
+#             x[:, [5], :],       # f
+#             x[:, [6], :] .^ 2
+#             )
+#         )
+# end

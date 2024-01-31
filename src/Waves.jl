@@ -51,13 +51,14 @@ include("dynamics.jl")                      ## Defines the dynamics of the wave 
 include("env.jl")
 
 include("data.jl")
-# include("model.jl")
 
 include("model/layers.jl")
 include("model/design_encoder.jl")
 include("model/wave_encoder.jl")
 include("model/acoustic_energy_model.jl")
+## variants
+include("model/node.jl")
 include("model/pinn.jl")
-
+## plotting utilities
 include("plot.jl")
 end

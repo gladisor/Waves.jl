@@ -68,10 +68,6 @@ function compute_acoustic_wave_physics_loss(
         Flux.mse(v_inc_t, N_v_inc))
 end
 
-function call_acoustic_wave_pinn(U::Chain, grid::AbstractArray{Float32, 3})
-    return permutedims(reshape(U(grid), 4, 1024, 101, :), (2, 1, 4, 3))
-end
-
 dataset_name = "variable_source_yaxis_x=-10.0"
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
 ## declaring hyperparameters
@@ -107,120 +103,95 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 
-## contstruct
-base = build_cnn_base(env, in_channels, activation, h_size)
-head = build_pinn_wave_encoder_head(h_size, activation, nfreq, latent_dim)
-W = gpu(WaveEncoder(base, head))
-D = gpu(DesignEncoder(env, h_size, activation, nfreq, latent_dim))
-dyn = AcousticDynamics(latent_dim, WATER, 1.0f0, 10000.0f0)
-iter = gpu(Integrator(runge_kutta, dyn, env.dt))
-
-U = gpu(
-        Chain(
-            Dense(64 + 2, h_size, activation),  
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation), 
-            Dense(h_size, h_size, activation),
-            Dense(h_size, h_size, activation), 
-            Parallel(
-                vcat,
-                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1)),
-                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1)),
-                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1)),
-                Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, 1))
-            )
-        )
-    )
-
-R = gpu(build_compressor(8, h_size, activation, 64))
 s, a, t, y = gpu(Flux.batch.(first(train_loader)))
+W = WaveEncoder(env, 4, h_size, activation, nfreq, latent_dim)
+D = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
+R = build_compressor(8, h_size, activation, 64)
+U = build_wave_pinn(64 + 2, h_size, activation)
 
 tspan = build_tspan(0.0f0, env.dt, env.integration_steps)
-grid = gpu(build_pinn_grid(latent_dim, tspan))
-grad_x = gpu(Matrix{Float32}(Waves.gradient(latent_dim.x)))
-grad_t = gpu(Matrix{Float32}(Waves.gradient(tspan)))
-c0 = env.iter.dynamics.c0
-bc = gpu(build_dirichlet(latent_dim))[:, :]
+grid = build_pinn_grid(latent_dim, tspan)
+model = gpu(WaveControlPINN(W, D, R, U, grid, latent_dim, env.integration_steps + 1))
 
-opt_state = Optimisers.setup(Optimisers.Adam(5f-4), (U, R, W, D))
+pinn_sol = generate_latent_solution(model, s, a, t)
+# loss_func = WaveControlPINNLoss(env, latent_dim)
 
-for i in 1:2000
+# opt_state = Optimisers.setup(Optimisers.Adam(5f-4), (U, R, W, D))
 
-    ENERGY_LOSS = nothing
-    PHYSICS_LOSS = nothing
+# for i in 1:2000
 
-    loss, back = Flux.pullback((U, R, W, D)) do (_U, _R, _W, _D)
-        z = _W(s) ## initial conditions, force, pml
-        C = _D(s, a, t) ## interpolation of material properties
-        l = _R(hcat(z, Flux.unsqueeze(C(t[1, :]), 2), Flux.unsqueeze(C(t[end, :]), 2)))
-        pinn_input = vcat(repeat(Flux.unsqueeze(l, 2), 1, size(grid, 2), 1), repeat(grid, 1, 1, size(l, 2)))
-        pinn_sol = call_acoustic_wave_pinn(_U, pinn_input)
+#     ENERGY_LOSS = nothing
+#     PHYSICS_LOSS = nothing
 
-        F = Source(z[:, 5, :], env.source.freq)
-        pml = z[:, 6, :]
+#     loss, back = Flux.pullback((U, R, W, D)) do (_U, _R, _W, _D)
+#         z = _W(s) ## initial conditions, force, pml
+#         C = _D(s, a, t) ## interpolation of material properties
+#         l = _R(hcat(z, Flux.unsqueeze(C(t[1, :]), 2), Flux.unsqueeze(C(t[end, :]), 2)))
+#         pinn_input = vcat(repeat(Flux.unsqueeze(l, 2), 1, size(grid, 2), 1), repeat(grid, 1, 1, size(l, 2)))
+#         pinn_sol = call_acoustic_wave_pinn(_U, pinn_input)
 
-        physics_loss = compute_acoustic_wave_physics_loss(grad_x, grad_t, pinn_sol, c0, C, F, pml, bc, t)
-        ic_loss = Flux.mse(pinn_sol[:, :, :, 1], z[:, 1:4, :])
-        bc_loss = Flux.mean(pinn_sol[[1, end], [1, 3], :, :] .^ 2)
+#         F = Source(z[:, 5, :], env.source.freq)
+#         pml = z[:, 6, :]
 
-        y_hat = compute_latent_energy(pinn_sol, dx)
-        energy_loss = Flux.mse(y_hat, y)
-        L_physics = 100.0f0 * c0 * (ic_loss + bc_loss) + physics_loss / c0
+#         physics_loss = compute_acoustic_wave_physics_loss(grad_x, grad_t, pinn_sol, c0, C, F, pml, bc, t)
+#         ic_loss = Flux.mse(pinn_sol[:, :, :, 1], z[:, 1:4, :])
+#         bc_loss = Flux.mean(pinn_sol[[1, end], [1, 3], :, :] .^ 2)
 
-        Flux.ignore() do
-            ENERGY_LOSS = energy_loss
-            PHYSICS_LOSS = L_physics
-        end
+#         y_hat = compute_latent_energy(pinn_sol, dx)
+#         energy_loss = Flux.mse(y_hat, y)
+#         L_physics = 100.0f0 * c0 * (ic_loss + bc_loss) + physics_loss / c0
 
-        # return energy_loss + 0.001f0 * L_physics
-        return energy_loss + 0.01f0 * L_physics
-    end
+#         Flux.ignore() do
+#             ENERGY_LOSS = energy_loss
+#             PHYSICS_LOSS = L_physics
+#         end
+
+#         # return energy_loss + 0.001f0 * L_physics
+#         return energy_loss + 0.01f0 * L_physics
+#     end
     
-    println("$i: Energy Loss: $ENERGY_LOSS, Physics Loss: $PHYSICS_LOSS")
-    gs = back(one(loss))[1]
-    opt_state, (U, R, W, D) = Optimisers.update(opt_state, (U, R, W, D), gs)
-end
+#     println("$i: Energy Loss: $ENERGY_LOSS, Physics Loss: $PHYSICS_LOSS")
+#     gs = back(one(loss))[1]
+#     opt_state, (U, R, W, D) = Optimisers.update(opt_state, (U, R, W, D), gs)
+# end
 
-z = W(s)
-C = D(s, a, t)
-l = R(hcat(z, Flux.unsqueeze(C(t[1, :]), 2), Flux.unsqueeze(C(t[end, :]), 2)))
-pinn_input = vcat(repeat(Flux.unsqueeze(l, 2), 1, size(grid, 2), 1), repeat(grid, 1, 1, size(l, 2)))
-pinn_sol = call_acoustic_wave_pinn(U, pinn_input)
-y_hat = compute_latent_energy(pinn_sol, dx)
+# z = W(s)
+# C = D(s, a, t)
+# l = R(hcat(z, Flux.unsqueeze(C(t[1, :]), 2), Flux.unsqueeze(C(t[end, :]), 2)))
+# pinn_input = vcat(repeat(Flux.unsqueeze(l, 2), 1, size(grid, 2), 1), repeat(grid, 1, 1, size(l, 2)))
+# pinn_sol = call_acoustic_wave_pinn(U, pinn_input)
+# y_hat = compute_latent_energy(pinn_sol, dx)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, cpu(z[:, 5, 1]), label = "Force")
-ax = Axis(fig[2, 1])
-lines!(ax, cpu(z[:, 6, 1]), label = "PML")
-save("parameters.png", fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, cpu(z[:, 5, 1]), label = "Force")
+# ax = Axis(fig[2, 1])
+# lines!(ax, cpu(z[:, 6, 1]), label = "PML")
+# save("parameters.png", fig)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, cpu(y[:, 1, 1]))
-lines!(ax, cpu(y_hat[:, 1, 1]))
-ax = Axis(fig[2, 1])
-lines!(ax, cpu(y[:, 2, 1]))
-lines!(ax, cpu(y_hat[:, 2, 1]))
-ax = Axis(fig[3, 1])
-lines!(ax, cpu(y[:, 3, 1]))
-lines!(ax, cpu(y_hat[:, 3, 1]))
-save("energy.png", fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# lines!(ax, cpu(y[:, 1, 1]))
+# lines!(ax, cpu(y_hat[:, 1, 1]))
+# ax = Axis(fig[2, 1])
+# lines!(ax, cpu(y[:, 2, 1]))
+# lines!(ax, cpu(y_hat[:, 2, 1]))
+# ax = Axis(fig[3, 1])
+# lines!(ax, cpu(y[:, 3, 1]))
+# lines!(ax, cpu(y_hat[:, 3, 1]))
+# save("energy.png", fig)
 
-pinn_tot = pinn_sol[:, 1, 1, :]
-pinn_inc = pinn_sol[:, 3, 1, :]
-pinn_sc = pinn_tot .- pinn_inc
+# pinn_tot = pinn_sol[:, 1, 1, :]
+# pinn_inc = pinn_sol[:, 3, 1, :]
+# pinn_sc = pinn_tot .- pinn_inc
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-xlims!(ax, latent_dim.x[1], latent_dim.x[end])
-ylims!(ax, -1.0f0, 1.0f0)
-record(fig, "vid.mp4", axes(tspan, 1)) do i
-    empty!(ax)
-    lines!(ax, latent_dim.x, cpu(pinn_tot[:, i]), color = :blue)
-    lines!(ax, latent_dim.x, cpu(pinn_inc[:, i]), color = :orange)
-    lines!(ax, latent_dim.x, cpu(pinn_sc[:, i]), color = :green)
-end
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# xlims!(ax, latent_dim.x[1], latent_dim.x[end])
+# ylims!(ax, -1.0f0, 1.0f0)
+# record(fig, "vid.mp4", axes(tspan, 1)) do i
+#     empty!(ax)
+#     lines!(ax, latent_dim.x, cpu(pinn_tot[:, i]), color = :blue)
+#     lines!(ax, latent_dim.x, cpu(pinn_inc[:, i]), color = :orange)
+#     lines!(ax, latent_dim.x, cpu(pinn_sc[:, i]), color = :green)
+# end

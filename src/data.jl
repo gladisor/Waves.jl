@@ -9,13 +9,16 @@ end
 
 Base.length(ep::Episode) = length(ep.s)
 
-function generate_episode!(policy::AbstractPolicy, env::WaveEnv)
+function generate_episode!(policy::AbstractPolicy, env::WaveEnv; reset::Bool = true)
     s = WaveEnvState[]
     a = AbstractDesign[]
     t = Vector{Float32}[]
     y = Matrix{Float32}[]
 
-    reset!(env)
+    if reset
+        reset!(env)
+    end
+    
     while !is_terminated(env)
         push!(s, state(env))
         action = policy(env)

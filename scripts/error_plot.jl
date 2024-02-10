@@ -1,62 +1,52 @@
 using CairoMakie, BSON, Flux
-using Plots
+using Loess
 
-pml_error = BSON.load("variable_source_results/our_error.bson")
-node_error = BSON.load("variable_source_results/node_error.bson")
-
-# fig = Figure()
-# ax = Axis(fig[1, 1], xlabel = "Prediction Horizon (Actions)", ylabel = "Log of Prediction Error")
-# CairoMakie.scatter!(ax, pml_error[:horizon], log.(Flux.mean.(pml_error[:error])), label = "Ours (PML)")
-# # scatter!(ax, no_pml_error[:horizon], log.(Flux.mean.(no_pml_error[:error])), label = "Ours (No PML)")
-# CairoMakie.scatter!(ax, node_error[:horizon], log.(Flux.mean.(node_error[:error])), label = "NeuralODE")
-# axislegend(ax, position = :lt)
-# save("error.png", fig)
-
-
-
-
+pml_error = BSON.load("results/variable_source_results/our_error.bson")
+node_error = BSON.load("results/variable_source_results/node_error.bson")
+pinn_error = BSON.load("results/variable_source_results/pinn_error.bson")
 
 horizon = pml_error[:horizon]
 pml = pml_error[:error]
-# no_pml = no_pml_error[:error]
 node = node_error[:error]
+pinn = pinn_error[:error]
 
-scale_func = x -> x
-# scale_func = x -> log(x)
-pml_mean = scale_func.(Flux.mean.(pml))
-pml_std = scale_func.(Flux.std.(pml))
-pml_low = pml_mean .- pml_std
-pml_high = pml_mean .+ pml_std
+pml_mean = Flux.mean.(pml)
+pml_interp = loess(horizon, pml_mean)
+pml_mean_smooth = predict(pml_interp, horizon)
+pml_std = Flux.std.(pml)
+pml_low = pml_mean_smooth .- 1.92 * pml_std / sqrt(32)
+pml_high = pml_mean_smooth .+ 1.92 * pml_std / sqrt(32)
 
-# no_pml_mean = scale_func.(Flux.mean.(no_pml))
-# no_pml_std = scale_func.(Flux.std.(no_pml))
-# no_pml_low = no_pml_mean .- no_pml_std
-# no_pml_high = no_pml_mean .+ no_pml_std
+node_mean = Flux.mean.(node)
+node_interp = loess(horizon, node_mean)
+node_mean_smooth = predict(node_interp, horizon)
+node_std = Flux.std.(node)
+node_low = node_mean_smooth .- 1.92 * node_std / sqrt(32)
+node_high = node_mean_smooth .+ 1.92 * node_std / sqrt(32)
 
-node_mean = scale_func.(Flux.mean.(node))
-node_std = scale_func.(Flux.std.(node))
-node_low = node_mean .- node_std
-node_high = node_mean .+ node_std
+pinn_mean = Flux.mean.(pinn)
+pinn_interp = loess(horizon, pinn_mean)
+pinn_mean_smooth = predict(pinn_interp, horizon)
+pinn_std = Flux.std.(pinn)
+pinn_low = pinn_mean_smooth .- 1.92 * pinn_std / sqrt(32)
+pinn_high = pinn_mean_smooth .+ 1.92 * pinn_std / sqrt(32)
 
-alpha = 0.2
-fig = Figure()
+alpha = 0.1
+# fig = Figure(resolution = (1600, 1200), fontsize = 50)
+fig =  Figure()
 ax = Axis(fig[1, 1], 
     xlabel = "Prediction Horizon (Actions)", 
     ylabel = "Long-Term Prediction Error",
     title = "Effect of Increased Prediction Horizon on Error")
-# CairoMakie.ylims!(ax, -1.0, 300.0)
-
-# no_pml_color = :green
-# lines!(ax, horizon, no_pml_mean, color = no_pml_color, label = "Ours (No PML)")
-# band!(ax, horizon, no_pml_low, no_pml_high, color = (no_pml_color, alpha))
 
 node_color = :red
-lines!(ax, horizon, node_mean, color = node_color, label = "NeuralODE", linewidth = 3)
+lines!(ax, horizon, node_mean_smooth, color = node_color, label = "NODE", linewidth = 3)
 band!(ax, horizon, node_low, node_high, color = (node_color, alpha))
-
 pml_color = :green
-lines!(ax, horizon, pml_mean, color = pml_color, label = "Ours (PML)", linewidth = 3)
+lines!(ax, horizon, pml_mean_smooth, color = pml_color, label = "cPILS - Numerical Integration", linewidth = 3)
 band!(ax, horizon, pml_low, pml_high, color = (pml_color, alpha))
-
+pinn_color = :purple
+lines!(ax, horizon, pinn_mean_smooth, color = pinn_color, label = "cPILS - PINN", linewidth = 3)
+band!(ax, horizon, pinn_low, pinn_high, color = (pinn_color, alpha))
 axislegend(ax, position = :lt)
 save("error.png", fig)

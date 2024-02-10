@@ -2,13 +2,16 @@ export render!
 
 const FRAMES_PER_SECOND = 24
 
-function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.actions * 0.5f0; path::String)
+function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.actions * 0.5f0; path::String, reset::Bool = true)
     tspans = []
     interps = DesignInterpolator[]
     u_tots = []
     # u_incs = []
 
-    RLBase.reset!(env)
+    if reset
+        RLBase.reset!(env)
+    end
+    
     while !is_terminated(env)
         tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
         push!(tspans, tspan)

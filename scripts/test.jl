@@ -45,7 +45,7 @@ for i in 1:5
         (random_y_avg - mpc_y_avg) / random_y_avg)
 end
 
-bson("cPILS_percentage_decrease.bson"; :percentage_decrease => percentage_decrease)
+# bson("cPILS_percentage_decrease.bson"; :percentage_decrease => percentage_decrease)
 
 # fig = Figure()
 # ax = Axis(fig[1, 1])

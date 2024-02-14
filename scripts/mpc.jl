@@ -4,7 +4,7 @@ using Images: imresize
 using ReinforcementLearning
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(0)
 display(Flux.device())
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
@@ -51,67 +51,125 @@ function (mpc::RandomShooting)(env::WaveEnv)
     return a[1, idx]
 end
 
-random_ep1 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode495.bson")
-random_ep2 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode496.bson")
-random_ep3 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode497.bson")
-random_ep4 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode498.bson")
-random_ep5 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode499.bson")
-random_ep6 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode500.bson")
-_, _, t, y1 = prepare_data(random_ep1, length(random_ep1))
-_, _, _, y2 = prepare_data(random_ep2, length(random_ep2))
-_, _, _, y3 = prepare_data(random_ep3, length(random_ep3))
-_, _, _, y4 = prepare_data(random_ep4, length(random_ep4))
-_, _, _, y5 = prepare_data(random_ep5, length(random_ep5))
-_, _, _, y6 = prepare_data(random_ep6, length(random_ep6))
-y_random = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
-y_random = y_random[1]
-t = t[1]
+function compute_energy_cost(model::WaveControlPINN, s, a, t)
+    @time y_hat_1 = model(s[1:64], a[:, 1:64], t[:, 1:64])
+    @time y_hat_2 = model(s[65:128], a[:, 65:128], t[:, 65:128])
+    @time y_hat_3 = model(s[129:192], a[:, 129:192], t[:, 129:192])
+    @time y_hat_4 = model(s[193:end], a[:, 193:end], t[:, 193:end])
+    y_hat = vcat(y_hat_1, y_hat_2, y_hat_3, y_hat_4)
+    return vec(sum(y_hat[:, 3, :], dims = 1))
+end
 
-env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/env.bson")[:env])
-pml_checkpoint = 2300
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$pml_checkpoint/checkpoint.bson"
+dataset_name = "variable_source_yaxis_x=-10.0"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+@time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
+
+# MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/ours_balanced_field_scale/checkpoint_step=10040/checkpoint.bson"
+MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/wave_control_pinn_accumulate=8/checkpoint_step=80320/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
-
 policy = RandomDesignPolicy(action_space(env))
 
-## horizon = 100, shots = 32 works
-horizon = 20
-shots = 256
-println("Horizon = $horizon, Shots = $shots")
-alpha = 1.0
-mpc = RandomShooting(policy, model, horizon, shots, alpha)
-
 reset!(env)
-mpc_ep1 = generate_episode!(mpc, env)
-save(mpc_ep1, "pml_mpc_ep1_h=$(horizon)_shots=$(shots).bson")
-mpc_ep2 = generate_episode!(mpc, env)
-save(mpc_ep2, "pml_mpc_ep2_h=$(horizon)_shots=$(shots).bson")
-mpc_ep3 = generate_episode!(mpc, env)
-save(mpc_ep3, "pml_mpc_ep3_h=$(horizon)_shots=$(shots).bson")
-mpc_ep4 = generate_episode!(mpc, env)
-save(mpc_ep4, "pml_mpc_ep4_h=$(horizon)_shots=$(shots).bson")
-mpc_ep5 = generate_episode!(mpc, env)
-save(mpc_ep5, "pml_mpc_ep5_h=$(horizon)_shots=$(shots).bson")
-mpc_ep6 = generate_episode!(mpc, env)
-save(mpc_ep6, "pml_mpc_ep6_h=$(horizon)_shots=$(shots).bson")
 
-# mpc_ep1 = Episode(path = "mpc_ep1.bson")
-# _, _, _, y1 = prepare_data(mpc_ep1, env.actions)
-# y1 = y1[1]
-# _, _, _, y2 = prepare_data(mpc_ep2, env.actions)
-# y2 = y2[1]
-# _, _, _, y3 = prepare_data(mpc_ep3, env.actions)
-# y3 = y4[1]
-# _, _, _, y4 = prepare_data(mpc_ep4, env.actions)
-# y4 = y4[1]
-# _, _, _, y5 = prepare_data(mpc_ep5, env.actions)
-# y5 = y5[1]
-# _, _, _, y6 = prepare_data(mpc_ep6, env.actions)
-# y6 = y6[1]
-# y_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
+for i in 1:5
+    @time env(policy(env))
+end
 
-# fig = Figure()
-# ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
-# lines!(ax, t, y_random[:, 3], label = "Random Control")
-# lines!(ax, t, y_mpc[:, 3], label = "MPC")
-# save("mpc_comparison.png", fig)
+dim = cpu(env.dim)
+fig = Figure()
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+hidedecorations!(ax)
+hidespines!(ax)  
+hidexdecorations!(ax)
+hideydecorations!(ax)
+heatmap!(ax, dim.x, dim.y, cpu(env.wave[:, :, 1, end]), colormap = :ice, colorrange = (-0.5, 0.5))
+mesh!(ax, cpu(env.design))
+save("wave.png", fig)
+
+
+
+
+# dim = cpu(env.dim)
+# reset!(env)
+# env.source.shape = build_normal(env.source.grid, env.source.μ_high, env.source.σ, env.source.a) ## build normal distribution shape
+# for i in 1:15
+#     @time env(policy(env))
+# end
+# wave_1 = cpu(env.wave[:, :, 1, end])
+# design_1 = cpu(env.design)
+
+# reset!(env)
+# env.source.shape = build_normal(env.source.grid, (3 * env.source.μ_high .+ env.source.μ_low) / 4, env.source.σ, env.source.a) ## build normal distribution shape
+# for i in 1:15
+#     @time env(policy(env))
+# end
+# wave_2 = cpu(env.wave[:, :, 1, end])
+# design_2 = cpu(env.design)
+
+# reset!(env)
+# env.source.shape = build_normal(env.source.grid, (env.source.μ_high .+ 3 * env.source.μ_low) / 4, env.source.σ, env.source.a) ## build normal distribution shape
+# for i in 1:15
+#     @time env(policy(env))
+# end
+# wave_3 = cpu(env.wave[:, :, 1, end])
+# design_3 = cpu(env.design)
+
+# reset!(env)
+# env.source.shape = build_normal(env.source.grid, env.source.μ_low, env.source.σ, env.source.a) ## build normal distribution shape
+# for i in 1:15
+#     @time env(policy(env))
+# end
+# wave_4 = cpu(env.wave[:, :, 1, end])
+# design_4 = cpu(env.design)
+
+
+# fig = Figure(resolution = (600, 600))
+# ax1 = Axis(fig[1, 1], aspect = 1.0f0)
+# heatmap!(ax1, dim.x, dim.y, wave_1, colormap = :ice, colorrange = (-0.5f0, 0.5f0))
+# mesh!(ax1, design_1)
+
+# # ax2 = Axis(fig[1, 2], aspect = 1.0f0)
+# # heatmap!(ax2, dim.x, dim.y, wave_2, colormap = :ice, colorrange = (-1.0f0, 1.0f0))
+# # mesh!(ax2, design_2)
+
+# ax3 = Axis(fig[1, 2], aspect = 1.0f0)
+# heatmap!(ax3, dim.x, dim.y, wave_3, colormap = :ice, colorrange = (-0.5f0, 0.5f0))
+# mesh!(ax3, design_3)
+
+# # ax4 = Axis(fig[2, 2], aspect = 1.0f0)
+# # heatmap!(ax4, dim.x, dim.y, wave_4, colormap = :ice, colorrange = (-1.0f0, 1.0f0))
+# # mesh!(ax4, design_4)
+# fig.layout.default_colgap = Fixed(5.0f0)
+# fig.layout.default_rowgap = Fixed(5.0f0)
+# save("wave.png", fig)
+
+
+
+
+
+
+# # horizon = 10
+# # shots = 256
+# # alpha = 1.0
+# # mpc = RandomShooting(policy, model, horizon, shots, alpha)
+# # y_hat = mpc(env)
+
+# # delta_mu = (env.source.μ_high .- env.source.μ_low)
+# # x = gpu(collect(range(0.0f0, 1.0f0, 5)))
+# # mu = env.source.μ_low .+ delta_mu .* x
+
+# # for location in axes(mu, 1)
+# #     shape = build_normal(env.source.grid, mu[[location], :], env.source.σ, env.source.a)
+
+# #     for episode in 1:4
+# #         reset!(env)
+# #         env.source.shape = shape
+# #         mpc_ep = generate_episode!(mpc, env, reset = false)
+# #         # save(mpc_ep, "control_results/cPILS_location=$location,episode=$episode.bson")
+# #         save(mpc_ep, "control_results/PINC_location=$location,episode=$episode.bson")
+# #         # reset!(env)
+# #         # env.source.shape = shape
+# #         # random_ep = generate_episode!(policy, env, reset = false)
+# #         # save(random_ep, "control_results/random_location=$location,episode=$episode.bson")
+# #     end
+# # end

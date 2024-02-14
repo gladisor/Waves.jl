@@ -49,7 +49,7 @@ function NODEEnergyModel(env::WaveEnv, activation::Function, h_size::Int, nfreq:
     return NODEEnergyModel(wave_encoder, design_encoder, iter, params, get_dx(latent_dim))
 end
 
-function generate_latent_solution(model::NODEEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32})
+function Waves.generate_latent_solution(model::NODEEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z0 = Flux.unsqueeze(model.wave_encoder(s), 2)
     C = model.design_encoder(s, a, t)
     θ = [C, model.dynamics_params]

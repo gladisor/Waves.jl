@@ -1,58 +1,11 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
 using Images: imresize
+
+Flux.device!(0)
+display(Flux.device())
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-include("random_pos_gaussian_source.jl")
-
-function render_latent_solution!(dim::OneDim, t::Vector{Float32}, z::Array{Float32, 3}; path::String)
-    tot = z[:, 1, :]
-    inc = z[:, 3, :]
-    sc = tot .- inc
-
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    xlims!(ax, dim.x[1], dim.x[end])
-    ylims!(ax, -2.0f0, 2.0f0)
-    
-    record(fig, joinpath(path, "sc.mp4"), axes(t, 1)) do i
-        empty!(ax)
-        lines!(ax, dim.x, sc[:, i], color = :blue)
-    end
-end
-
-function make_plots(
-        model::AcousticEnergyModel, 
-        batch; path::String, samples::Int = 1)
-    s, a, t, y = batch
-
-    z = cpu(Waves.generate_latent_solution(model, s, a, t))
-    latent_dim = cpu(model.iter.dynamics.dim)
-    render_latent_solution!(latent_dim, cpu(t[:, 1]), z[:, :, 1, :], path = path)
-
-    z0, (C, F, PML) = Waves.get_parameters_and_initial_condition(model, s, a, t)
-
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, latent_dim.x, cpu(PML[:, 1]))
-    save(joinpath(path, "pml.png"), fig)
-
-    fig = Figure()
-    ax = Axis(fig[1, 1])
-    lines!(ax, latent_dim.x, cpu(F.shape[:, 1]))
-    save(joinpath(path, "force.png"), fig)
-
-    y_hat = cpu(model(s, a, t))
-    y = cpu(y)
-    for i in 1:min(length(s), samples)
-        tspan = cpu(t[:, i])
-        Waves.plot_predicted_energy(tspan, y[:, 1, i], y_hat[:, 1, i], title = "Total Energy", path = joinpath(path, "tot$i.png"))
-        Waves.plot_predicted_energy(tspan, y[:, 2, i], y_hat[:, 2, i], title = "Incident Energy", path = joinpath(path, "inc$i.png"))
-        Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, 3, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
-    end
-
-    return nothing
-end
 
 function energy_loss(model, s, a, t, y)
     return Flux.mse(model(s, a, t), y)
@@ -61,12 +14,11 @@ end
 """
 measures average loss on dataset
 """
-function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func = energy_loss)
+function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func)
     val_loss = []
 
     for (i, batch) in enumerate(val_loader)
         s, a, t, y = gpu(Flux.batch.(batch))
-        # @time loss = Flux.mse(model(s, a, t), y)
         @time loss = loss_func(model, s, a, t, y)
         push!(val_loss, loss)
         println("Val Batch: $i")
@@ -91,33 +43,53 @@ function plot_loss(metrics::Dict, val_every::Int; path::String)
     save(path, fig)
 end
 
+function compute_gradients(model, loss_func, s, a, t, y)
+    loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y), model)
+    gs = back(one(loss))[1]
+    return loss, gs
+end
+
 function train!(
-        model, #::AcousticEnergyModel, 
+        model,
         opt_state; 
+        loss_func,
+        accumulate::Int,
         train_loader::Flux.DataLoader, 
         val_loader::Flux.DataLoader, 
         val_every::Int, 
         val_batches::Int, 
+        val_samples::Int = 4,
         epochs::Int,
         path::String = "",
-        loss_func = energy_loss
         )
 
     step = 0
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
     train_loss_accumulator = Vector{Float32}()
 
+    ## perform an initial gradient computation
+    s, a, t, y = gpu(Flux.batch.(first(train_loader)))
+    @time _, gs = compute_gradients(model, loss_func, s, a, t, y)
+    gs_flat_accumulator, re = Flux.destructure(gs)
+    gs_flat_accumulator .*= 0.0f0
+
     for epoch in 1:epochs
         for batch in train_loader
             s, a, t, y = gpu(Flux.batch.(batch))
-            # loss, back = Flux.pullback(m -> Flux.mse(m(s, a, t), y), model)
-            loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y), model)
-            @time gs = back(one(loss))[1]
-            opt_state, model = Optimisers.update(opt_state, model, gs)
+            @time loss, gs = compute_gradients(model, loss_func, s, a, t, y)
+            gs_flat, _ = Flux.destructure(gs)
+            gs_flat_accumulator .+= gs_flat
+
+            if step % accumulate == 0
+                ∇ = re(gs_flat_accumulator ./ accumulate)
+                opt_state, model = Optimisers.update(opt_state, model, ∇)
+                gs_flat_accumulator .*= 0.0f0
+            end
+
             push!(train_loss_accumulator, loss)
             step += 1
 
-            if step % val_every == 0
+            if step % (val_every * accumulate) == 0
 
                 ## creating checkpoint directory
                 checkpoint_path = mkpath(joinpath(path, "checkpoint_step=$step"))
@@ -126,9 +98,7 @@ function train!(
                 BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model = cpu(model))
 
                 ## plot some predictions
-                make_plots(model, 
-                    gpu(Flux.batch.(first(val_loader))), 
-                    path = checkpoint_path, samples = 4)
+                make_plots(model, gpu(Flux.batch.(first(val_loader))), path = checkpoint_path, samples = val_samples)
 
                 ## run validation
                 @time val_loss = validate!(model, val_loader, val_batches, loss_func = loss_func)
@@ -148,11 +118,7 @@ function train!(
     return model, opt_state
 end
 
-Flux.device!(1)
-display(Flux.device())
-
 dataset_name = "variable_source_yaxis_x=-10.0"
-# dataset_name = "part2_variable_source_yaxis_x=-10.0"
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
 ## declaring hyperparameters
 activation = leakyrelu
@@ -160,9 +126,10 @@ h_size = 256
 in_channels = 4
 nfreq = 500
 elements = 1024
-horizon = 20
-lr = 1f-4# / 2.0f0 # 1f-4 for initial stage
-batchsize = 32 ## shorter horizons can use large batchsize
+horizon = 1 #20
+lr = 1f-4
+batchsize = 4 #32 ## shorter horizons can use large batchsize
+accumulate = 8
 val_every = 20
 val_batches = val_every
 epochs = 10
@@ -172,54 +139,37 @@ pml_scale = 10000.0f0
 train_val_split = 0.90 ## choosing percentage of data for val
 data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial => false)
 latent_dim = OneDim(latent_gs, elements)
-
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
 @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
-
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
-
 ## preparing DataLoader(s)
 train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kwargs...)
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-# @time model = gpu(AcousticEnergyModel(;env, h_size,in_channels,nfreq, pml_width, pml_scale, latent_dim))
-
-include("node.jl")
-model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
-s, a, t, y = gpu(Flux.batch.(first(train_loader)))
-
-# MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/horizon=20,lr=0.0001/checkpoint_step=6120/checkpoint.bson"
-# model = gpu(BSON.load(MODEL_PATH)[:model])
+# @time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
+# @time model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
+@time model = gpu(WaveControlPINN(;env, activation, h_size, nfreq, latent_dim))
+loss_func = gpu(WaveControlPINNLoss(env, latent_dim))
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
 
-# path = "models/transfer_horizon=$horizon,lr=$lr"
-path = "models/node_horizon=$horizon,lr=$lr"
+# ## sample data
+# s, a, t, y = gpu(Flux.batch.(first(train_loader)))
+
+path = "models/wave_control_pinn_accumulate=$accumulate"
 model, opt_state = @time train!(model, opt_state;
+    accumulate = accumulate,
     train_loader,
     val_loader, 
     val_every,
     val_batches,
     epochs,
     path = joinpath(DATA_PATH, path),
-    loss_func = node_loss
+    loss_func = loss_func
     )
 
-# node.wave_encoder(s)
-# C = node.design_encoder(s, a, t)
-# y_hat = cpu(node(s, a, t))
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# lines!(ax, y_hat[:, 1, 1])
-# lines!(ax, y_hat[:, 2, 1])
-# lines!(ax, y_hat[:, 3, 1])
-# save("node.png", fig)
 
-# loss, back = Flux.pullback(node) do m
-#     Flux.mse(m(s, a, t), y)
-# end
 
-# gs = back(one(loss))

@@ -5,8 +5,6 @@ using CairoMakie
 using BSON
 using Images: imresize
 
-include("random_pos_gaussian_source.jl")
-
 function build_rectangular_grid(nx::Int, ny::Int, r::Float32)
 
     x = []
@@ -32,33 +30,22 @@ function build_rectangular_grid_design_space()
     return DesignSpace(low, high)
 end
 
-Flux.device!(2)
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/"
-
+Flux.device!(0)
 dim = TwoDim(15.0f0, 700)
 μ_low = [-10.0f0 -10.0f0]
 μ_high = [-10.0f0 10.0f0]
 σ = [0.3f0]
 a = [1.0f0]
 
-# ## single pulse
-# μ = zeros(Float32, 1, 2)
-# μ[1, :] .= [-10.0f0, 0.0f0]
-# σ = [0.3f0]
-# a = [1.0f0]
-# pulse = build_normal(build_grid(dim), μ, σ, a)
-
-env = gpu(WaveEnv(dim; 
-    # design_space = build_rectangular_grid_design_space(),
-    design_space = Waves.build_triple_ring_design_space(),
-    # source = Source(pulse, 1000.0f0),
+env = gpu(WaveEnv(dim;
+    design_space = build_rectangular_grid_design_space(),
     source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
     integration_steps = 100,
-    actions = 200
+    actions = 20
     ))
 
 policy = RandomDesignPolicy(action_space(env))
-# render!(policy, env, path = "vid.mp4")
+render!(policy, env, path = "vid.mp4")
 
 # name =  "AdditionalDataset" *
 #         "$(typeof(env.iter.dynamics))_" *
@@ -70,12 +57,12 @@ policy = RandomDesignPolicy(action_space(env))
 #         "actionspeed=$(env.action_speed)_" *
 #         "resolution=$(env.resolution)"
 
-name = "part2_variable_source_yaxis_x=-10.0"
+# name = "part2_variable_source_yaxis_x=-10.0"
+# DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/"
+# path = mkpath(joinpath(DATA_PATH, name))
+# BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
 
-path = mkpath(joinpath(DATA_PATH, name))
-BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
-
-for i in 1:500
-    ep = generate_episode!(policy, env)
-    save(ep, joinpath(path, "episode$i.bson"))
-end
+# for i in 1:500
+#     ep = generate_episode!(policy, env)
+#     save(ep, joinpath(path, "episode$i.bson"))
+# end

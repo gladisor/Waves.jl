@@ -213,7 +213,6 @@ function (dyn::AcousticDynamics{OneDim})(x::AbstractArray, t::AbstractVector{Flo
     dU_inc = dyn.c0 * (∇ * V_inc) .- σ .* U_inc
     dV_inc = dyn.c0 * ∇ * (U_inc .+ f) .- σ .* V_inc
 
-
     return hcat(
         Flux.unsqueeze(dU_tot, 2) .* dyn.bc,
         Flux.unsqueeze(dV_tot, 2),

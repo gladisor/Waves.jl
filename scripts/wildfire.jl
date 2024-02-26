@@ -1,133 +1,68 @@
 using Waves, Flux, CairoMakie
 
-function δ⁺(T, Tp, X_methane, X_oxygen, X_methane_e, X_oxygen_e)
-    return (T .> Tp) .& (X_methane .> X_methane_e) .& (X_oxygen .> X_oxygen_e)
-    # return (T .> Tp) .|| (X_methane .> X_methane_e) .|| (X_oxygen .> X_oxygen_e)
+function δ⁺(T::AbstractArray{Float32}, T_ign::Float32, X₁₂::AbstractArray{Float32}, X₁₂ₑ::AbstractArray{Float32})
+    has_fuel_or_oxidizer = (X₁₂ .> X₁₂ₑ)
+    return (T .> T_ign) .| (has_fuel_or_oxidizer[:, :, 1] .& has_fuel_or_oxidizer[:, :, 2])
 end
 
-## order = (methane, oxygen, carbon_dioxide, nitrogen)
-θ_i =   [1.0f0,     2.0f0,      1.0f0,      2.0f0,      0.0f0]
-M_i =   [16.04f0,   32.00f0,    44.01f0,    18.02f0,    28.02f0]
-cp_i =  [2.226f0,   0.981f0,    0.839f0,    4.1816f0,   1.040f0] * 1000.0f0
-H_i =   [-74.81f0,  0.0f0,      -393.509,   -241.818,   0.0f0] * 1000.0f0
-
-Base.@kwdef struct Wildfire <: AbstractDynamics
-    grad::AbstractMatrix{Float32}
-
-    T_amb = 298.15f0
-    T_ign = 573.00f0
-    Ar = 4.14f-5
-    ρ = 1.2172f0
-    k = 0.10f0
-    Ca = 0.0600f0
-    σ = 5.6704f-8
-    ϵ = 0.55f0
-
-    θ_i = permutedims(θ_i[:, :, :], (2, 3, 1))
-    M_i = permutedims(M_i[:, :, :], (2, 3, 1))
-    cp_i = permutedims(cp_i[:, :, :], (2, 3, 1))
-    H_i = permutedims(H_i[:, :, :], (2, 3, 1))
+function unsqueeze_vec_2d(x::AbstractVector)
+    return permutedims(x[:, :, :], (2, 3, 1))
 end
 
-Flux.@functor Wildfire
-
-function (dyn::Wildfire)(x::AbstractArray{Float32}, t::AbstractVector{Float32}, θ)
-
-    T = x[:, :, 1]
-    X_i = x[:, :, 2:end]
-
-    θ_i = dyn.θ_i
-    M_i = dyn.M_i
-    cp_i = dyn.cp_i
-    H_i = dyn.H_i
-
-    grad = dyn.grad
-    T_amb, T_ign = dyn.T_amb, dyn.T_ign
-    X_methane_e = 0.01f0
-    X_oxygen_e = 0.01f0
-
-    Ar = dyn.Ar
-    ρ = dyn.ρ
-    k = dyn.k
-    Ca = dyn.Ca
-    σ = dyn.σ
-    ϵ = dyn.ϵ
-
-    M = dropdims(sum(X_i .* M_i, dims = 3), dims = 3)
-    cp = dropdims(sum(X_i .* M_i .* cp_i, dims = 3), dims = 3) ./ M
-    hc = dropdims(sum(θ_i .* (H_i .+ M_i .* cp_i .* (T_amb .- T)[:, :, :]), dims = 3), dims = 3) ./ M
-
-    burn = δ⁺(T, T_ign, X_i[:, :, 1], X_i[:, :, 2], X_methane_e, X_oxygen_e)
-    r = -burn * Ar .* T .* sqrt.(X_i[:, :, 1]) .* X_i[:, :, 2] .* exp.(-T_ign  ./ T)
-    combustion = - ρ * hc .* M ./ M_i[:, :, 1] .* r
-    thermal_diffusion = k * ∂x(grad, (1.0f0 ./ cp .* ∂x(grad, cp .* T))) .+ k * ∂y(grad, (1.0f0 ./ cp .* ∂y(grad, cp .* T)))
-    enthalpy_diffusion = k * ∂x(grad, (1.0f0 ./ cp .* ∂x(grad, hc))) .+ k * ∂y(grad, (1.0f0 ./ cp .* ∂y(grad, hc)))
-    vertical_convection = Ca * (T_amb .- T)
-    radiation = σ * ϵ * (4*∂x(grad, T.^ 3 .* ∂x(grad, T))*dx .+ 4*∂y(grad, T.^3 .* ∂y(grad, T))*dy)
-    vertical_radiation = σ * ϵ * (T_amb ^ 4 .- T .^ 4)
-    
-    ∂T_∂t = (combustion .+ thermal_diffusion .+ enthalpy_diffusion .+ vertical_convection .+ radiation .+ vertical_radiation) ./ (ρ .* cp)
-
-    ∂X_methane_∂t =         ( (θ_i[:, :, 1] ./ θ_i[:, :, 1]) .* M ./ M_i[:, :, 1]) .* r
-    ∂X_oxygen_∂t =          ( (θ_i[:, :, 2] ./ θ_i[:, :, 1]) .* M ./ M_i[:, :, 1]) .* r
-    ∂X_carbon_dioxide_∂t =  (-(θ_i[:, :, 3] ./ θ_i[:, :, 1]) .* M ./ M_i[:, :, 1]) .* r
-    ∂X_water_∂t =           (-(θ_i[:, :, 4] ./ θ_i[:, :, 1]) .* M ./ M_i[:, :, 1]) .* r
-
-    return cat(
-        ∂T_∂t,
-        ∂X_methane_∂t,
-        ∂X_oxygen_∂t,
-        ∂X_carbon_dioxide_∂t,
-        ∂X_water_∂t,
-        X_i[:, :, end] .* 0.0f0,
-        dims = 3
-    )
+function heat_capacity(coefs::AbstractVector{Float32}, T::AbstractMatrix{Float32})
+    T̃ = cat([T .^ i for i in 0:(length(coefs)-1)]..., dims = ndims(T) + 1)
+    return dropdims(sum(permutedims(coefs[:, :, :], (2, 3, 1)) .* T̃, dims = 3), dims =  3)
 end
 
 Flux.device!(0)
 Flux.CUDA.allowscalar(false)
 
-dim = TwoDim(25.0f0, 512)
+## defining parameters
+ρ = 1.2172f0
+cₕ = 0.803f0
+Aᵣ = 4.154f-5
+k = 0.255f0
+δ_x = 2.89f-2
+δ_z = 1.91f0
+χ = 2.16f-2
+T_amb = 298.15f0
+T_ign = 431.60f0
+
+CH4_a = [5.14987613f0, -1.36709788f-2, 4.9100599f-5, -4.84743026f-8, 1.66693956f-11]
+O2_a  = [3.78246636f0, -2.99673415f-3, 9.84730200f-6, -9.68129608f-9, 3.24372836f-12]
+CO2_a = [2.35677352f0, 8.98459677f-3, -7.12356269f-6, 2.45919022f-9, -1.43699548f-13]
+H2O_a = [4.19864056f0, -2.03643410f-3, 6.52040211f-6, -5.48797062f-9, 1.77197817f-12]
+N2_a  = [3.53100528f0, -1.23660987f-4, -5.02999437f-7, 2.43530612f-9, -1.40881235f-12]
+
+θ_i =   unsqueeze_vec_2d([1.0f0,     2.0f0,      1.0f0,      2.0f0,      0.0f0])
+M_i =   unsqueeze_vec_2d([16.04f0,   32.00f0,    44.01f0,    18.02f0,    28.02f0])
+mf_0 = unsqueeze_vec_2d([0.1f0, 0.2016f0, 0.0129f0, 0.0108f0, 0.6747f0])
+X₁₂ₑ = unsqueeze_vec_2d([0.01f0, 0.01f0])
+
+
+## defining space
+dim = TwoDim(100.0f0, 512)
 dx = get_dx(dim)
 dy = get_dy(dim)
+grid = build_grid(dim)
+fire_centers = [0.0f0   0.0f0; 10.0f0 -10.0f0]
+num_centers = size(fire_centers, 1)
 
-dyn = gpu(Wildfire(grad = build_gradient(dim)))
 
-ign = build_normal(build_grid(dim), [0.0f0 0.0f0; 10.0f0 -10.0f0], [1.0f0, 1.0f0], [7.0f0, 7.0f0])
-T = ones(Float32, size(dim)...) * dyn.T_amb .+ ign * dyn.T_ign
-X = ones(Float32, size(dim)...)
-X_methane = X * 0.10f0
-X_oxygen = X * 0.25f0
-X_carbon_dioxide = X * 0.04f0
-X_water = X * 0.01f0
-X_nitrogen = X * 0.60f0
+## initial conditions
+T = build_normal(grid, fire_centers, fill(1.0f0, num_centers), fill(1.0f0, num_centers))
+T = T_amb .+ T .* (T_ign .+ 300.0f0) ./ maximum(T)
+X_i = ones(Float32, size(dim)..., length(mf_0)) .* mf_0
 
-X_i = cat(X_methane, X_oxygen, X_carbon_dioxide, X_water, X_nitrogen, dims = 3)
-x = gpu(cat(T, X_i, dims = 3))
+M̄ = dropdims(sum(X_i .* M_i, dims = 3), dims = 3)
+cp_i = cat(heat_capacity(CH4_a, T), heat_capacity(O2_a, T), heat_capacity(CO2_a, T), heat_capacity(H2O_a, T), heat_capacity(N2_a, T), dims = 3)
+cp = dropdims(sum((X_i .* M_i .* cp_i) ./ M̄, dims = 3), dims = 3)
+r = -δ⁺(T, T_ign, X_i[:, :, 1:2], X₁₂ₑ) * Aᵣ .* T .* sqrt.(X_i[:, :, 1]) .* X_i[:, :, 2] .* exp.(- T_ign ./ T)
 
-# dt = 0.25f0
-dt = 0.25f0
-tspan = build_tspan(0.0f0, dt, 1000)
 
-iter = gpu(Integrator(runge_kutta, dyn, dt))
-@time sol = cpu(iter(x, tspan, nothing))
 
 fig = Figure()
-ax = Axis(fig[1, 1], aspect = 1.0)
-record(fig, "vid.mp4", axes(tspan, 1)) do i
-    empty!(ax)
-    heatmap!(ax, dim.x, dim.y, sol[:, :, 1, i])
-end
-
-
-# # # fig = Figure()
-# # # ax = Axis(fig[1, 1], aspect = 1.0)
-# # # hm = heatmap!(ax, dim.x, dim.y, sol[:, :, 1, 1])
-# # # Colorbar(fig[1, 2], hm)
-# # # ax = Axis(fig[1, 3], aspect = 1.0)
-# # # hm = heatmap!(ax, dim.x, dim.y, sol[:, :, 1, end÷2])
-# # # Colorbar(fig[1, 4], hm)
-# # # ax = Axis(fig[1, 5], aspect = 1.0)
-# # # hm = heatmap!(ax, dim.x, dim.y, sol[:, :, 1, end])
-# # # Colorbar(fig[1, 6], hm)
-# # # save("wildfire.png", fig)
+ax = Axis(fig[1, 1], aspect = 1.0f0)
+hm = heatmap!(ax, dim.x, dim.y, r)
+Colorbar(fig[1, 2], hm)
+save("wildfire.png", fig)

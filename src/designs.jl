@@ -111,7 +111,7 @@ function speed(cyls::Cylinders, grid::AbstractArray{Float32, 3}, ambient_speed::
     mask = location_mask(cyls, grid)
     ambient_mask = dropdims(sum(mask, dims = 3), dims = 3) .== 0
     C0 = ambient_mask * ambient_speed
-    C_design = dropdims(sum(mask .* reshape(cyls.c, 1, 1, length(cyls)), dims = 3), dims = 3)
+    C_design = dropdims(sum(mask .* reshape(cyls.c, 1, 1, length(cyls)), dims = 3), dims = 3) ./ length(cyls)
     return C0 .+ C_design
 end
 

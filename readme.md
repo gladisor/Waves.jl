@@ -18,9 +18,9 @@ Here the physically informed latent space of our model is shown at the same time
 
 ## Usage
 
-First import the package and Flux:
+First import the package and some dependencies:
 ```
-using Waves, Flux
+using Waves, Flux, ReinforcementLearning
 ```
 
 The environment can be instantiated through its constructor. However several precursor components must be defined.
@@ -47,4 +47,10 @@ source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0
 Finally the environment is built and sent to the gpu:
 ```
 env = gpu(WaveEnv(dim; design_space, source, integration_steps = 100, actions = 20))
+```
+
+The environment can be visualized with the following code:
+```
+policy = RandomDesignPolicy(action_space(env))
+render!(policy, env, path = "vid.mp4")
 ```

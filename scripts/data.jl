@@ -37,8 +37,18 @@ dim = TwoDim(15.0f0, 700)
 σ = [0.3f0]
 a = [1.0f0]
 
+function Base.rand(space::DesignSpace{NoDesign})
+    return NoDesign()
+end
+
+function Waves.build_action_space(design::NoDesign, scale::Float32)
+    return DesignSpace(NoDesign(), NoDesign())
+end
+
 env = gpu(WaveEnv(dim;
-    design_space = build_rectangular_grid_design_space(),
+    # design_space = build_rectangular_grid_design_space(),
+    design_space = Waves.build_triple_ring_design_space(),
+    # design_space = DesignSpace(NoDesign(), NoDesign()),
     source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
     integration_steps = 100,
     actions = 20

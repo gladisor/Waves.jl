@@ -2,6 +2,7 @@ using Waves, CairoMakie, Flux, BSON
 using Optimisers
 using Images: imresize
 using ReinforcementLearning
+using Interpolations: linear_interpolation
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 Flux.device!(0)
@@ -60,99 +61,181 @@ function compute_energy_cost(model::WaveControlPINN, s, a, t)
     return vec(sum(y_hat[:, 3, :], dims = 1))
 end
 
+
+function build_interpolator(
+        policy::AbstractPolicy,
+        env::WaveEnv;
+        reset::Bool = true, 
+        field::Symbol = :tot)
+
+    @assert field ∈ [:tot, :inc, :sc]
+
+    tspans = []
+    interps = DesignInterpolator[]
+
+    x = []
+    σ = []
+
+    if reset
+        RLBase.reset!(env)
+    end
+
+    while !is_terminated(env)
+        tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
+
+        push!(tspans, tspan)
+        push!(interps, interp)
+
+        if field == :tot
+            push!(x, u_tot)
+        elseif field == :inc
+            push!(x, u_inc)
+        elseif field == :sc
+            push!(x, u_tot .- u_inc)
+        end
+
+        push!(σ, cpu(env.signal))
+
+        println(env.time_step)
+    end
+
+    tspan = flatten_repeated_last_dim(hcat(tspans...))
+
+    x = flatten_repeated_last_dim(cat(x..., dims = 4))
+    x = linear_interpolation(tspan, Flux.unbatch(x))
+
+    return x, interps, σ
+end
+
+
+
 dataset_name = "variable_source_yaxis_x=-10.0"
 DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
 @time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
+dim = cpu(env.dim)
 
-# MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/ours_balanced_field_scale/checkpoint_step=10040/checkpoint.bson"
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/wave_control_pinn_accumulate=8/checkpoint_step=80320/checkpoint.bson"
+MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/ours_balanced_field_scale/checkpoint_step=10040/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
-reset!(env)
 
-for i in 1:5
-    @time env(policy(env))
+horizon = 5 #10
+shots = 256
+alpha = 1.0
+mpc = RandomShooting(policy, model, horizon, shots, alpha)
+
+env.actions = 100
+
+reset!(env)
+shape = env.source.shape
+x_mpc, interps_mpc, σ_mpc = build_interpolator(mpc, env, reset = false, field = :sc)
+
+reset!(env)
+env.source.shape = shape
+x_random, interps_random, σ_random = build_interpolator(policy, env, reset = false, field = :sc)
+
+mpc_signal = flatten_repeated_last_dim(cat(transpose.(σ_mpc)..., dims = 3))
+random_signal = flatten_repeated_last_dim(cat(transpose.(σ_random)..., dims = 3))
+
+
+t = build_tspan(0.0f0, env.dt, env.actions * env.integration_steps)
+seconds = 40.0
+frames = Int(round(Waves.FRAMES_PER_SECOND * seconds))
+tspan = collect(range(t[1], t[end], frames))
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control (Red)", xlabel = "Space (m)", ylabel = "Space (m)")
+ax2 = Axis(fig[2, 1], aspect = 1.0, title = "MPC (Green)", xlabel = "Space (m)", ylabel = "Space (m)")
+ax3 = Axis(fig[1:2, 2], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
+xlims!(ax3, t[1], t[end])
+ylims!(ax3, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
+
+record(fig, "mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    println(i)
+    empty!(ax1)
+    heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
+    empty!(ax2)
+    heatmap!(ax2, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax2, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
+
+    idx = findfirst(tspan[i] .<= t)[1]
+    empty!(ax3)
+    lines!(ax3, t[1:idx], mpc_signal[3, 1:idx], color = :green)
+    lines!(ax3, t[1:idx], random_signal[3, 1:idx], color = :red)
 end
 
-dim = cpu(env.dim)
+
 fig = Figure()
-ax = Axis(fig[1, 1], aspect = 1.0f0)
-hidedecorations!(ax)
-hidespines!(ax)  
-hidexdecorations!(ax)
-hideydecorations!(ax)
-heatmap!(ax, dim.x, dim.y, cpu(env.wave[:, :, 1, end]), colormap = :ice, colorrange = (-0.5, 0.5))
-mesh!(ax, cpu(env.design))
-save("wave.png", fig)
+ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control", xlabel = "Space (m)", ylabel = "Space (m)")
+record(fig, "actions=100_random_control.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    println(i)
+    empty!(ax1)
+    heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
+end
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], aspect = 1.0, title = "MPC", xlabel = "Space (m)", ylabel = "Space (m)")
+record(fig, "actions=100_mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    println(i)
+    empty!(ax1)
+    heatmap!(ax1, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax1, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
+end
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
+xlims!(ax1, t[1], t[end])
+ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
+record(fig, "actions=100_scattered_energy.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    idx = findfirst(tspan[i] .<= t)[1]
+    empty!(ax1)
+    lines!(ax1, t[1:idx], mpc_signal[3, 1:idx], color = :green)
+    lines!(ax1, t[1:idx], random_signal[3, 1:idx], color = :red)
+end
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
+xlims!(ax1, t[1], t[end])
+ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
+empty!(ax1)
+lines!(ax1, vec(t), mpc_signal[3, :], color = :green, label = "MPC")
+lines!(ax1, vec(t), random_signal[3, :], color = :red, label = "Random Control")
+axislegend(ax1)
+save("actions=100_scattered_energy.png", fig)
 
 
 
 
-# dim = cpu(env.dim)
+# mpc_signal = render!(mpc, env, path = "mpc.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
+# mpc_signal = flatten_repeated_last_dim(cat(transpose.(mpc_signal)..., dims = 3))
 # reset!(env)
-# env.source.shape = build_normal(env.source.grid, env.source.μ_high, env.source.σ, env.source.a) ## build normal distribution shape
-# for i in 1:15
-#     @time env(policy(env))
-# end
-# wave_1 = cpu(env.wave[:, :, 1, end])
-# design_1 = cpu(env.design)
+# env.source.shape = shape
+# random_signal = render!(policy, env, path = "random.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
+# random_signal = flatten_repeated_last_dim(cat(transpose.(random_signal)..., dims = 3))
 
-# reset!(env)
-# env.source.shape = build_normal(env.source.grid, (3 * env.source.μ_high .+ env.source.μ_low) / 4, env.source.σ, env.source.a) ## build normal distribution shape
-# for i in 1:15
-#     @time env(policy(env))
-# end
-# wave_2 = cpu(env.wave[:, :, 1, end])
-# design_2 = cpu(env.design)
+# tspan = build_tspan(0.0f0, env.dt, size(mpc_signal, 2)-1)
 
-# reset!(env)
-# env.source.shape = build_normal(env.source.grid, (env.source.μ_high .+ 3 * env.source.μ_low) / 4, env.source.σ, env.source.a) ## build normal distribution shape
-# for i in 1:15
-#     @time env(policy(env))
-# end
-# wave_3 = cpu(env.wave[:, :, 1, end])
-# design_3 = cpu(env.design)
-
-# reset!(env)
-# env.source.shape = build_normal(env.source.grid, env.source.μ_low, env.source.σ, env.source.a) ## build normal distribution shape
-# for i in 1:15
-#     @time env(policy(env))
-# end
-# wave_4 = cpu(env.wave[:, :, 1, end])
-# design_4 = cpu(env.design)
-
-
-# fig = Figure(resolution = (600, 600))
-# ax1 = Axis(fig[1, 1], aspect = 1.0f0)
-# heatmap!(ax1, dim.x, dim.y, wave_1, colormap = :ice, colorrange = (-0.5f0, 0.5f0))
-# mesh!(ax1, design_1)
-
-# # ax2 = Axis(fig[1, 2], aspect = 1.0f0)
-# # heatmap!(ax2, dim.x, dim.y, wave_2, colormap = :ice, colorrange = (-1.0f0, 1.0f0))
-# # mesh!(ax2, design_2)
-
-# ax3 = Axis(fig[1, 2], aspect = 1.0f0)
-# heatmap!(ax3, dim.x, dim.y, wave_3, colormap = :ice, colorrange = (-0.5f0, 0.5f0))
-# mesh!(ax3, design_3)
-
-# # ax4 = Axis(fig[2, 2], aspect = 1.0f0)
-# # heatmap!(ax4, dim.x, dim.y, wave_4, colormap = :ice, colorrange = (-1.0f0, 1.0f0))
-# # mesh!(ax4, design_4)
-# fig.layout.default_colgap = Fixed(5.0f0)
-# fig.layout.default_rowgap = Fixed(5.0f0)
-# save("wave.png", fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1], title = "Scattered Energy In Response to Actuation (50 actions)", xlabel = "Time (s)", ylabel = "Scattered Energy")
+# lines!(ax, tspan, mpc_signal[3, :], label = "MPC", color = :green)
+# lines!(ax, tspan, random_signal[3, :], label = "Random", color = :red)
+# axislegend(ax, position = :rb)
+# save("signals.png", fig)
 
 
 
 
 
 
-# # horizon = 10
-# # shots = 256
-# # alpha = 1.0
-# # mpc = RandomShooting(policy, model, horizon, shots, alpha)
-# # y_hat = mpc(env)
+
+
+
+
+
+
+
 
 # # delta_mu = (env.source.μ_high .- env.source.μ_low)
 # # x = gpu(collect(range(0.0f0, 1.0f0, 5)))

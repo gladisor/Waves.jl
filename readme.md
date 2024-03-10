@@ -5,5 +5,5 @@ This package implements a "gym" like environment for exploring interaction betwe
 ## Demo
 
 <p align="center">
-	<img src="https://github.com/gladisor/Waves.jl/blob/wildfire/images/mpc.gif" width="300">
+	<img src="https://github.com/gladisor/Waves.jl/blob/wildfire/images/mpc.gif">
 </p>

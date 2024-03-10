@@ -4,6 +4,8 @@ This package implements a "gym" like environment for exploring interaction betwe
 
 ## Demo
 
+This video shows a model predictive controller manipulating a design to surpress scattered energy in the environment.
+
 <p align="center">
 	<img src="https://github.com/gladisor/Waves.jl/blob/wildfire/images/mpc.gif">
 </p>

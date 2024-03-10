@@ -4,6 +4,6 @@ This package implements a "gym" like environment for exploring interaction betwe
 
 ## Demo
 
-<!-- <p align="center">
-	<img src="https://github.com/gladisor/TSCSProject/blob/master/images/ddpg4cyl0.45-0.35-8000decay.gif" width="300">
-</p> -->
+<p align="center">
+	<img src="https://github.com/gladisor/Waves.jl/blob/wildfire/images/mpc.gif" width="300">
+</p>

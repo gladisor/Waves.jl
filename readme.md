@@ -7,3 +7,7 @@ This package implements a "gym" like environment for exploring interaction betwe
 <p align="center">
 	<img src="https://github.com/gladisor/Waves.jl/blob/wildfire/images/mpc.gif">
 </p>
+
+<p align="center">
+	<img src="https://github.com/gladisor/Waves.jl/blob/wildfire/images/dashboard.gif">
+</p>

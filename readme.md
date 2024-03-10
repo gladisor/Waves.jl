@@ -46,5 +46,5 @@ source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0
 
 Finally the environment is built and sent to the gpu:
 ```
-env = gpu(sWaveEnv(dim; design_space, source, integration_steps = 100, actions = 20))
+env = gpu(WaveEnv(dim; design_space, source, integration_steps = 100, actions = 20))
 ```

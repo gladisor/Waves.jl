@@ -2,11 +2,20 @@ export render!
 
 const FRAMES_PER_SECOND = 24
 
-function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.actions * 0.5f0; path::String, reset::Bool = true)
+function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.actions * 0.5f0; 
+        path::String, 
+        bound::Float32 = 1.0f0,
+        reset::Bool = true, 
+        energy::Bool = false,
+        field::Symbol = :tot)
+
+    @assert field ∈ [:tot, :inc, :sc]
+
     tspans = []
     interps = DesignInterpolator[]
-    u_tots = []
-    # u_incs = []
+
+    x = []
+    σ = []
 
     if reset
         RLBase.reset!(env)
@@ -16,15 +25,24 @@ function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.ac
         tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
         push!(tspans, tspan)
         push!(interps, interp)
-        push!(u_tots, u_tot)
-        # push!(u_incs, u_inc)
+
+        if field == :tot
+            push!(x, u_tot)
+        elseif field == :inc
+            push!(x, u_inc)
+        elseif field == :sc
+            push!(x, u_tot .- u_inc)
+        end
+
+        push!(σ, cpu(env.signal))
+
         println(env.time_step)
     end
 
     tspan = flatten_repeated_last_dim(hcat(tspans...))
 
-    u_tot = flatten_repeated_last_dim(cat(u_tots..., dims = 4))
-    u_tot = linear_interpolation(tspan, Flux.unbatch(u_tot))
+    x = flatten_repeated_last_dim(cat(x..., dims = 4))
+    x = linear_interpolation(tspan, Flux.unbatch(x))
 
     frames = Int(round(FRAMES_PER_SECOND * seconds))
     tspan = range(tspan[1], tspan[end], frames)
@@ -35,10 +53,16 @@ function render!(policy::AbstractPolicy, env::WaveEnv, seconds::Float32 = env.ac
     dim = cpu(env.dim)
     @time record(fig, path, tspan, framerate = FRAMES_PER_SECOND) do t
         empty!(ax1)
-        heatmap!(ax1, dim.x, dim.y, u_tot(t), colormap = :ice, colorrange = (-1.0f0, 1.0f0))
+
+        if energy
+            heatmap!(ax1, dim.x, dim.y, x(t) .^ 2, colormap = :ice, colorrange = (0.0f0, bound))
+        else
+            heatmap!(ax1, dim.x, dim.y, x(t), colormap = :ice, colorrange = (-bound, bound))
+        end
         mesh!(ax1, multi_design_interpolation(interps, t))
     end
-    return nothing
+
+    return σ
 end
 
 function visualize(ep::Episode{WaveEnvState, Matrix{Float32}}; path::String, horizon::Int = length(ep), idx::Int = 1)

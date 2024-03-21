@@ -35,8 +35,6 @@ using FileIO
 import LinearAlgebra
 using Images: imresize
 using Metalhead
-using DataFrames
-using CSV
 
 abstract type AbstractDim end
 abstract type AbstractDesign end

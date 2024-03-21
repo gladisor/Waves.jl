@@ -1,6 +1,9 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
 using Images: imresize
+using DataFrames
+using CSV
+
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 include("random_pos_gaussian_source.jl")
@@ -105,6 +108,7 @@ function train!(
 
     step = 0
     metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
+    CSV.write(joinpath(path, "loss_data.csv"), DataFrame(["step" "train loss" "val loss"], :auto), append=true)
     train_loss_accumulator = Vector{Float32}()
 
     for epoch in 1:epochs
@@ -141,6 +145,10 @@ function train!(
 
                 ## print to command line
                 println("Step: $(step), Train Loss: $(metrics[:train_loss][end]), Val Loss: $(metrics[:val_loss][end])")
+
+                ## save step to CSV file
+                step_data = [step metrics[:train_loss][end] metrics[:val_loss][end]]
+                CSV.write(joinpath(path, "loss_data.csv"), DataFrame(step_data, :auto), append=true)
             end
         end
     end
@@ -148,12 +156,12 @@ function train!(
     return model, opt_state
 end
 
-Flux.device!(1)
+Flux.device!(0)
 display(Flux.device())
 
-dataset_name = "variable_source_yaxis_x=-10.0"
+dataset_name = "dataset_200"
 # dataset_name = "part2_variable_source_yaxis_x=-10.0"
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+DATA_PATH = "scratch/$dataset_name"
 ## declaring hyperparameters
 activation = leakyrelu
 h_size = 256
@@ -186,10 +194,10 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-# @time model = gpu(AcousticEnergyModel(;env, h_size,in_channels,nfreq, pml_width, pml_scale, latent_dim))
+@time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
 
-include("node.jl")
-model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
+# include("node.jl")
+# model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
 s, a, t, y = gpu(Flux.batch.(first(train_loader)))
 
 # MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/horizon=20,lr=0.0001/checkpoint_step=6120/checkpoint.bson"
@@ -197,15 +205,16 @@ s, a, t, y = gpu(Flux.batch.(first(train_loader)))
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
 
 # path = "models/transfer_horizon=$horizon,lr=$lr"
-path = "models/node_horizon=$horizon,lr=$lr"
+# path = "models/node_horizon=$horizon,lr=$lr"
+path = "models/acoustic_energy_ViT_horizon=$horizon,lr=$lr"
 model, opt_state = @time train!(model, opt_state;
     train_loader,
     val_loader, 
     val_every,
     val_batches,
     epochs,
-    path = joinpath(DATA_PATH, path),
-    loss_func = node_loss
+    path = joinpath(DATA_PATH, path)#,
+    #loss_func = node_loss
     )
 
 # node.wave_encoder(s)

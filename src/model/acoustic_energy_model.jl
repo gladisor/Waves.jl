@@ -34,6 +34,7 @@ function (source::SinusoidalSource)(t::AbstractVector{Float32})
 end
 
 function build_wave_encoder(;
+        env::WaveEnv, 
         latent_dim::OneDim,
         h_size::Int,
         nfreq::Int,
@@ -115,6 +116,7 @@ function AcousticEnergyModel(;
         pml_scale::Float32)
 
     wave_encoder = Waves.build_wave_encoder(;
+        env,
         latent_dim, 
         h_size, 
         nfreq,

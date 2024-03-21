@@ -25,6 +25,7 @@ end
 
 """
 Calculates the energy of the latent 1D solution for total, incident, and scattered energy fields.
+    Z(Space x field x batch x time)
 """
 function compute_latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
     tot = z[:, 1, :, :]

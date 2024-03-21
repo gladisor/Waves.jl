@@ -1,4 +1,13 @@
 export WaveEncoder, build_cnn_base
+# export WaveEncoder
+
+function build_vit_base(env::WaveEnv, in_channels::Int, out_channels::Int)
+    return Metalhead.ViT(
+        inchannels = in_channels,
+        nclasses = out_channels,
+        imsize = env.resolution,
+        patch_size = (20, 20))
+end
 
 """
 Builds CNN feature extractor for processing WaveEnvState(s).
@@ -46,6 +55,7 @@ function build_wave_encoder_head(env::WaveEnv, h_size::Int, activation::Function
 end
 
 function WaveEncoder(env::WaveEnv, in_channels::Int, h_size::Int, activation::Function, nfreq::Int, latent_dim::OneDim)
+    # base = build_vit_base(env, in_channels::Int, out_channels::Int)
     base = build_cnn_base(env, in_channels, activation, h_size)
     head = build_wave_encoder_head(env, h_size, activation, nfreq, latent_dim)
     return WaveEncoder(base, head)

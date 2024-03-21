@@ -109,7 +109,8 @@ function (env::WaveEnv)(action::AbstractDesign)
     tot_energy = vec(sum(u_tot .^ 2, dims = (1, 2))) * dΩ
     inc_energy = vec(sum(u_inc .^ 2, dims = (1, 2))) * dΩ
     sc_energy =  vec(sum(u_sc  .^ 2, dims = (1, 2))) * dΩ
-
+    # TODO: add energy in predetermined position
+    
     ## setting environment variables
     env.signal = hcat(tot_energy, inc_energy, sc_energy)
     env.design = next_design

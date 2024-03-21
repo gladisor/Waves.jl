@@ -32,8 +32,8 @@ function build_rectangular_grid_design_space()
     return DesignSpace(low, high)
 end
 
-Flux.device!(2)
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/"
+Flux.device!(0)
+DATA_PATH = "./scratch/"
 
 dim = TwoDim(15.0f0, 700)
 μ_low = [-10.0f0 -10.0f0]
@@ -48,7 +48,7 @@ a = [1.0f0]
 # a = [1.0f0]
 # pulse = build_normal(build_grid(dim), μ, σ, a)
 
-M = 4
+M = 15
 
 r = fill(1.0f0, M)
 c = fill(AIR * 3, M)
@@ -67,28 +67,31 @@ env = gpu(WaveEnv(dim;
     # source = Source(pulse, 1000.0f0),
     source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
     integration_steps = 100,
-    actions = 10
+    actions = 200
     ))
 
 policy = RandomDesignPolicy(action_space(env))
-render!(policy, env, path = "vid.mp4")
+# render!(policy, env, path = "vid.mp4")
+# ep = generate_episode!(policy, env)
 
-# name =  "AdditionalDataset" *
-#         "$(typeof(env.iter.dynamics))_" *
-#         "$(typeof(env.design))_" *
-#         "Pulse_" * 
-#         "dt=$(env.dt)_" *
-#         "steps=$(env.integration_steps)_" *
-#         "actions=$(env.actions)_" *
-#         "actionspeed=$(env.action_speed)_" *
-#         "resolution=$(env.resolution)"
+name =  "AdditionalDataset" *
+        "$(typeof(env.iter.dynamics))_" *
+        "$(typeof(env.design))_" *
+        "Pulse_" * 
+        "dt=$(env.dt)_" *
+        "steps=$(env.integration_steps)_" *
+        "actions=$(env.actions)_" *
+        "actionspeed=$(env.action_speed)_" *
+        "resolution=$(env.resolution)"
 
-# name = "part2_variable_source_yaxis_x=-10.0"
+name = "dataset_200"
 
-# path = mkpath(joinpath(DATA_PATH, name))
-# BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
+path = mkpath(joinpath(DATA_PATH, name))
+BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
 
-# for i in 1:500
-#     ep = generate_episode!(policy, env)
-#     save(ep, joinpath(path, "episode$i.bson"))
-# end
+#60, 178, 214, 373, 376 Episodes where loop was restarted
+
+for i in 439:500
+    ep = generate_episode!(policy, env)
+    save(ep, joinpath(path, "episode$i.bson"))
+end

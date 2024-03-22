@@ -2,9 +2,10 @@ using Waves, CairoMakie, Flux, BSON
 using Optimisers
 using Images: imresize
 using ReinforcementLearning
+using Interpolations: linear_interpolation
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
+Flux.device!(0)
 display(Flux.device())
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
@@ -51,67 +52,207 @@ function (mpc::RandomShooting)(env::WaveEnv)
     return a[1, idx]
 end
 
-random_ep1 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode495.bson")
-random_ep2 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode496.bson")
-random_ep3 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode497.bson")
-random_ep4 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode498.bson")
-random_ep5 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode499.bson")
-random_ep6 = Episode(path = "/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/episodes/episode500.bson")
-_, _, t, y1 = prepare_data(random_ep1, length(random_ep1))
-_, _, _, y2 = prepare_data(random_ep2, length(random_ep2))
-_, _, _, y3 = prepare_data(random_ep3, length(random_ep3))
-_, _, _, y4 = prepare_data(random_ep4, length(random_ep4))
-_, _, _, y5 = prepare_data(random_ep5, length(random_ep5))
-_, _, _, y6 = prepare_data(random_ep6, length(random_ep6))
-y_random = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
-y_random = y_random[1]
-t = t[1]
+function compute_energy_cost(model::WaveControlPINN, s, a, t)
+    @time y_hat_1 = model(s[1:64], a[:, 1:64], t[:, 1:64])
+    @time y_hat_2 = model(s[65:128], a[:, 65:128], t[:, 65:128])
+    @time y_hat_3 = model(s[129:192], a[:, 129:192], t[:, 129:192])
+    @time y_hat_4 = model(s[193:end], a[:, 193:end], t[:, 193:end])
+    y_hat = vcat(y_hat_1, y_hat_2, y_hat_3, y_hat_4)
+    return vec(sum(y_hat[:, 3, :], dims = 1))
+end
 
-env = gpu(BSON.load("/home/012761749/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/env.bson")[:env])
-pml_checkpoint = 2300
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/AcousticDynamics{TwoDim}_Cloak_Pulse_dt=1.0e-5_steps=100_actions=200_actionspeed=250.0_resolution=(128, 128)/trainable_pml_localization_horizon=20_batchsize=32_h_size=256_latent_gs=100.0_pml_width=10.0_nfreq=500/checkpoint_step=$pml_checkpoint/checkpoint.bson"
+
+function build_interpolator(
+        policy::AbstractPolicy,
+        env::WaveEnv;
+        reset::Bool = true, 
+        field::Symbol = :tot)
+
+    @assert field ∈ [:tot, :inc, :sc]
+
+    tspans = []
+    interps = DesignInterpolator[]
+
+    x = []
+    σ = []
+
+    if reset
+        RLBase.reset!(env)
+    end
+
+    while !is_terminated(env)
+        tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
+
+        push!(tspans, tspan)
+        push!(interps, interp)
+
+        if field == :tot
+            push!(x, u_tot)
+        elseif field == :inc
+            push!(x, u_inc)
+        elseif field == :sc
+            push!(x, u_tot .- u_inc)
+        end
+
+        push!(σ, cpu(env.signal))
+
+        println(env.time_step)
+    end
+
+    tspan = flatten_repeated_last_dim(hcat(tspans...))
+
+    x = flatten_repeated_last_dim(cat(x..., dims = 4))
+    x = linear_interpolation(tspan, Flux.unbatch(x))
+
+    return x, interps, σ
+end
+
+
+
+dataset_name = "variable_source_yaxis_x=-10.0"
+DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+@time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
+dim = cpu(env.dim)
+
+MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/ours_balanced_field_scale/checkpoint_step=10040/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
-
 policy = RandomDesignPolicy(action_space(env))
 
-## horizon = 100, shots = 32 works
-horizon = 20
+
+horizon = 5 #10
 shots = 256
-println("Horizon = $horizon, Shots = $shots")
 alpha = 1.0
 mpc = RandomShooting(policy, model, horizon, shots, alpha)
 
-reset!(env)
-mpc_ep1 = generate_episode!(mpc, env)
-save(mpc_ep1, "pml_mpc_ep1_h=$(horizon)_shots=$(shots).bson")
-mpc_ep2 = generate_episode!(mpc, env)
-save(mpc_ep2, "pml_mpc_ep2_h=$(horizon)_shots=$(shots).bson")
-mpc_ep3 = generate_episode!(mpc, env)
-save(mpc_ep3, "pml_mpc_ep3_h=$(horizon)_shots=$(shots).bson")
-mpc_ep4 = generate_episode!(mpc, env)
-save(mpc_ep4, "pml_mpc_ep4_h=$(horizon)_shots=$(shots).bson")
-mpc_ep5 = generate_episode!(mpc, env)
-save(mpc_ep5, "pml_mpc_ep5_h=$(horizon)_shots=$(shots).bson")
-mpc_ep6 = generate_episode!(mpc, env)
-save(mpc_ep6, "pml_mpc_ep6_h=$(horizon)_shots=$(shots).bson")
+env.actions = 100
 
-# mpc_ep1 = Episode(path = "mpc_ep1.bson")
-# _, _, _, y1 = prepare_data(mpc_ep1, env.actions)
-# y1 = y1[1]
-# _, _, _, y2 = prepare_data(mpc_ep2, env.actions)
-# y2 = y2[1]
-# _, _, _, y3 = prepare_data(mpc_ep3, env.actions)
-# y3 = y4[1]
-# _, _, _, y4 = prepare_data(mpc_ep4, env.actions)
-# y4 = y4[1]
-# _, _, _, y5 = prepare_data(mpc_ep5, env.actions)
-# y5 = y5[1]
-# _, _, _, y6 = prepare_data(mpc_ep6, env.actions)
-# y6 = y6[1]
-# y_mpc = (y1 .+ y2 .+ y3 .+ y4 .+ y5 .+ y6) ./ 6
+reset!(env)
+shape = env.source.shape
+x_mpc, interps_mpc, σ_mpc = build_interpolator(mpc, env, reset = false, field = :sc)
+
+reset!(env)
+env.source.shape = shape
+x_random, interps_random, σ_random = build_interpolator(policy, env, reset = false, field = :sc)
+
+mpc_signal = flatten_repeated_last_dim(cat(transpose.(σ_mpc)..., dims = 3))
+random_signal = flatten_repeated_last_dim(cat(transpose.(σ_random)..., dims = 3))
+
+
+t = build_tspan(0.0f0, env.dt, env.actions * env.integration_steps)
+seconds = 40.0
+frames = Int(round(Waves.FRAMES_PER_SECOND * seconds))
+tspan = collect(range(t[1], t[end], frames))
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control (Red)", xlabel = "Space (m)", ylabel = "Space (m)")
+ax2 = Axis(fig[2, 1], aspect = 1.0, title = "MPC (Green)", xlabel = "Space (m)", ylabel = "Space (m)")
+ax3 = Axis(fig[1:2, 2], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
+xlims!(ax3, t[1], t[end])
+ylims!(ax3, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
+
+record(fig, "mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    println(i)
+    empty!(ax1)
+    heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
+    empty!(ax2)
+    heatmap!(ax2, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax2, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
+
+    idx = findfirst(tspan[i] .<= t)[1]
+    empty!(ax3)
+    lines!(ax3, t[1:idx], mpc_signal[3, 1:idx], color = :green)
+    lines!(ax3, t[1:idx], random_signal[3, 1:idx], color = :red)
+end
+
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control", xlabel = "Space (m)", ylabel = "Space (m)")
+record(fig, "actions=100_random_control.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    println(i)
+    empty!(ax1)
+    heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
+end
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], aspect = 1.0, title = "MPC", xlabel = "Space (m)", ylabel = "Space (m)")
+record(fig, "actions=100_mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    println(i)
+    empty!(ax1)
+    heatmap!(ax1, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
+    mesh!(ax1, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
+end
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
+xlims!(ax1, t[1], t[end])
+ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
+record(fig, "actions=100_scattered_energy.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+    idx = findfirst(tspan[i] .<= t)[1]
+    empty!(ax1)
+    lines!(ax1, t[1:idx], mpc_signal[3, 1:idx], color = :green)
+    lines!(ax1, t[1:idx], random_signal[3, 1:idx], color = :red)
+end
+
+fig = Figure()
+ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
+xlims!(ax1, t[1], t[end])
+ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
+empty!(ax1)
+lines!(ax1, vec(t), mpc_signal[3, :], color = :green, label = "MPC")
+lines!(ax1, vec(t), random_signal[3, :], color = :red, label = "Random Control")
+axislegend(ax1)
+save("actions=100_scattered_energy.png", fig)
+
+
+
+
+# mpc_signal = render!(mpc, env, path = "mpc.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
+# mpc_signal = flatten_repeated_last_dim(cat(transpose.(mpc_signal)..., dims = 3))
+# reset!(env)
+# env.source.shape = shape
+# random_signal = render!(policy, env, path = "random.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
+# random_signal = flatten_repeated_last_dim(cat(transpose.(random_signal)..., dims = 3))
+
+# tspan = build_tspan(0.0f0, env.dt, size(mpc_signal, 2)-1)
 
 # fig = Figure()
-# ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Reduction of Scattered Energy With MPC")
-# lines!(ax, t, y_random[:, 3], label = "Random Control")
-# lines!(ax, t, y_mpc[:, 3], label = "MPC")
-# save("mpc_comparison.png", fig)
+# ax = Axis(fig[1, 1], title = "Scattered Energy In Response to Actuation (50 actions)", xlabel = "Time (s)", ylabel = "Scattered Energy")
+# lines!(ax, tspan, mpc_signal[3, :], label = "MPC", color = :green)
+# lines!(ax, tspan, random_signal[3, :], label = "Random", color = :red)
+# axislegend(ax, position = :rb)
+# save("signals.png", fig)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # delta_mu = (env.source.μ_high .- env.source.μ_low)
+# # x = gpu(collect(range(0.0f0, 1.0f0, 5)))
+# # mu = env.source.μ_low .+ delta_mu .* x
+
+# # for location in axes(mu, 1)
+# #     shape = build_normal(env.source.grid, mu[[location], :], env.source.σ, env.source.a)
+
+# #     for episode in 1:4
+# #         reset!(env)
+# #         env.source.shape = shape
+# #         mpc_ep = generate_episode!(mpc, env, reset = false)
+# #         # save(mpc_ep, "control_results/cPILS_location=$location,episode=$episode.bson")
+# #         save(mpc_ep, "control_results/PINC_location=$location,episode=$episode.bson")
+# #         # reset!(env)
+# #         # env.source.shape = shape
+# #         # random_ep = generate_episode!(policy, env, reset = false)
+# #         # save(random_ep, "control_results/random_location=$location,episode=$episode.bson")
+# #     end
+# # end

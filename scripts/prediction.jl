@@ -5,8 +5,6 @@ Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 Flux.device!(2)
 display(Flux.device())
-include("random_pos_gaussian_source.jl")
-include("node.jl")
 
 dataset_name = "dataset_200"
 DATA_PATH = "scratch/$dataset_name"

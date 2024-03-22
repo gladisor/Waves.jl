@@ -1,4 +1,4 @@
-export compute_latent_energy, build_wave_encoder, AcousticEnergyModel, get_parameters_and_initial_condition, generate_latent_solution
+export compute_latent_energy, build_wave_encoder, AcousticEnergyModel, get_parameters_and_initial_condition, generate_latent_solution, make_plots
 
 """
 Calculates the energy of the latent 1D solution for total, incident, and scattered energy fields.
@@ -43,37 +43,37 @@ function build_wave_encoder(;
         in_channels::Int = 3,
         activation::Function = leakyrelu)
 
-    nfields = 6
+#     nfields = 6
 
-    return Chain(
-        Waves.TotalWaveInput(),
-        LocalizationLayer(env.dim, env.resolution),
-        Waves.ResidualBlock(k, 2 + in_channels, 32, activation),
-        Waves.ResidualBlock(k, 32, 64, activation),
-        Waves.ResidualBlock(k, 64, h_size, activation),
-        GlobalMaxPool(),
-        Flux.flatten,
-        Parallel(
-            vcat,
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-        ),
-        b -> reshape(b, nfreq, nfields, :),
-        SinWaveEmbedder(latent_dim, nfreq),
-        x -> hcat(
-            x[:, [1], :],       # u_tot
-            x[:, [2], :] ./ c0, # v_tot
-            x[:, [3], :],       # u_inc
-            x[:, [4], :] ./ c0, # v_inc
-            x[:, [5], :],       # f
-            x[:, [6], :] .^ 2   # pml
-            )
-        )
-end
+#     return Chain(
+#         TotalWaveInput(),
+#         LocalizationLayer(env.dim, env.resolution),
+#         ResidualBlock(k, 2 + in_channels, 32, activation),
+#         ResidualBlock(k, 32, 64, activation),
+#         ResidualBlock(k, 64, h_size, activation),
+#         GlobalMaxPool(),
+#         Flux.flatten,
+#         Parallel(
+#             vcat,
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#         ),
+#         b -> reshape(b, nfreq, nfields, :),
+#         SinWaveEmbedder(latent_dim, nfreq),
+#         x -> hcat(
+#             x[:, [1], :],       # u_tot
+#             x[:, [2], :], # ./ c0, # v_tot
+#             x[:, [3], :],       # u_inc
+#             x[:, [4], :], # ./ c0, # v_inc
+#             x[:, [5], :],       # f
+#             x[:, [6], :] .^ 2   # pml
+#             )
+#         )
+# end
 
 struct AcousticEnergyModel
     wave_encoder::Chain
@@ -123,16 +123,7 @@ function AcousticEnergyModel(;
         in_channels,
         c0 = env.iter.dynamics.c0)
 
-    mlp = Chain(
-        Dense(length(vec(env.design)), h_size, leakyrelu), 
-        Dense(h_size, h_size, leakyrelu), 
-        Dense(h_size, h_size, leakyrelu),
-        Dense(h_size, h_size, leakyrelu), 
-        Dense(h_size, nfreq),
-        SinWaveEmbedder(latent_dim, nfreq),
-        c -> 2.0f0 * sigmoid.(c))
-
-    design_encoder = DesignEncoder(env.design_space, mlp, env.integration_steps)
+    design_encoder = DesignEncoder(env, h_size, leakyrelu, nfreq, latent_dim)
     F = SinusoidalSource(latent_dim, nfreq, env.source.freq)
     dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)
     iter = Integrator(runge_kutta, dyn, env.dt)
@@ -158,4 +149,54 @@ function plot_energy(tspan::Vector{Float32}, energy::Matrix{Float32}; path::Stri
     lines!(ax, tspan, energy[:, 2, 1])
     lines!(ax, tspan, energy[:, 3, 1])
     save(path, fig)
+end
+
+function render_latent_solution!(dim::OneDim, t::Vector{Float32}, z::Array{Float32, 3}; path::String)
+    tot = z[:, 1, :]
+    inc = z[:, 3, :]
+    sc = tot .- inc
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    xlims!(ax, dim.x[1], dim.x[end])
+    ylims!(ax, -2.0f0, 2.0f0)
+    
+    record(fig, joinpath(path, "sc.mp4"), axes(t, 1)) do i
+        empty!(ax)
+        lines!(ax, dim.x, sc[:, i], color = :blue)
+    end
+end
+
+function make_plots(
+        model::AcousticEnergyModel, 
+        batch; path::String, 
+        samples::Int = 1)
+
+    s, a, t, y = batch
+    z = cpu(generate_latent_solution(model, s, a, t))
+    latent_dim = cpu(model.iter.dynamics.dim)
+    render_latent_solution!(latent_dim, cpu(t[:, 1]), z[:, :, 1, :], path = path)
+
+    z0, (C, F, PML) = Waves.get_parameters_and_initial_condition(model, s, a, t)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, latent_dim.x, cpu(PML[:, 1]))
+    save(joinpath(path, "pml.png"), fig)
+
+    fig = Figure()
+    ax = Axis(fig[1, 1])
+    lines!(ax, latent_dim.x, cpu(F.shape[:, 1]))
+    save(joinpath(path, "force.png"), fig)
+
+    y_hat = cpu(model(s, a, t))
+    y = cpu(y)
+    for i in 1:min(length(s), samples)
+        tspan = cpu(t[:, i])
+        plot_predicted_energy(tspan, y[:, 1, i], y_hat[:, 1, i], title = "Total Energy", path = joinpath(path, "tot$i.png"))
+        plot_predicted_energy(tspan, y[:, 2, i], y_hat[:, 2, i], title = "Incident Energy", path = joinpath(path, "inc$i.png"))
+        plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, 3, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
+    end
+
+    return nothing
 end

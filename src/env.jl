@@ -121,12 +121,19 @@ function (env::WaveEnv)(action::AbstractDesign)
     return tspan, cpu(interp), cpu(u_tot), cpu(u_inc)
 end
 
+# function RLBase.state(env::WaveEnv)
+#     ## only the total wave is observable
+#     # w = cpu(cat(env.wave[:, :, 1, :], env.source.shape, dims = 3))
+#     # x = imresize(w, env.resolution)
+
+#     x = imresize(cpu(env.wave[:, :, 1, :]), env.resolution)
+#     return WaveEnvState(cpu(env.dim), build_tspan(env), x, cpu(env.design))
+# end
+
 function RLBase.state(env::WaveEnv)
     ## only the total wave is observable
-    # w = cpu(cat(env.wave[:, :, 1, :], env.source.shape, dims = 3))
-    # x = imresize(w, env.resolution)
-
-    x = imresize(cpu(env.wave[:, :, 1, :]), env.resolution)
+    w = cpu(cat(env.wave[:, :, 1, :], env.source.shape, dims = 3))
+    x = imresize(w, env.resolution)
     return WaveEnvState(cpu(env.dim), build_tspan(env), x, cpu(env.design))
 end
 

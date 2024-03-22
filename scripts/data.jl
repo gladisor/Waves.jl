@@ -5,8 +5,6 @@ using CairoMakie
 using BSON
 using Images: imresize
 
-include("random_pos_gaussian_source.jl")
-
 function build_rectangular_grid(nx::Int, ny::Int, r::Float32)
 
     x = []
@@ -41,12 +39,9 @@ dim = TwoDim(15.0f0, 700)
 σ = [0.3f0]
 a = [1.0f0]
 
-# ## single pulse
-# μ = zeros(Float32, 1, 2)
-# μ[1, :] .= [-10.0f0, 0.0f0]
-# σ = [0.3f0]
-# a = [1.0f0]
-# pulse = build_normal(build_grid(dim), μ, σ, a)
+function Base.rand(space::DesignSpace{NoDesign})
+    return NoDesign()
+end
 
 M = 15
 
@@ -67,7 +62,7 @@ env = gpu(WaveEnv(dim;
     # source = Source(pulse, 1000.0f0),
     source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
     integration_steps = 100,
-    actions = 200
+    actions = 20
     ))
 
 policy = RandomDesignPolicy(action_space(env))

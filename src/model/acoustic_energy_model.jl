@@ -10,9 +10,10 @@ function compute_latent_energy(z::AbstractArray{Float32, 4}, dx::Float32)
 
     tot_energy = sum(tot .^ 2, dims = 1) * dx
     inc_energy = sum(inc .^ 2, dims = 1) * dx
-    sc_energy =  sum(sc  .^ 2, dims = 1) * dx
+    sc_energy  = sum(sc  .^ 2, dims = 1) * dx
     return permutedims(vcat(tot_energy, inc_energy, sc_energy), (3, 1, 2))
 end
+
 
 struct SinusoidalSource <: AbstractSource
     freq_coefs::AbstractVector
@@ -43,37 +44,37 @@ function build_wave_encoder(;
         in_channels::Int = 3,
         activation::Function = leakyrelu)
 
-#     nfields = 6
+    nfields = 6
 
-#     return Chain(
-#         TotalWaveInput(),
-#         LocalizationLayer(env.dim, env.resolution),
-#         ResidualBlock(k, 2 + in_channels, 32, activation),
-#         ResidualBlock(k, 32, 64, activation),
-#         ResidualBlock(k, 64, h_size, activation),
-#         GlobalMaxPool(),
-#         Flux.flatten,
-#         Parallel(
-#             vcat,
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#         ),
-#         b -> reshape(b, nfreq, nfields, :),
-#         SinWaveEmbedder(latent_dim, nfreq),
-#         x -> hcat(
-#             x[:, [1], :],       # u_tot
-#             x[:, [2], :], # ./ c0, # v_tot
-#             x[:, [3], :],       # u_inc
-#             x[:, [4], :], # ./ c0, # v_inc
-#             x[:, [5], :],       # f
-#             x[:, [6], :] .^ 2   # pml
-#             )
-#         )
-# end
+    return Chain(
+        TotalWaveInput(),
+        LocalizationLayer(env.dim, env.resolution),
+        ResidualBlock(k, 2 + in_channels, 32, activation),
+        ResidualBlock(k, 32, 64, activation),
+        ResidualBlock(k, 64, h_size, activation),
+        GlobalMaxPool(),
+        Flux.flatten,
+        Parallel(
+            vcat,
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+        ),
+        b -> reshape(b, nfreq, nfields, :),
+        SinWaveEmbedder(latent_dim, nfreq),
+        x -> hcat(
+            x[:, [1], :],                               # u_tot
+            x[:, [2], :] ./ c0,                         # v_tot
+            x[:, [3], :],                               # u_inc
+            x[:, [4], :] ./ c0,                         # v_inc
+            x[:, [5], :],                               # f
+            x[:, [6], :] .^ 2                           # pml
+            )
+        )
+end
 
 struct AcousticEnergyModel
     wave_encoder::Chain

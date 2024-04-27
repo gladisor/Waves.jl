@@ -44,11 +44,11 @@ function build_wave_encoder_head(env::WaveEnv, h_size::Int, activation::Function
         b -> reshape(b, nfreq, 6, :),
         SinWaveEmbedder(latent_dim, nfreq),
         x -> hcat(
-            x[:, [1], :],       # u_tot
-            x[:, [2], :], #./ env.iter.dynamics.c0, # v_tot
-            x[:, [3], :],       # u_inc
-            x[:, [4], :], #./ env.iter.dynamics.c0, # v_inc
-            x[:, [5], :],       # f
+            x[:, [1], :],                           # u_tot
+            x[:, [2], :] ./ env.iter.dynamics.c0,   # v_tot
+            x[:, [3], :],                           # u_inc
+            x[:, [4], :] ./ env.iter.dynamics.c0,   # v_inc
+            x[:, [5], :],                           # f
             x[:, [6], :] .^ 2
             )
         )

@@ -1,4 +1,6 @@
 export render!
+export visualize_masks
+export visualize
 
 const FRAMES_PER_SECOND = 24
 
@@ -75,6 +77,29 @@ function visualize(ep::Episode{WaveEnvState, Matrix{Float32}}; path::String, hor
     lines!(ax, tspan, sigma[:, 1], color = :blue, label = "Total")
     lines!(ax, tspan, sigma[:, 2], color = :orange, label = "Incident")
     lines!(ax, tspan, sigma[:, 3], color = :green, label = "Scattered")
+    axislegend(ax, position = :rb)
+    save(path, fig)
+    return nothing
+end
+
+function visualize_masks(ep::Episode{WaveEnvState, Matrix{Float32}}; path::String, horizon::Int = length(ep), idx::Int = 1)
+    _, _, t, y = prepare_data(ep, horizon)
+    tspan = t[idx]
+    sigma = y[idx]
+
+    fig = Figure()
+    ax = Axis(fig[1, 1], title = "Energy Signals in Real Dynamics")
+    # lines!(ax, tspan, sigma[:, 1], color = :blue, label = "Total")
+    # lines!(ax, tspan, sigma[:, 2], color = :orange, label = "Incident")
+    # lines!(ax, tspan, sigma[:, 3], color = :green, label = "Scattered")
+    for i in 4:(length(sigma[1, :]))
+        lines!(ax, tspan, sigma[:, i], label = "Region $(i-3)")
+    end
+    sum_sigmas = sigma[:, 1] * 0
+    for i in 4:(length(sigma[1, :]))
+        sum_sigmas += sigma[:, i]
+    end
+    lines!(ax, tspan, sum_sigmas, label = "Sum")
     axislegend(ax, position = :rb)
     save(path, fig)
     return nothing

@@ -4,6 +4,7 @@ using ReinforcementLearning
 using CairoMakie
 using BSON
 using Images: imresize
+include("../src/masks.jl")
 
 function build_rectangular_grid(nx::Int, ny::Int, r::Float32)
 
@@ -56,18 +57,21 @@ high = AdjustablePositionScatterers(Cylinders(high_pos, r, c))
 
 design_space = DesignSpace(low, high)
 
+masks = cat(create_patches(700, 175)..., dims = 3)
+
 env = gpu(WaveEnv(dim; 
     # design_space = build_rectangular_grid_design_space(),
+    # design_space = Waves.build_triple_ring_design_space(),
     design_space=design_space,
     # source = Source(pulse, 1000.0f0),
     source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
     integration_steps = 100,
-    actions = 20
+    actions = 10
     ))
 
 policy = RandomDesignPolicy(action_space(env))
 # render!(policy, env, path = "vid.mp4")
-# ep = generate_episode!(policy, env)
+# ep = generate_episode!(policy, env, position_mask=masks)
 
 name =  "AdditionalDataset" *
         "$(typeof(env.iter.dynamics))_" *
@@ -79,14 +83,17 @@ name =  "AdditionalDataset" *
         "actionspeed=$(env.action_speed)_" *
         "resolution=$(env.resolution)"
 
-name = "dataset_200"
+name = "dataset_test"
 
 path = mkpath(joinpath(DATA_PATH, name))
+mkpath(joinpath(path, "episodes/"))
+
 BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
 
-#60, 178, 214, 373, 376 Episodes where loop was restarted
-
-for i in 439:500
-    ep = generate_episode!(policy, env)
-    save(ep, joinpath(path, "episode$i.bson"))
+for i in 1:10
+# for i in 151:300
+# for i in 301:500
+   ep = generate_episode!(policy, env, position_mask=masks)
+    # ep = generate_episode!(policy, env)
+    save(ep, joinpath(path, "episodes/episode$i.bson"))
 end

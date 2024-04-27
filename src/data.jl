@@ -9,7 +9,7 @@ end
 
 Base.length(ep::Episode) = length(ep.s)
 
-function generate_episode!(policy::AbstractPolicy, env::WaveEnv; reset::Bool = true)
+function generate_episode!(policy::AbstractPolicy, env::WaveEnv; reset::Bool = true, position_mask::Union{AbstractArray, Nothing} = nothing)
     s = WaveEnvState[]
     a = AbstractDesign[]
     t = Vector{Float32}[]
@@ -24,7 +24,7 @@ function generate_episode!(policy::AbstractPolicy, env::WaveEnv; reset::Bool = t
         action = policy(env)
         push!(a, cpu(action))
         push!(t, build_tspan(env))
-        env(action)
+        env(action, position_mask)
         push!(y, cpu(env.signal))
         println(env.time_step)
     end

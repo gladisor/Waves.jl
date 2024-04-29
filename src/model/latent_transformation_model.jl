@@ -57,7 +57,8 @@ function generate_basis(axis_length::Int, num_basis_functions::Int)
         basis_function_i[i:(i + basis_length - 1)] .= 1.0f0
         push!(basis_functions, basis_function_i)
     end
-    basis_matrix = reshape(vcat(basis_functions...), axis_length, num_basis_functions)
+    scale = sqrt(sum(basis_functions[1] .^ 2))
+    basis_matrix = reshape(vcat(basis_functions...), axis_length, num_basis_functions) ./ scale
     return basis_matrix
 end
 
@@ -65,13 +66,45 @@ function generate_coefficients(num_basis_functions::Int, g_functions_num::Int)
     reshape(vcat([randn(Float32, num_basis_functions) ./ Float32(sqrt(num_basis_functions)) for _ in 1:g_functions_num]...), num_basis_functions, g_functions_num)
 end
 
-# g_functions_num = 10
-# num_basis_functions = 16
-# latent_space_axis_length = 64
-# basis_matrix = reshape(vcat(generate_basis_functions(latent_space_axis_length, num_basis_functions)...), latent_space_axis_length, num_basis_functions)
-# coefs_matrix = reshape(vcat([randn(Float32, num_basis_functions) ./ Float32(sqrt(num_basis_functions)) for _ in 1:g_functions_num]...), num_basis_functions, g_functions_num)
+function make_plots(
+    model::LatentTransformationModel, 
+    batch; path::String, 
+    samples::Int = 1)
 
-# g_functions_matrix = basis_matrix * coefs_matrix
+s, a, t, y = batch
+z = cpu(generate_latent_solution(model.inner_model, s, a, t))
+latent_dim = cpu(model.inner_model.iter.dynamics.dim)
+render_latent_solution!(latent_dim, cpu(t[:, 1]), z[:, :, 1, :], path = path)
 
-# G = sum(g_functions_matrix, dims=2)
+z0, (C, F, PML) = Waves.get_parameters_and_initial_condition(model.inner_model, s, a, t)
 
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, latent_dim.x, cpu(PML[:, 1]))
+save(joinpath(path, "pml.png"), fig)
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+lines!(ax, latent_dim.x, cpu(F.shape[:, 1]))
+save(joinpath(path, "force.png"), fig)
+
+y_hat = cpu(model(s, a, t))
+y = cpu(y)
+for i in 1:min(length(s), samples)
+    tspan = cpu(t[:, i])
+    plot_predicted_energy(tspan, y[:, 1, i], y_hat[:, 1, i], title = "Total Energy", path = joinpath(path, "tot$i.png"))
+    plot_predicted_energy(tspan, y[:, 2, i], y_hat[:, 2, i], title = "Incident Energy", path = joinpath(path, "inc$i.png"))
+    plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, 3, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
+end
+
+masked_plots_path = mkpath(joinpath(path, "masked_plots"))
+for i in 1:min(length(s), samples)
+    cur_sample_path = mkpath(joinpath(masked_plots_path, "$i"))
+    tspan = cpu(t[:, i])
+    for j in 4:size(y_hat)[2]
+        plot_predicted_energy(tspan, y[:, j, i], y_hat[:, j, i], title = "Scattered Energy in Region $j", path = joinpath(cur_sample_path, "region$j.png"))
+    end
+end
+
+return nothing
+end

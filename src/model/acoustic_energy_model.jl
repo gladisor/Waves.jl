@@ -1,4 +1,4 @@
-export compute_latent_energy, build_wave_encoder, AcousticEnergyModel, get_parameters_and_initial_condition, generate_latent_solution, make_plots
+export compute_latent_energy, build_wave_encoder, AcousticEnergyModel, get_parameters_and_initial_condition, generate_latent_solution, make_plots, render_latent_solution!
 
 """
 Calculates the energy of the latent 1D solution for total, incident, and scattered energy fields.
@@ -122,7 +122,8 @@ function AcousticEnergyModel(;
         h_size, 
         nfreq,
         in_channels,
-        c0 = env.iter.dynamics.c0)
+        c0 = env.iter.dynamics.c0
+)
 
     design_encoder = DesignEncoder(env, h_size, leakyrelu, nfreq, latent_dim)
     F = SinusoidalSource(latent_dim, nfreq, env.source.freq)

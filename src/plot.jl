@@ -1,6 +1,7 @@
 export render!
 export visualize_masks
 export visualize
+export plot_predicted_energy
 
 const FRAMES_PER_SECOND = 24
 

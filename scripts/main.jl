@@ -3,6 +3,9 @@ using Optimisers
 using Images: imresize
 using DataFrames
 using CSV
+using Revise
+
+include("../src/model/latent_transformation_model.jl")
 
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
@@ -121,6 +124,7 @@ function train!(
                 ## save step to CSV file
                 step_data = [step metrics[:train_loss][end] metrics[:val_loss][end]]
                 CSV.write(joinpath(path, "loss_data.csv"), DataFrame(step_data, :auto), append=true)
+                cp(joinpath(path, "loss_data.csv"), joinpath(checkpoint_path, "loss_data.csv"), force=true)
             end
         end
     end
@@ -130,7 +134,7 @@ end
 
 Flux.device!(0)
 display(Flux.device())
-
+# dataset_name = "dataset_radii_design_space"
 dataset_name = "dataset_pos_adjustment_masked"
 DATA_PATH = "scratch/$dataset_name"
 ## declaring hyperparameters
@@ -141,7 +145,7 @@ nfreq = 500
 elements = 1024
 horizon = 20
 lr = 1f-4
-batchsize = 8 #32 ## shorter horizons can use large batchsize
+batchsize = 32 #32 ## shorter horizons can use large batchsize
 accumulate = 1
 val_every = 20
 val_batches = val_every
@@ -154,7 +158,7 @@ data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial =>
 latent_dim = OneDim(latent_gs, elements)
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
-@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:40]
+@time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
@@ -163,11 +167,12 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-@time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
+@time model = gpu(LatentTransformationModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
+# @time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
 # MODEL_PATH = "/scratch/.../checkpoint_step=6120/checkpoint.bson"
 # model = gpu(BSON.load(MODEL_PATH)[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
-path = "models/acoustic_energy_ViT_horizon=$horizon,lr=$lr"
+path = "models/acoustic_energy_CNN_horizon=$horizon,lr=$lr"
 model, opt_state = @time train!(model, opt_state;
     accumulate = accumulate,
     train_loader,

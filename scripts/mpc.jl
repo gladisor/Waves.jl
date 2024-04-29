@@ -5,7 +5,7 @@ using ReinforcementLearning
 using Interpolations: linear_interpolation
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(0)
+Flux.device!(2)
 display(Flux.device())
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
@@ -109,17 +109,21 @@ end
 
 
 
-dataset_name = "variable_source_yaxis_x=-10.0"
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+dataset_name = "dataset_200"
+DATA_PATH = "scratch/$dataset_name"
 @time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
 dim = cpu(env.dim)
 
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/ours_balanced_field_scale/checkpoint_step=10040/checkpoint.bson"
+cnn_model_name = "acoustic_energy_CNN_horizon=20,lr=0.0001"
+vit_model_name = "acoustic_energy_ViT_horizon=20,lr=0.0001"
+model_name = vit_model_name
+checkpoint_step = 9480
+
+MODEL_PATH = "scratch/$dataset_name/models/$model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
-
-horizon = 5 #10
+horizon = 10
 shots = 256
 alpha = 1.0
 mpc = RandomShooting(policy, model, horizon, shots, alpha)

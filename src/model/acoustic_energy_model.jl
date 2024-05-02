@@ -67,9 +67,9 @@ function build_wave_encoder(;
         SinWaveEmbedder(latent_dim, nfreq),
         x -> hcat(
             x[:, [1], :],                               # u_tot
-            x[:, [2], :] ./ c0,                         # v_tot
+            x[:, [2], :], #./ c0,                         # v_tot
             x[:, [3], :],                               # u_inc
-            x[:, [4], :] ./ c0,                         # v_inc
+            x[:, [4], :], #./ c0,                         # v_inc
             x[:, [5], :],                               # f
             x[:, [6], :] .^ 2                           # pml
             )

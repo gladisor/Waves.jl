@@ -6,18 +6,20 @@ println("Loaded Packages")
 Flux.device!(2)
 display(Flux.device())
 
-dataset_name = "dataset_radii_design_space"
+# dataset_name = "dataset_radii_design_space"
+dataset_name = "dataset_pos_adjustment_masked"
+dataset_name = "dataset_200"
 DATA_PATH = "scratch/$dataset_name"
-checkpoint = 4200
+checkpoint = 9000
 # our_model_name = "horizon=20,lr=0.0001"
 # node_model_name = "node_horizon=20,lr=0.0001"
 vit_model_name = "acoustic_energy_ViT_horizon=20,lr=0.0001"
 cnn_model_name = "acoustic_energy_CNN_horizon=20,lr=0.0001"
 ## generating paths
-# VIT_MODEL_PATH = joinpath(DATA_PATH, "models/$vit_model_name/checkpoint_step=$checkpoint/checkpoint.bson")
+VIT_MODEL_PATH = joinpath(DATA_PATH, "models/$vit_model_name/checkpoint_step=$checkpoint/checkpoint.bson")
 CNN_MODEL_PATH = joinpath(DATA_PATH, "models/$cnn_model_name/checkpoint_step=$checkpoint/checkpoint.bson")
 ## loading from storage
-# vit_model = gpu(BSON.load(VIT_MODEL_PATH)[:model])
+vit_model = gpu(BSON.load(VIT_MODEL_PATH)[:model])
 cnn_model = gpu(BSON.load(CNN_MODEL_PATH)[:model])
 
 # for i in 495:497
@@ -28,7 +30,7 @@ horizon = 100
 s, a, t, y = gpu(Flux.batch.(prepare_data(ep, horizon)))
 
 ## inferrence
-# @time vit_y_hat = cpu(vit_model(s[1, :], a[:, [1]], t[:, [1]]))
+@time vit_y_hat = cpu(vit_model(s[1, :], a[:, [1]], t[:, [1]]))
 # BSON.bson("variable_source_results/ours.bson", y_hat = vit_y_hat[:, 3, 1])
 @time cnn_y_hat = cpu(cnn_model(s[1, :], a[:, [1]], t[:, [1]]))
 # BSON.bson("variable_source_results/node.bson", y_hat = cnn_y_hat[:, 1, 1])
@@ -40,8 +42,8 @@ t = cpu(t)
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Variable Source Location Scattered Energy Prediction With Random Control")
 lines!(ax, t[:, 1], y[:, 3, 1], label = "Ground Truth")
-# lines!(ax, t[:, 1], vit_y_hat[:, 3, 1], color = (:green, 0.6), label = "ViT Model")
-lines!(ax, t[:, 1], cnn_y_hat[:, 1, 1], color = (:red, 0.6), label = "CNN Model")
+lines!(ax, t[:, 1], vit_y_hat[:, 3, 1], color = (:green, 0.6), label = "ViT Model")
+lines!(ax, t[:, 1], cnn_y_hat[:, 3, 1], color = (:red, 0.6), label = "CNN Model")
 axislegend(ax, position = :lt)
 # save("variable_source_results/$dataset_name,_checkpoint=$checkpoint,episode=$episode_number.png", fig)
 save("$(checkpoint)_$episode_number.png", fig)

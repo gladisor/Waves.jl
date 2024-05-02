@@ -57,6 +57,7 @@ include("model/layers.jl")
 include("model/design_encoder.jl")
 include("model/wave_encoder.jl")
 include("model/acoustic_energy_model.jl")
+include("model/latent_transformation_model.jl")
 ## variants
 include("model/node.jl")
 include("model/pinn.jl")

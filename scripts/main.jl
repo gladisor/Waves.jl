@@ -5,8 +5,6 @@ using DataFrames
 using CSV
 using Revise
 
-include("../src/model/latent_transformation_model.jl")
-
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 

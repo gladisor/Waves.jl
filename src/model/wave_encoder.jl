@@ -1,11 +1,14 @@
 export WaveEncoder, build_cnn_base, build_vit_base
 
 function build_vit_base(env::WaveEnv, in_channels::Int, out_channels::Int, ::Function)
-    return Metalhead.ViT(
-        inchannels = in_channels,
+    return Chain(
+        TotalWaveInput(),
+        LocalizationLayer(env.dim, env.resolution),
+        Metalhead.ViT(
+        inchannels = in_channels + 2,
         nclasses = out_channels,
         imsize = env.resolution,
-        patch_size = (20, 20))
+        patch_size = (8, 8)))
 end
 
 """

@@ -4,7 +4,7 @@ function build_vit_base(env::WaveEnv, in_channels::Int, out_channels::Int, ::Fun
     return Chain(
         TotalWaveInput(),
         LocalizationLayer(env.dim, env.resolution),
-        Metalhead.ViT(
+        Metalhead.ViT(:tiny;
         inchannels = in_channels + 2,
         nclasses = out_channels,
         imsize = env.resolution,

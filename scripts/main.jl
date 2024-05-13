@@ -3,7 +3,8 @@ using Optimisers
 using Images: imresize
 using DataFrames
 using CSV
-using Revise
+
+include("../src/model/latent_transformation_model.jl")
 
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
@@ -130,7 +131,7 @@ function train!(
     return model, opt_state
 end
 
-Flux.device!(0)
+Flux.device!(1)
 display(Flux.device())
 # dataset_name = "dataset_radii_design_space"
 dataset_name = "dataset_pos_adjustment_masked"
@@ -165,12 +166,13 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-@time model = gpu(LatentTransformationModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
+@time model = gpu(LatentTransformationModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim, base_function=build_vit_base))
 # @time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
 # MODEL_PATH = "/scratch/.../checkpoint_step=6120/checkpoint.bson"
 # model = gpu(BSON.load(MODEL_PATH)[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
-path = "models/acoustic_energy_CNN_horizon=$horizon,lr=$lr"
+# path = "models/LT_model_ViT_horizon=$horizon,lr=$lr"
+path = "models/vit_test_model"
 model, opt_state = @time train!(model, opt_state;
     accumulate = accumulate,
     train_loader,

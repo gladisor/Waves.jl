@@ -108,8 +108,8 @@ function make_plots(
         end
     end
 
-    g_plots_path = mkpath(joinpath(path), "g_plots")
-    plot_g_functions(model, path=g_plots_path)
+    # g_plots_path = mkpath(joinpath(path, "g_plots"))
+    # plot_g_functions(model, path=g_plots_path)
 
     return nothing
 end

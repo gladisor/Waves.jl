@@ -15,7 +15,7 @@ model_name = "AEM_batchsize=256_jobID=$jobid"
 ## generating paths
 MODEL_PATH = joinpath(DATA_PATH, "models/$model_name/checkpoint_step=$checkpoint/checkpoint.bson")
 ## loading from storage
-cnn_model = gpu(BSON.load(CNN_MODEL_PATH)[:model])
+model = gpu(BSON.load(MODEL_PATH)[:model])
 
 # for i in 495:497
 ## loading data
@@ -25,7 +25,7 @@ horizon = 400
 s, a, t, y = gpu(Flux.batch.(prepare_data(ep, horizon)))
 
 ## inferrence
-@time cnn_y_hat = cpu(cnn_model(s[1, :], a[:, [1]], t[:, [1]]))
+@time cnn_y_hat = cpu(model(s[1, :], a[:, [1]], t[:, [1]]))
 y = cpu(y)
 
 ## plotting comparison

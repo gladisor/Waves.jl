@@ -34,50 +34,50 @@ function (source::SinusoidalSource)(t::AbstractVector{Float32})
     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end
 
-function build_wave_encoder(;
-        env::WaveEnv, 
-        latent_dim::OneDim,
-        h_size::Int,
-        nfreq::Int,
-        c0::Float32,
-        k::Tuple{Int, Int} = (3, 3),
-        in_channels::Int = 3,
-        activation::Function = leakyrelu)
+# function build_wave_encoder(;
+#         env::WaveEnv, 
+#         latent_dim::OneDim,
+#         h_size::Int,
+#         nfreq::Int,
+#         c0::Float32,
+#         k::Tuple{Int, Int} = (3, 3),
+#         in_channels::Int = 3,
+#         activation::Function = leakyrelu)
 
-    nfields = 6
+#     nfields = 6
 
-    return Chain(
-        TotalWaveInput(),
-        LocalizationLayer(env.dim, env.resolution),
-        ResidualBlock(k, 2 + in_channels, 32, activation),
-        ResidualBlock(k, 32, 64, activation),
-        ResidualBlock(k, 64, h_size, activation),
-        GlobalMaxPool(),
-        Flux.flatten,
-        Parallel(
-            vcat,
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-            Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-        ),
-        b -> reshape(b, nfreq, nfields, :),
-        SinWaveEmbedder(latent_dim, nfreq),
-        x -> hcat(
-            x[:, [1], :],                               # u_tot
-            x[:, [2], :], #./ c0,                         # v_tot
-            x[:, [3], :],                               # u_inc
-            x[:, [4], :], #./ c0,                         # v_inc
-            x[:, [5], :],                               # f
-            x[:, [6], :] .^ 2                           # pml
-            )
-        )
-end
+#     return Chain(
+#         TotalWaveInput(),
+#         LocalizationLayer(env.dim, env.resolution),
+#         ResidualBlock(k, 2 + in_channels, 32, activation),
+#         ResidualBlock(k, 32, 64, activation),
+#         ResidualBlock(k, 64, h_size, activation),
+#         GlobalMaxPool(),
+#         Flux.flatten,
+#         Parallel(
+#             vcat,
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
+#         ),
+#         b -> reshape(b, nfreq, nfields, :),
+#         SinWaveEmbedder(latent_dim, nfreq),
+#         x -> hcat(
+#             x[:, [1], :],                               # u_tot
+#             x[:, [2], :], #./ c0,                         # v_tot
+#             x[:, [3], :],                               # u_inc
+#             x[:, [4], :], #./ c0,                         # v_inc
+#             x[:, [5], :],                               # f
+#             x[:, [6], :] .^ 2                           # pml
+#             )
+#         )
+# end
 
 struct AcousticEnergyModel
-    wave_encoder::Chain
+    wave_encoder::WaveEncoder
     design_encoder::DesignEncoder
     F::AbstractSource
     iter::Integrator
@@ -114,17 +114,10 @@ function AcousticEnergyModel(;
         h_size::Int, 
         nfreq::Int, 
         pml_width::Float32,
-        pml_scale::Float32)
+        pml_scale::Float32,
+        base_function::Function = build_cnn_base)
 
-    wave_encoder = Waves.build_wave_encoder(;
-        env,
-        latent_dim, 
-        h_size, 
-        nfreq,
-        in_channels,
-        c0 = env.iter.dynamics.c0
-)
-
+    wave_encoder = WaveEncoder(env, in_channels, h_size, leakyrelu, nfreq, latent_dim, base_function)
     design_encoder = DesignEncoder(env, h_size, leakyrelu, nfreq, latent_dim)
     F = SinusoidalSource(latent_dim, nfreq, env.source.freq)
     dyn = AcousticDynamics(latent_dim, env.iter.dynamics.c0, pml_width, pml_scale)

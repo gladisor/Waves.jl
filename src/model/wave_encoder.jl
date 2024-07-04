@@ -1,18 +1,20 @@
-export WaveEncoder, build_cnn_base
-# export WaveEncoder
+export WaveEncoder, build_cnn_base, build_vit_base
 
-function build_vit_base(env::WaveEnv, in_channels::Int, out_channels::Int)
-    return Metalhead.ViT(
-        inchannels = in_channels,
+function build_vit_base(env::WaveEnv, in_channels::Int, out_channels::Int, ::Function)
+    return Chain(
+        TotalWaveInput(),
+        LocalizationLayer(env.dim, env.resolution),
+        Metalhead.ViT(:tiny;
+        inchannels = in_channels + 2,
         nclasses = out_channels,
         imsize = env.resolution,
-        patch_size = (20, 20))
+        patch_size = (8, 8)))
 end
 
 """
 Builds CNN feature extractor for processing WaveEnvState(s).
 """
-function build_cnn_base(env::WaveEnv, in_channels::Int, activation::Function, out_channels::Int)
+function build_cnn_base(env::WaveEnv, in_channels::Int, out_channels::Int, activation::Function)
     return Chain(
         TotalWaveInput(),
         LocalizationLayer(env.dim, env.resolution),
@@ -41,7 +43,7 @@ function build_wave_encoder_head(env::WaveEnv, h_size::Int, activation::Function
             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq))
             ),
-        b -> reshape(b, nfreq, 6, :),
+        b -> reshape(b, nfreq, 6, :), # (frequency x field x batch)
         SinWaveEmbedder(latent_dim, nfreq),
         x -> hcat(
             x[:, [1], :],                           # u_tot
@@ -54,9 +56,8 @@ function build_wave_encoder_head(env::WaveEnv, h_size::Int, activation::Function
         )
 end
 
-function WaveEncoder(env::WaveEnv, in_channels::Int, h_size::Int, activation::Function, nfreq::Int, latent_dim::OneDim)
-    # base = build_vit_base(env, in_channels::Int, out_channels::Int)
-    base = build_cnn_base(env, in_channels, activation, h_size)
+function WaveEncoder(env::WaveEnv, in_channels::Int, h_size::Int, activation::Function, nfreq::Int, latent_dim::OneDim, base_function::Function)
+    base = base_function(env, in_channels, h_size, activation)
     head = build_wave_encoder_head(env, h_size, activation, nfreq, latent_dim)
     return WaveEncoder(base, head)
 end

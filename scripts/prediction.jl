@@ -3,52 +3,51 @@ using Optimisers
 using Images: imresize
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(1)
 display(Flux.device())
 
 # dataset_name = "dataset_radii_design_space"
 dataset_name = "dataset_pos_adjustment_masked"
-dataset_name = "dataset_200"
 DATA_PATH = "scratch/$dataset_name"
 checkpoint = 9000
-# our_model_name = "horizon=20,lr=0.0001"
-# node_model_name = "node_horizon=20,lr=0.0001"
-vit_model_name = "acoustic_energy_ViT_horizon=20,lr=0.0001"
-cnn_model_name = "acoustic_energy_CNN_horizon=20,lr=0.0001"
+jobid = 42086
+model_name = "AEM_batchsize=256_jobID=$jobid"
 ## generating paths
-VIT_MODEL_PATH = joinpath(DATA_PATH, "models/$vit_model_name/checkpoint_step=$checkpoint/checkpoint.bson")
-CNN_MODEL_PATH = joinpath(DATA_PATH, "models/$cnn_model_name/checkpoint_step=$checkpoint/checkpoint.bson")
+MODEL_PATH = joinpath(DATA_PATH, "models/$model_name/checkpoint_step=$checkpoint/checkpoint.bson")
 ## loading from storage
-vit_model = gpu(BSON.load(VIT_MODEL_PATH)[:model])
 cnn_model = gpu(BSON.load(CNN_MODEL_PATH)[:model])
 
 # for i in 495:497
 ## loading data
-episode_number = 497 #i #497
+episode_number = 501 #i #497
 ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
-horizon = 100
+horizon = 400
 s, a, t, y = gpu(Flux.batch.(prepare_data(ep, horizon)))
 
 ## inferrence
-@time vit_y_hat = cpu(vit_model(s[1, :], a[:, [1]], t[:, [1]]))
-# BSON.bson("variable_source_results/ours.bson", y_hat = vit_y_hat[:, 3, 1])
 @time cnn_y_hat = cpu(cnn_model(s[1, :], a[:, [1]], t[:, [1]]))
-# BSON.bson("variable_source_results/node.bson", y_hat = cnn_y_hat[:, 1, 1])
 y = cpu(y)
-# BSON.bson("variable_source_results/ground_truth.bson", y = y[:, 3, 1])
 
 ## plotting comparison
 t = cpu(t)
 fig = Figure()
 ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Variable Source Location Scattered Energy Prediction With Random Control")
 lines!(ax, t[:, 1], y[:, 3, 1], label = "Ground Truth")
-lines!(ax, t[:, 1], vit_y_hat[:, 3, 1], color = (:green, 0.6), label = "ViT Model")
-lines!(ax, t[:, 1], cnn_y_hat[:, 3, 1], color = (:red, 0.6), label = "CNN Model")
+lines!(ax, t[:, 1], cnn_y_hat[:, 3, 1], color = (:red, 0.6), label = "Our Model")
 axislegend(ax, position = :lt)
-# save("variable_source_results/$dataset_name,_checkpoint=$checkpoint,episode=$episode_number.png", fig)
-save("$(checkpoint)_$episode_number.png", fig)
+save("$(checkpoint)_$(episode_number)_$(horizon)_$jobid.png", fig)
 # end
 
+# using CSV, DataFrames, Statistics
+# averaging = 5
+# t = collect(1:length(y)) * horizon / 1000 / length(y)
+# y = y[:, 3, 1]
+# y_hat = cnn_y_hat[:, 3, 1]
+# CSV.write("prediction_output.csv", DataFrame(["t" "y" "y_hat"], :auto))
+# for i in 1:averaging:(length(t)-1)
+#     i_step = [t[i] mean(y[i:i+averaging]) mean(y_hat[i:i+averaging])]
+#     CSV.write("prediction_output.csv", DataFrame(i_step, :auto), append=true)
+# end
 
 # @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 468:500]
 # data_loader_kwargs = Dict(:batchsize => 32, :shuffle => true, :partial => false)

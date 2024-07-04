@@ -15,14 +15,16 @@ function LatentTransformationModel(;
     h_size::Int, 
     nfreq::Int, 
     pml_width::Float32,
-    pml_scale::Float32)
+    pml_scale::Float32,
+    base_function::Function = build_cnn_base
+    )
     
     num_basis_functions = 16
     num_g_functions = 16
     basis_matrix = generate_basis(size(latent_dim.x)[1], num_basis_functions)
     coefficients = generate_coefficients(num_basis_functions, num_g_functions)
 
-    return LatentTransformationModel(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim), basis_matrix, coefficients)
+    return LatentTransformationModel(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim, base_function), basis_matrix, coefficients)
 end
 
 function (model::LatentTransformationModel)(s::AbstractVector{WaveEnvState}, a::AbstractArray{<: AbstractDesign}, t::AbstractMatrix{Float32})
@@ -106,8 +108,8 @@ function make_plots(
         end
     end
 
-    g_plots_path = mkpath(joinpath(path), "g_plots")
-    plot_g_functions(model, path=g_plots_path)
+    # g_plots_path = mkpath(joinpath(path, "g_plots"))
+    # plot_g_functions(model, path=g_plots_path)
 
     return nothing
 end

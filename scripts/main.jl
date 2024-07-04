@@ -3,24 +3,61 @@ using Optimisers
 using Images: imresize
 using DataFrames
 using CSV
-using Revise
+using ChainRulesCore: ignore_derivatives
+
+# include("../src/model/latent_transformation_model.jl")
 
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 
-function energy_loss(model, s, a, t, y)
-    return Flux.mse(model(s, a, t), y)
+energy_alpha = 0.2f0
+consistency_alpha = 1.0f0
+
+function coef(t)
+    if t < 500
+        return 2 + 40 * 1.5f0 ^ -(t/100)
+    else
+        return 5 + 40 * 1.5f0 ^ -(t/100)
+    end
 end
 
-"""
-measures average loss on dataset
-"""
-function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func)
+# var_alpha = coef.(1:40000)
+var_alpha = ones(40000)
+
+function energy_loss(model, z, y)
+    y_hat = compute_latent_energy(z, model.dx)
+    return Flux.mse(y_hat, y[:,1:size(y_hat, 2),:])
+end
+
+function energy_loss(model, s, a, t, y, s_)
+    z = generate_latent_solution(model, s, a, t)
+    return energy_loss(model, z, y)
+end
+
+function consistency_loss(model, z, s_)
+    final_latent_state = ignore_derivatives(model.wave_encoder(s_)[:,1:4,:])
+    return Flux.mse(z[:,:,:,end], final_latent_state)
+end
+
+function consistency_loss(model, s, a, t, y, s_)
+    z = generate_latent_solution(model, s, a, t)
+    return consistency_loss(model, z, s_)
+end
+
+function total_loss(model, s, a, t, y, s_, step::Int)
+    z = generate_latent_solution(model, s, a, t)
+    energy_component = energy_loss(model, z, y)
+    consistency_component = consistency_loss(model, z, s_)
+    return energy_component + consistency_component * var_alpha[step]
+end
+
+function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func::Function)
+
     val_loss = []
 
     for (i, batch) in enumerate(val_loader)
-        s, a, t, y = gpu(Flux.batch.(batch))
-        @time loss = loss_func(model, s, a, t, y)
+        s, a, t, y, s_ = gpu(Flux.batch.(batch))
+        @time loss = loss_func(model, s, a, t, y, s_)
         push!(val_loss, loss)
         println("Val Batch: $i")
 
@@ -44,8 +81,8 @@ function plot_loss(metrics::Dict, val_every::Int; path::String)
     save(path, fig)
 end
 
-function compute_gradients(model, loss_func, s, a, t, y)
-    loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y), model)
+function compute_gradients(model, loss_func, s, a, t, y, s_, step::Int)
+    loss, back = Flux.pullback(m -> loss_func(m, s, a, t, y, s_, step), model)
     gs = back(one(loss))[1]
     return loss, gs
 end
@@ -64,23 +101,30 @@ function train!(
         path::String = "",
         )
 
-    step = 0
-    metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}())
-    CSV.write(joinpath(mkpath(path), "loss_data.csv"), DataFrame(["step" "train loss" "val loss"], :auto))
+    step = 1
+    metrics = Dict(:train_loss => Vector{Float32}(), :val_loss => Vector{Float32}(), :energy => Vector{Float32}(), :consistency => Vector{Float32}(), :val_energy => Vector{Float32}(), :val_consistency => Vector{Float32}())
+    CSV.write(joinpath(mkpath(path), "loss_data.csv"), DataFrame(["step" "train loss" "val loss" "energy loss" "val energy loss" "consistency loss" "val consistency loss"], :auto))
     train_loss_accumulator = Vector{Float32}()
+    energy_loss_accumulator = Vector{Float32}()
+    consistency_loss_accumulator = Vector{Float32}()
 
     ## perform an initial gradient computation
-    s, a, t, y = gpu(Flux.batch.(first(train_loader)))
-    @time _, gs = compute_gradients(model, loss_func, s, a, t, y)
+    s, a, t, y, s_ = gpu(Flux.batch.(first(train_loader)))
+    @time _, gs = compute_gradients(model, loss_func, s, a, t, y, s_, step)
     gs_flat_accumulator, re = Flux.destructure(gs)
     gs_flat_accumulator .*= 0.0f0
 
     for epoch in 1:epochs
         for batch in train_loader
-            s, a, t, y = gpu(Flux.batch.(batch))
-            @time loss, gs = compute_gradients(model, loss_func, s, a, t, y)
+            s, a, t, y, s_ = gpu(Flux.batch.(batch))
+            @time loss, gs = compute_gradients(model, loss_func, s, a, t, y, s_, step)
             gs_flat, _ = Flux.destructure(gs)
             gs_flat_accumulator .+= gs_flat
+
+            push!(train_loss_accumulator, loss)
+            z = generate_latent_solution(model, s, a, t)
+            push!(energy_loss_accumulator, energy_loss(model, z, y))
+            push!(consistency_loss_accumulator, consistency_loss(model, z, s_)*var_alpha[step])
 
             if step % accumulate == 0
                 ∇ = re(gs_flat_accumulator ./ accumulate)
@@ -88,7 +132,6 @@ function train!(
                 gs_flat_accumulator .*= 0.0f0
             end
 
-            push!(train_loss_accumulator, loss)
             step += 1
 
             if step % (val_every * accumulate) == 0
@@ -99,28 +142,35 @@ function train!(
                 ## save model checkpoint
                 # BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model = cpu(model))
                 BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model=cpu(model), opt_state=opt_state)
-                #    # To Load the model and optimizer from BSON
-                #    data = BSON.load(joinpath(checkpoint_path, "checkpoint.bson"))
-                #    model = data["model"]
-                #    opt = data["opt"]
 
                 ## plot some predictions
-                make_plots(model, gpu(Flux.batch.(first(val_loader))), path = checkpoint_path, samples = val_samples)
+                Waves.make_plots(model, gpu(Flux.batch.(first(val_loader))), path = checkpoint_path, samples = val_samples)
 
                 ## run validation
-                @time val_loss = validate!(model, val_loader, val_batches, loss_func = loss_func)
+                @time val_energy_loss = validate!(model, val_loader, val_batches; loss_func=energy_loss)
+                @time val_consistency_loss = validate!(model, val_loader, val_batches; loss_func=consistency_loss)
+                val_consistency_loss *= var_alpha[step]
+
                 push!(metrics[:train_loss], Flux.mean(train_loss_accumulator))
-                push!(metrics[:val_loss], val_loss)
+                push!(metrics[:val_loss], val_energy_loss + val_consistency_loss)
+                push!(metrics[:val_energy], val_energy_loss)
+                push!(metrics[:val_consistency], val_consistency_loss)
+                push!(metrics[:energy], Flux.mean(energy_loss_accumulator))
+                push!(metrics[:consistency], Flux.mean(consistency_loss_accumulator))
                 empty!(train_loss_accumulator)
+                empty!(consistency_loss_accumulator)
+                empty!(energy_loss_accumulator)
 
                 ## plot the losses
                 plot_loss(metrics, val_every, path = joinpath(checkpoint_path, "loss.png"))
 
                 ## print to command line
                 println("Step: $(step), Train Loss: $(metrics[:train_loss][end]), Val Loss: $(metrics[:val_loss][end])")
+                println("Energy Loss: $(metrics[:energy][end]), Consistency Loss: $(metrics[:consistency][end])")
+                println("Val Energy Loss: $(metrics[:val_energy][end]), Val Consistency Loss: $(metrics[:val_consistency][end])")
 
                 ## save step to CSV file
-                step_data = [step metrics[:train_loss][end] metrics[:val_loss][end]]
+                step_data = [step metrics[:train_loss][end] metrics[:val_loss][end] metrics[:energy][end] metrics[:val_energy][end] metrics[:consistency][end] metrics[:val_consistency][end]]
                 CSV.write(joinpath(path, "loss_data.csv"), DataFrame(step_data, :auto), append=true)
                 cp(joinpath(path, "loss_data.csv"), joinpath(checkpoint_path, "loss_data.csv"), force=true)
             end
@@ -130,7 +180,56 @@ function train!(
     return model, opt_state
 end
 
-Flux.device!(0)
+struct Hyperparameters
+    dataset_name::String
+    activation::Function
+    h_size::Int
+    in_channels::Int
+    nfreq::Int
+    elements::Int
+    horizon::Int
+    lr::Float32
+    batchsize::Int
+    accumulate::Int
+    val_every::Int
+    val_batches::Int
+    epochs::Int
+    latent_gs::Float32
+    pml_width::Float32
+    pml_scale::Float32
+    train_val_split::Float32
+    energy_loss_coefficient::Float32
+    consistency_loss_coefficient::Float32
+end
+
+function log_hyperparameters(params::Hyperparameters)
+    println("~Hyperparameters~")
+    println("Dataset Name: $(params.dataset_name)")
+    println("Activation: $(params.activation)")
+    println("Hidden Size: $(params.h_size)")
+    println("In Channels: $(params.in_channels)")
+    println("NFreq: $(params.nfreq)")
+    println("Elements: $(params.elements)")
+    println("Horizon: $(params.horizon)")
+    println("Learning Rate: $(params.lr)")
+    println("Batch Size: $(params.batchsize)")
+    println("Accumulate: $(params.accumulate)")
+    println("Validation Every: $(params.val_every)")
+    println("Validation Batches: $(params.val_batches)")
+    println("Epochs: $(params.epochs)")
+    println("Latent GS: $(params.latent_gs)")
+    println("PML Width: $(params.pml_width)")
+    println("PML Scale: $(params.pml_scale)")
+    println("Train/Val Split: $(params.train_val_split)")
+    println("Energy Loss Coefficient: $(params.energy_loss_coefficient)")
+    println("Consistency Loss Coefficient: $(params.consistency_loss_coefficient)")
+    println(""" Used variable alpha:
+        ones(40000)
+    """)
+    println("~~~")
+end
+
+Flux.device!(3)
 display(Flux.device())
 # dataset_name = "dataset_radii_design_space"
 dataset_name = "dataset_pos_adjustment_masked"
@@ -140,20 +239,23 @@ activation = leakyrelu
 h_size = 256
 in_channels = 4
 nfreq = 500
-elements = 1024
-horizon = 20
-lr = 1f-4
-batchsize = 32 #32 ## shorter horizons can use large batchsize
+elements = 1024 # "default" = 1024
+horizon = 1
+lr = 5f-5
+batchsize = 256 #32 ## shorter horizons can use large batchsize
 accumulate = 1
-val_every = 20
+val_every = 200
 val_batches = val_every
-epochs = 10
+epochs = 40
 latent_gs = 100.0f0
 pml_width = 10.0f0
 pml_scale = 10000.0f0
 train_val_split = 0.90 ## choosing percentage of data for val
 data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial => false)
 latent_dim = OneDim(latent_gs, elements)
+## logging hyperparameters
+hp = Hyperparameters(dataset_name, activation, h_size, in_channels, nfreq, elements, horizon, lr, batchsize, accumulate, val_every, val_batches, epochs, latent_gs, pml_width, pml_scale, train_val_split, energy_alpha, consistency_alpha)
+log_hyperparameters(hp)
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
 @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
@@ -165,12 +267,14 @@ train_loader = Flux.DataLoader(prepare_data(train_data, horizon); data_loader_kw
 val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs...)
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
-@time model = gpu(LatentTransformationModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
+@time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim, base_function=build_cnn_base))
 # @time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
 # MODEL_PATH = "/scratch/.../checkpoint_step=6120/checkpoint.bson"
 # model = gpu(BSON.load(MODEL_PATH)[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
-path = "models/acoustic_energy_CNN_horizon=$horizon,lr=$lr"
+# path = "models/LT_model_ViT_horizon=$horizon,lr=$lr"
+job_id = length(ARGS) == 0 ? 0 : ARGS[1]
+path = "models/AEM_batchsize=$(batchsize)_jobID=$(job_id)"
 model, opt_state = @time train!(model, opt_state;
     accumulate = accumulate,
     train_loader,
@@ -179,7 +283,7 @@ model, opt_state = @time train!(model, opt_state;
     val_batches,
     epochs,
     path = joinpath(DATA_PATH, path),
-    loss_func = energy_loss
+    loss_func = total_loss
     )
 
 

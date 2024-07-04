@@ -5,7 +5,7 @@ using ReinforcementLearning
 using Interpolations: linear_interpolation
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(2)
+Flux.device!(0)
 display(Flux.device())
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
@@ -109,26 +109,28 @@ end
 
 
 
-dataset_name = "dataset_200"
+dataset_name = "dataset_pos_adjustment_masked"
 DATA_PATH = "scratch/$dataset_name"
 @time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
 dim = cpu(env.dim)
 
-cnn_model_name = "acoustic_energy_CNN_horizon=20,lr=0.0001"
-vit_model_name = "acoustic_energy_ViT_horizon=20,lr=0.0001"
-model_name = vit_model_name
-checkpoint_step = 9480
+jobid = 42102
+model_name = "AEM_batchsize=256_jobID=$jobid"
+checkpoint_step = 13500
 
 MODEL_PATH = "scratch/$dataset_name/models/$model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
-horizon = 10
+run = 0
+output_folder = mkpath("$(jobid)_$(checkpoint_step)_$(run).mpc")
+
+horizon = 1
 shots = 256
 alpha = 1.0
 mpc = RandomShooting(policy, model, horizon, shots, alpha)
 
-env.actions = 100
+env.actions = 200
 
 reset!(env)
 shape = env.source.shape
@@ -154,7 +156,7 @@ ax3 = Axis(fig[1:2, 2], title = "Scattered Energy in Environment", xlabel = "Tim
 xlims!(ax3, t[1], t[end])
 ylims!(ax3, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
 
-record(fig, "mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+record(fig, joinpath(output_folder, "mpc.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
     println(i)
     empty!(ax1)
     heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
@@ -172,7 +174,7 @@ end
 
 fig = Figure()
 ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control", xlabel = "Space (m)", ylabel = "Space (m)")
-record(fig, "actions=100_random_control.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+record(fig, joinpath(output_folder, "actions=100_random_control.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
     println(i)
     empty!(ax1)
     heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
@@ -181,7 +183,7 @@ end
 
 fig = Figure()
 ax1 = Axis(fig[1, 1], aspect = 1.0, title = "MPC", xlabel = "Space (m)", ylabel = "Space (m)")
-record(fig, "actions=100_mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+record(fig, joinpath(output_folder, "actions=100_mpc.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
     println(i)
     empty!(ax1)
     heatmap!(ax1, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
@@ -192,7 +194,7 @@ fig = Figure()
 ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
 xlims!(ax1, t[1], t[end])
 ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-record(fig, "actions=100_scattered_energy.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
+record(fig, joinpath(output_folder, "actions=100_scattered_energy.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
     idx = findfirst(tspan[i] .<= t)[1]
     empty!(ax1)
     lines!(ax1, t[1:idx], mpc_signal[3, 1:idx], color = :green)
@@ -207,7 +209,7 @@ empty!(ax1)
 lines!(ax1, vec(t), mpc_signal[3, :], color = :green, label = "MPC")
 lines!(ax1, vec(t), random_signal[3, :], color = :red, label = "Random Control")
 axislegend(ax1)
-save("actions=100_scattered_energy.png", fig)
+save(joinpath(output_folder, "actions=100_scattered_energy.png"), fig)
 
 
 

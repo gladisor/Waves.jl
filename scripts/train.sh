@@ -12,4 +12,4 @@
 #SBATCH --mail-user=noam.smilovich@sjsu.edu
 
 module load julia
-srun julia --project scripts/main.jl
+srun julia --project scripts/main.jl $SLURM_JOB_ID

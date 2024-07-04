@@ -37,11 +37,13 @@ function prepare_data(ep::Episode{S, Matrix{Float32}}, horizon::Int) where S
     a = Vector{<: AbstractDesign}[]
     t = Vector{Float32}[]
     y = Matrix{Float32}[]
+    s_ = S[]
     
     n = horizon - 1
-    for i in 1:(length(ep) - n)
+    for i in 1:(length(ep) - n - 1) # added -1 to support for next state
         boundary = i + n
         push!(s, ep.s[i])
+        push!(s_, ep.s[i+1])
         push!(a, ep.a[i:boundary])
         push!(t, flatten_repeated_last_dim(hcat(ep.t[i:boundary]...)))
 
@@ -50,7 +52,7 @@ function prepare_data(ep::Episode{S, Matrix{Float32}}, horizon::Int) where S
         push!(y, signal)
     end
 
-    return s, a, t, y
+    return s, a, t, y, s_
 end
 
 function prepare_data(eps::Vector{Episode{S, Y}}, horizon::Int) where {S, Y}

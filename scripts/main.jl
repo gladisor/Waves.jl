@@ -34,14 +34,20 @@ function energy_loss(model, s, a, t, y, s_)
     return energy_loss(model, z, y)
 end
 
+function compute_latent_states(model, s_)
+    return cat([model.wave_encoder(s_[i, :])[:, 1:4, :] for i in 1:size(s_, 1)]..., dims=4)
+end
+
 function consistency_loss(model, z, s_)
-    final_latent_state = ignore_derivatives(model.wave_encoder(s_)[:,1:4,:])
-    return Flux.mse(z[:,:,:,end], final_latent_state)
+    latent_states = ignore_derivatives(compute_latent_states(model, s_))
+    return Flux.mse(z[:,:,:,101:100:end], latent_states)
+    # return 0
 end
 
 function consistency_loss(model, s, a, t, y, s_)
     z = generate_latent_solution(model, s, a, t)
     return consistency_loss(model, z, s_)
+    # return 0
 end
 
 function total_loss(model, s, a, t, y, s_, step::Int)
@@ -224,12 +230,13 @@ function log_hyperparameters(params::Hyperparameters)
     println("Energy Loss Coefficient: $(params.energy_loss_coefficient)")
     println("Consistency Loss Coefficient: $(params.consistency_loss_coefficient)")
     println(""" Used variable alpha:
-        ones(40000)
+        var_alpha = ones(40000)
+        
     """)
     println("~~~")
 end
 
-Flux.device!(3)
+Flux.device!(2)
 display(Flux.device())
 # dataset_name = "dataset_radii_design_space"
 dataset_name = "dataset_pos_adjustment_masked"
@@ -240,13 +247,13 @@ h_size = 256
 in_channels = 4
 nfreq = 500
 elements = 1024 # "default" = 1024
-horizon = 1
-lr = 5f-5
-batchsize = 256 #32 ## shorter horizons can use large batchsize
+horizon = 5
+lr = 1f-5
+batchsize = 64 #32 ## shorter horizons can use large batchsize
 accumulate = 1
-val_every = 200
+val_every = 100
 val_batches = val_every
-epochs = 40
+epochs = 20
 latent_gs = 100.0f0
 pml_width = 10.0f0
 pml_scale = 10000.0f0

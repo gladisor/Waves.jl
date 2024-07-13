@@ -37,15 +37,15 @@ function prepare_data(ep::Episode{S, Matrix{Float32}}, horizon::Int) where S
     a = Vector{<: AbstractDesign}[]
     t = Vector{Float32}[]
     y = Matrix{Float32}[]
-    s_ = S[]
-    
+    s_ = Vector{S}[]
+
     n = horizon - 1
-    for i in 1:(length(ep) - n - 1) # added -1 to support for next state
+    for i in 1:(length(ep)-n-1) # added -1 to support next state
         boundary = i + n
         push!(s, ep.s[i])
-        push!(s_, ep.s[i+1])
         push!(a, ep.a[i:boundary])
         push!(t, flatten_repeated_last_dim(hcat(ep.t[i:boundary]...)))
+        push!(s_, ep.s[i+1:i+horizon])
 
         signal = cat(ep.y[i:boundary]..., dims = 3)
         signal = permutedims(flatten_repeated_last_dim(permutedims(signal, (2, 1, 3))))

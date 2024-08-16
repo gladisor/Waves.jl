@@ -1,43 +1,45 @@
 using Waves, CairoMakie, Flux, BSON
 using Optimisers
 using Images: imresize
-Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(1)
-display(Flux.device())
 
 # dataset_name = "dataset_radii_design_space"
-dataset_name = "dataset_pos_adjustment_masked"
+# dataset_name = "dataset_pos_adjustment_masked"
+dataset_name = "pos_adjustment_masked_M=2"
 DATA_PATH = "scratch/$dataset_name"
-checkpoint = 9000
-jobid = 42086
-model_name = "AEM_batchsize=256_jobID=$jobid"
+checkpoint = 10500
+jobid = 42476
+model_name = "AEM_batchsize=64_jobID=$jobid"
 ## generating paths
 MODEL_PATH = joinpath(DATA_PATH, "models/$model_name/checkpoint_step=$checkpoint/checkpoint.bson")
 ## loading from storage
-model = gpu(BSON.load(MODEL_PATH)[:model])
+model = BSON.load(MODEL_PATH)[:model]
 
-# for i in 495:497
-## loading data
-episode_number = 501 #i #497
-ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
-horizon = 400
-s, a, t, y = gpu(Flux.batch.(prepare_data(ep, horizon)))
+for s_i in [1 51]
+    for i in 497:499
+        ## loading data
+        episode_number = i #497
+        ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
+        horizon = 100
+        s, a, t, y = Flux.batch.(prepare_data(ep, horizon))
+        start_index = s_i
+        s = s[start_index:end]
+        a = a[:, start_index:end]
+        t = t[:, start_index:end]
+        y = y[:, :, start_index:end]
+        ## inferrence
+        @time y_hat = model(s[1, :], a[:, [1]], t[:, [1]])
 
-## inferrence
-@time cnn_y_hat = cpu(model(s[1, :], a[:, [1]], t[:, [1]]))
-y = cpu(y)
-
-## plotting comparison
-t = cpu(t)
-fig = Figure()
-ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Variable Source Location Scattered Energy Prediction With Random Control")
-lines!(ax, t[:, 1], y[:, 3, 1], label = "Ground Truth")
-lines!(ax, t[:, 1], cnn_y_hat[:, 3, 1], color = (:red, 0.6), label = "Our Model")
-axislegend(ax, position = :lt)
-save("$(checkpoint)_$(episode_number)_$(horizon)_$jobid.png", fig)
-# end
-
+        ## plotting comparison
+        fig = Figure()
+        ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Scattered Energy", title = "Variable Source Location Scattered Energy Prediction With Random Control")
+        lines!(ax, t[:, 1], y[:, 3, 1], label = "Ground Truth")
+        lines!(ax, t[:, 1], y_hat[:, 3, 1], color = (:red, 0.6), label = "Our Model")
+        axislegend(ax, position = :lt)
+        save(joinpath(mkpath("$(jobid)_prediction"), "$(checkpoint)_$(episode_number)_$(horizon)_$(jobid)_$(start_index).png"), fig)
+        println("saved: $(checkpoint)_$(episode_number)_$(horizon)_$(jobid)_$(start_index).png")
+    end
+end
 # using CSV, DataFrames, Statistics
 # averaging = 5
 # t = collect(1:length(y)) * horizon / 1000 / length(y)

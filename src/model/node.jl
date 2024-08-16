@@ -1,4 +1,4 @@
-export NODEEnergyModel, NODEDynamics
+export NODEEnergyModel, NODEDynamics, generate_latent_solution
 
 struct NODEDynamics <: AbstractDynamics 
     re
@@ -30,7 +30,7 @@ function NODEEnergyModel(env::WaveEnv, activation::Function, h_size::Int, nfreq:
     fields = 3
 
     wave_encoder = WaveEncoder(
-        build_cnn_base(env, nframes, activation, h_size),
+        build_cnn_base(env, nframes, h_size, activation),
         Chain(Dense(h_size, elements)))
 
     design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)

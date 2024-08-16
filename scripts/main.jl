@@ -10,9 +10,6 @@ using ChainRulesCore: ignore_derivatives
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 
-energy_alpha = 0.2f0
-consistency_alpha = 1.0f0
-
 function coef(t)
     if t < 500
         return 2 + 40 * 1.5f0 ^ -(t/100)
@@ -21,12 +18,23 @@ function coef(t)
     end
 end
 
-# var_alpha = coef.(1:40000)
-var_alpha = ones(40000)
+const_alpha = 1.0f0
+# var_alpha_consistency = coef.(1:40000)
+var_alpha_consistency = 1 * ones(40000)
+var_alpha_energy = const_alpha * ones(40000)
 
-function energy_loss(model, z, y)
+function energy_loss(model::AcousticEnergyModel, z, y)
     y_hat = compute_latent_energy(z, model.dx)
-    return Flux.mse(y_hat, y[:,1:size(y_hat, 2),:])
+    return Flux.mse(y_hat, y[:,1:size(y_hat, 2),:]) 
+    # upper_right_quadrent_scattered_energy = y[:,[1, 2, 6],:] + y[:,[1, 2, 7],:] + y[:,[1, 2, 10],:] + y[:,[1, 2, 11],:]
+    # return Flux.mse(y_hat, upper_right_quadrent_scattered_energy) # focusing on upper right quadrant
+end
+
+function energy_loss(model::NODEEnergyModel, z, y)
+    y_hat = permutedims(dropdims(sum(z .^ 2, dims = 1) * model.dx, dims = (1, 2)), (2, 1))
+    # return Flux.mse(y_hat, y[:,1:size(y_hat, 2),:]) 
+    upper_right_quadrent_scattered_energy = y[:,6,:] + y[:,7,:] + y[:,10,:] + y[:,11,:]
+    return Flux.mse(y_hat, upper_right_quadrent_scattered_energy) # focusing on upper right quadrant
 end
 
 function energy_loss(model, s, a, t, y, s_)
@@ -39,26 +47,25 @@ function compute_latent_states(model, s_)
 end
 
 function consistency_loss(model, z, s_)
-    latent_states = ignore_derivatives(compute_latent_states(model, s_))
-    return Flux.mse(z[:,:,:,101:100:end], latent_states)
-    # return 0
+    # latent_states = ignore_derivatives(compute_latent_states(model, s_))
+    # return Flux.mse(z[:,:,:,101:100:end], latent_states)
+    return 0
 end
 
 function consistency_loss(model, s, a, t, y, s_)
-    z = generate_latent_solution(model, s, a, t)
-    return consistency_loss(model, z, s_)
-    # return 0
+    # z = generate_latent_solution(model, s, a, t)
+    # return consistency_loss(model, z, s_)
+    return 0
 end
 
 function total_loss(model, s, a, t, y, s_, step::Int)
     z = generate_latent_solution(model, s, a, t)
     energy_component = energy_loss(model, z, y)
     consistency_component = consistency_loss(model, z, s_)
-    return energy_component + consistency_component * var_alpha[step]
+    return energy_component * var_alpha_energy[step] + consistency_component * var_alpha_consistency[step]
 end
 
 function validate!(model, val_loader::Flux.DataLoader, batches::Int; loss_func::Function)
-
     val_loss = []
 
     for (i, batch) in enumerate(val_loader)
@@ -129,8 +136,8 @@ function train!(
 
             push!(train_loss_accumulator, loss)
             z = generate_latent_solution(model, s, a, t)
-            push!(energy_loss_accumulator, energy_loss(model, z, y))
-            push!(consistency_loss_accumulator, consistency_loss(model, z, s_)*var_alpha[step])
+            push!(energy_loss_accumulator, energy_loss(model, z, y)*var_alpha_energy[step])
+            push!(consistency_loss_accumulator, consistency_loss(model, z, s_)*var_alpha_consistency[step])
 
             if step % accumulate == 0
                 ∇ = re(gs_flat_accumulator ./ accumulate)
@@ -146,8 +153,7 @@ function train!(
                 checkpoint_path = mkpath(joinpath(path, "checkpoint_step=$step"))
 
                 ## save model checkpoint
-                # BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model = cpu(model))
-                BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model=cpu(model), opt_state=opt_state)
+                BSON.bson(joinpath(checkpoint_path, "checkpoint.bson"), model=cpu(model))
 
                 ## plot some predictions
                 Waves.make_plots(model, gpu(Flux.batch.(first(val_loader))), path = checkpoint_path, samples = val_samples)
@@ -155,7 +161,8 @@ function train!(
                 ## run validation
                 @time val_energy_loss = validate!(model, val_loader, val_batches; loss_func=energy_loss)
                 @time val_consistency_loss = validate!(model, val_loader, val_batches; loss_func=consistency_loss)
-                val_consistency_loss *= var_alpha[step]
+                val_energy_loss *= var_alpha_energy[step]
+                val_consistency_loss *= var_alpha_consistency[step]
 
                 push!(metrics[:train_loss], Flux.mean(train_loss_accumulator))
                 push!(metrics[:val_loss], val_energy_loss + val_consistency_loss)
@@ -181,6 +188,7 @@ function train!(
                 cp(joinpath(path, "loss_data.csv"), joinpath(checkpoint_path, "loss_data.csv"), force=true)
             end
         end
+        println("Epoch $epoch done!")
     end
 
     return model, opt_state
@@ -204,8 +212,6 @@ struct Hyperparameters
     pml_width::Float32
     pml_scale::Float32
     train_val_split::Float32
-    energy_loss_coefficient::Float32
-    consistency_loss_coefficient::Float32
 end
 
 function log_hyperparameters(params::Hyperparameters)
@@ -227,19 +233,19 @@ function log_hyperparameters(params::Hyperparameters)
     println("PML Width: $(params.pml_width)")
     println("PML Scale: $(params.pml_scale)")
     println("Train/Val Split: $(params.train_val_split)")
-    println("Energy Loss Coefficient: $(params.energy_loss_coefficient)")
-    println("Consistency Loss Coefficient: $(params.consistency_loss_coefficient)")
     println(""" Used variable alpha:
-        var_alpha = ones(40000)
+        var_alpha_consistency = 1 * ones(40000) * 0
+        var_alpha_energy = $const_alpha * ones(40000)
+
         
     """)
     println("~~~")
 end
 
-Flux.device!(2)
+Flux.device!(3)
 display(Flux.device())
-# dataset_name = "dataset_radii_design_space"
-dataset_name = "dataset_pos_adjustment_masked"
+dataset_name = "pos_adjustment_masked_M=1"
+# dataset_name = "dataset_pos_adjustment_masked"
 DATA_PATH = "scratch/$dataset_name"
 ## declaring hyperparameters
 activation = leakyrelu
@@ -247,12 +253,14 @@ h_size = 256
 in_channels = 4
 nfreq = 500
 elements = 1024 # "default" = 1024
-horizon = 5
+horizon = 10
 lr = 1f-5
+# batchsize = horizon >= 5 ? (horizon == 20 ? 16 : 32) : 128
 batchsize = 64 #32 ## shorter horizons can use large batchsize
 accumulate = 1
 val_every = 100
 val_batches = val_every
+# epochs = horizon >= 5 ? 20 : 35
 epochs = 20
 latent_gs = 100.0f0
 pml_width = 10.0f0
@@ -261,11 +269,12 @@ train_val_split = 0.90 ## choosing percentage of data for val
 data_loader_kwargs = Dict(:batchsize => batchsize, :shuffle => true, :partial => false)
 latent_dim = OneDim(latent_gs, elements)
 ## logging hyperparameters
-hp = Hyperparameters(dataset_name, activation, h_size, in_channels, nfreq, elements, horizon, lr, batchsize, accumulate, val_every, val_batches, epochs, latent_gs, pml_width, pml_scale, train_val_split, energy_alpha, consistency_alpha)
+hp = Hyperparameters(dataset_name, activation, h_size, in_channels, nfreq, elements, horizon, lr, batchsize, accumulate, val_every, val_batches, epochs, latent_gs, pml_width, pml_scale, train_val_split)
 log_hyperparameters(hp)
 ## loading environment and data
 @time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
 @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 1:500]
+# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 501:1000]
 ## spliting data
 idx = Int(round(length(data) * train_val_split))
 train_data, val_data = data[1:idx], data[idx+1:end]
@@ -275,11 +284,10 @@ val_loader = Flux.DataLoader(prepare_data(val_data, horizon); data_loader_kwargs
 println("Train Batches: $(length(train_loader)), Val Batches: $(length(val_loader))")
 ## contstruct model & train
 @time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim, base_function=build_cnn_base))
-# @time model = gpu(AcousticEnergyModel(;env, h_size, in_channels, nfreq, pml_width, pml_scale, latent_dim))
-# MODEL_PATH = "/scratch/.../checkpoint_step=6120/checkpoint.bson"
+# @time model = gpu(NODEEnergyModel(env, activation, h_size, nfreq, latent_dim))
+# MODEL_PATH = "scratch/pos_adjustment_masked_M=2/models/AEM_batchsize=32_jobID=42391/checkpoint_step=12000/checkpoint.bson"
 # model = gpu(BSON.load(MODEL_PATH)[:model])
 @time opt_state = Optimisers.setup(Optimisers.Adam(lr), model)
-# path = "models/LT_model_ViT_horizon=$horizon,lr=$lr"
 job_id = length(ARGS) == 0 ? 0 : ARGS[1]
 path = "models/AEM_batchsize=$(batchsize)_jobID=$(job_id)"
 model, opt_state = @time train!(model, opt_state;

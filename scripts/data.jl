@@ -46,14 +46,15 @@ end
 
 M = 1
 
-r = fill(1.0f0, M)
+r_low = fill(0.2f0, M)
+r_high = fill(1.0f0, M)
 c = fill(AIR * 3, M)
 
 low_pos = fill(-8.0f0, M, 2)
 high_pos = fill(8.0f0, M, 2)
 
-low = AdjustablePositionScatterers(Cylinders(low_pos, r, c))
-high = AdjustablePositionScatterers(Cylinders(high_pos, r, c))
+low = FullyAdjustableScatterers(Cylinders(low_pos, r_low, c))
+high = FullyAdjustableScatterers(Cylinders(high_pos, r_high, c))
 
 design_space = DesignSpace(low, high)
 

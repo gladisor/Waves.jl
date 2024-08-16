@@ -1,6 +1,6 @@
 export ALUMINIUM, COPPER, BRASS, AIR, WATER
 export DesignSpace, DesignInterpolator
-export NoDesign, Cylinders, AdjustableRadiiScatterers, AdjustablePositionScatterers, Cloak
+export NoDesign, Cylinders, AdjustableRadiiScatterers, AdjustablePositionScatterers, FullyAdjustableScatterers, Cloak
 export speed, build_action_space
 export DesignSequence
 
@@ -204,6 +204,22 @@ function build_action_space(design::AdjustablePositionScatterers, scale::Float32
     s = build_action_space(design.cylinders, scale)
     low = AdjustablePositionScatterers(Cylinders(s.low.pos, s.low.r * 0.0f0, s.low.c * 0.0f0))
     high = AdjustablePositionScatterers(Cylinders(s.high.pos, s.high.r * 0.0f0, s.high.c * 0.0f0))
+    return DesignSpace(low, high)
+end
+
+struct FullyAdjustableScatterers <: AbstractScatterers
+    cylinders::Cylinders
+end
+
+Flux.@functor FullyAdjustableScatterers
+# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
+Flux.trainable(design::FullyAdjustableScatterers) = (;design.cylinders.pos, design.cylinders.r)
+Base.vec(design::FullyAdjustableScatterers) = vcat(vec(design.cylinders.pos), design.cylinders.r)
+
+function build_action_space(design::FullyAdjustableScatterers, scale::Float32)
+    s = build_action_space(design.cylinders, scale)
+    low = FullyAdjustableScatterers(Cylinders(s.low.pos, s.low.r, s.low.c * 0.0f0))
+    high = FullyAdjustableScatterers(Cylinders(s.high.pos, s.high.r, s.high.c * 0.0f0))
     return DesignSpace(low, high)
 end
 

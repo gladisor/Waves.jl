@@ -218,8 +218,8 @@ Base.vec(design::FullyAdjustableScatterers) = vcat(vec(design.cylinders.pos), de
 
 function build_action_space(design::FullyAdjustableScatterers, scale::Float32)
     s = build_action_space(design.cylinders, scale)
-    low = FullyAdjustableScatterers(Cylinders(s.low.pos, s.low.r, s.low.c * 0.0f0))
-    high = FullyAdjustableScatterers(Cylinders(s.high.pos, s.high.r, s.high.c * 0.0f0))
+    low = FullyAdjustableScatterers(Cylinders(s.low.pos * 2.0f0, s.low.r, s.low.c * 0.0f0))
+    high = FullyAdjustableScatterers(Cylinders(s.high.pos * 2.0f0, s.high.r, s.high.c * 0.0f0))
     return DesignSpace(low, high)
 end
 

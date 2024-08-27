@@ -115,13 +115,17 @@ function (env::WaveEnv)(action::AbstractDesign, position_mask::Union{AbstractArr
     if !isnothing(position_mask)
         # position mask dimensions = 700 x 700 x 1 x channels
         position_mask = CUDA.CuArray{Bool}(position_mask)
-        masked_field = (u_sc[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
-        masked_energy = dropdims(sum(masked_field, dims = (1, 2)), dims = (1, 2)) * dΩ
+        masked_field_tot = (u_tot[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
+        masked_field_inc = (u_inc[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
+        masked_field_sc = (u_sc[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
+        masked_energy_tot = dropdims(sum(masked_field_tot, dims = (1, 2)), dims = (1, 2)) * dΩ
+        masked_energy_inc = dropdims(sum(masked_field_inc, dims = (1, 2)), dims = (1, 2)) * dΩ
+        masked_energy_sc = dropdims(sum(masked_field_sc, dims = (1, 2)), dims = (1, 2)) * dΩ
     end
     
     ## setting environment variables
     if !isnothing(position_mask)
-        env.signal = hcat(tot_energy, inc_energy, sc_energy, masked_energy)
+        env.signal = hcat(tot_energy, inc_energy, sc_energy, masked_energy_tot, masked_energy_inc, masked_energy_sc)
     else
         env.signal = hcat(tot_energy, inc_energy, sc_energy)
     end

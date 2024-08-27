@@ -31,7 +31,7 @@ function build_rectangular_grid_design_space()
     return DesignSpace(low, high)
 end
 
-Flux.device!(3)
+Flux.device!(1)
 DATA_PATH = "./scratch/"
 
 dim = TwoDim(15.0f0, 700)
@@ -45,20 +45,22 @@ function Base.rand(space::DesignSpace{NoDesign})
 end
 
 M = 1
-
-r_low = fill(0.2f0, M)
-r_high = fill(1.0f0, M)
+r = fill(1.0f0, M)
+# r_low = fill(0.25f0, M)
+# r_high = fill(1.5f0, M)
 c = fill(AIR * 3, M)
 
-low_pos = fill(-8.0f0, M, 2)
-high_pos = fill(8.0f0, M, 2)
+low_pos = hcat(fill(-8.0f0, M), fill(-8.0f0, M))
+high_pos = hcat(fill(8.0f0, M), fill(8.0f0, M))
 
-low = FullyAdjustableScatterers(Cylinders(low_pos, r_low, c))
-high = FullyAdjustableScatterers(Cylinders(high_pos, r_high, c))
+# low = FullyAdjustableScatterers(Cylinders(low_pos, r_low, c))
+# high = FullyAdjustableScatterers(Cylinders(high_pos, r_high, c))
+low = AdjustablePositionScatterers(Cylinders(low_pos, r, c))
+high = AdjustablePositionScatterers(Cylinders(high_pos, r, c))
 
 design_space = DesignSpace(low, high)
 
-masks = cat(create_patches(700, 175)..., dims = 3)
+masks = cat(create_patches(700, 350)..., dims = 3)
 
 env = gpu(WaveEnv(dim; 
     # design_space = build_rectangular_grid_design_space(),
@@ -71,7 +73,7 @@ env = gpu(WaveEnv(dim;
     ))
 
 policy = RandomDesignPolicy(action_space(env))
-# render!(policy, env, path = "vid.mp4")
+# render!(policy, env, path = "vid_x2.mp4")
 # ep = generate_episode!(policy, env, position_mask=masks)
 # save(ep, "scratch/dataset_pos_adjustment_masked/episodes/episode501.bson")
 
@@ -85,12 +87,12 @@ policy = RandomDesignPolicy(action_space(env))
 #         "actionspeed=$(env.action_speed)_" *
 #         "resolution=$(env.resolution)"
 
-name = "pos_adjustment_masked_M=1"
+name = "pos_adjustment_masked_signals_M=1"
 path = mkpath(joinpath(DATA_PATH, name))
 mkpath(joinpath(path, "episodes/"))
-# BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
+BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
 
-for i in 251:500
+for i in 1:500
     ep = generate_episode!(policy, env, position_mask=masks)
     # ep = generate_episode!(policy, env)
     save(ep, joinpath(path, "episodes/episode$i.bson"))
@@ -105,7 +107,7 @@ function custom_env()
     σ = [0.3f0]
     a = [1.0f0]
 
-    M = 2
+    M = 15
     r = fill(1.0f0, M)
     c = fill(AIR * 3, M)
 
@@ -125,7 +127,8 @@ function custom_env()
         )
 
     DATA_PATH = "./scratch/"
-    name = "pos_adjustment_masked_M=2"
+    # name = "pos_adjustment_masked_M=2"
+    name = "dataset_pos_adjustment_masked"
     path = mkpath(joinpath(DATA_PATH, name))
-    BSON.bson(joinpath(path, "env_4.bson"), env = cpu(env))
+    BSON.bson(joinpath(path, "env_1.bson"), env = cpu(env))
 end

@@ -30,15 +30,19 @@ function NODEEnergyModel(env::WaveEnv, activation::Function, h_size::Int, nfreq:
 
     wave_encoder = WaveEncoder(
         build_cnn_base(env, nframes, h_size, activation),
-        Chain(Dense(h_size, 3 * elements)))
+        Chain(
+            Dense(h_size, 6 * h_size, activation),
+            Dense(6 * h_size, 3 * h_size, activation),
+            Dense(3 * h_size, 3)
+            )
+        )
 
     design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
 
     mlp = Chain(
-        Dense(4 * elements, elements, activation),
-        Dense(elements, elements, activation),
-        Dense(elements, elements, activation),
-        Dense(elements, 3 * elements)
+        Dense(3 + elements, 32, activation),
+        Dense(32, 32, activation),
+        Dense(32, 3)
     )
 
     params, re = Flux.destructure(mlp)
@@ -52,13 +56,15 @@ function Waves.generate_latent_solution(model::NODEEnergyModel, s::Vector{WaveEn
     z0 = Flux.unsqueeze(model.wave_encoder(s), 2)
     C = model.design_encoder(s, a, t)
     θ = [C, model.dynamics_params]
-    return reshape(model.iter(z0, t, θ), size(z0, 1) ÷ 3, 3, length(s), :)
+    # return reshape(model.iter(z0, t, θ), size(z0, 1) ÷ 3, 3, length(s), :)
+    return model.iter(z0, t, θ)
 end
 
 function (model::NODEEnergyModel)(s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z = generate_latent_solution(model, s, a, t)
-    energy = sum(z .^ 2, dims = 1) * model.dx
-    return permutedims(energy[1, :, :, :], (3, 1, 2))
+    return permutedims(z[:, 1, :, :], (3, 1, 2))
+    # energy = sum(z .^ 2, dims = 1) * model.dx
+    # return permutedims(energy[1, :, :, :], (3, 1, 2))
     # return permutedims(dropdims(sum(z .^ 2, dims = 1) * model.dx, dims = (1, 2)), (2, 1))
 end
 

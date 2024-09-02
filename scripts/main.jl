@@ -20,8 +20,9 @@ function energy_loss(model::AcousticEnergyModel, z, y, energy_indices)
 end
 
 function energy_loss(model::NODEEnergyModel, z, y, energy_indices)
-    energy = sum(z .^ 2, dims = 1) * model.dx
-    y_hat = permutedims(energy[1, :, :, :], (3, 1, 2))
+    # energy = sum(z .^ 2, dims = 1) * model.dx
+    # y_hat = permutedims(energy[1, :, :, :], (3, 1, 2))
+    y_hat = permutedims(z[:, 1, :, :], (3, 1, 2))
     return Flux.mse(y_hat, y[:,energy_indices,:]) 
 end
 
@@ -231,11 +232,13 @@ function log_hyperparameters(params::Hyperparameters)
     println("~~~")
 end
 
-Flux.device!(1)
+Flux.device!(0)
 display(Flux.device())
 # dataset_name = "pos_adjustment_masked_M=1"
 # dataset_name = "dataset_pos_adjustment_masked"
 # dataset_name = "fully_adjustable_masked_M=2"
+# dataset_name = "full_adjustment_masked_signals_M=2"
+# dataset_name = "pos_adjustment_masked_signals_M=4"
 # dataset_name = "pos_adjustment_masked_signals_M=2"
 dataset_name = "pos_adjustment_masked_signals_M=1"
 DATA_PATH = "scratch/$dataset_name"
@@ -247,13 +250,13 @@ nfreq = 500
 elements = 1024 # "default" = 1024
 horizon = 10
 lr = 1f-5
-# batchsize = horizon >= 5 ? (horizon == 20 ? 16 : 32) : 128
-batchsize = 64 #32 ## shorter horizons can use large batchsize
+batchsize = horizon >= 5 ? 64 : 256
+# batchsize = 256 #32 ## shorter horizons can use large batchsize
 accumulate = 1
 val_every = 100
 val_batches = val_every
-# epochs = horizon >= 5 ? 20 : 35
-epochs = 20
+epochs = horizon >= 5 ? 20 : 35
+# epochs = 20
 latent_gs = 100.0f0
 pml_width = 10.0f0
 pml_scale = 10000.0f0

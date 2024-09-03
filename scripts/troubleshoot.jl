@@ -1,6 +1,6 @@
 using Waves, Flux, CairoMakie, BSON, Statistics
 
-function multiple_mpc_rendering(data_array, data_description, title, output_path)
+function multiple_mpc_rendering(data_array, data_description, title, output_path, signal_index)
 
     colors = [  :red, :blue, :green, :orange, :purple, :cyan, :magenta, :yellow, :brown, :pink,
                 :lime, :teal, :violet, :gold, :indigo, :olive, :navy, :coral, :turquoise, :salmon ]
@@ -9,7 +9,7 @@ function multiple_mpc_rendering(data_array, data_description, title, output_path
     max_bound = 0
     max_energy = 0
     for i in 1:length(data_array)
-        vecs = [data_array[i][j][:signal][3, :] for j in 1:length(data_array[i])]
+        vecs = [data_array[i][j][:signal][signal_index, :] for j in 1:length(data_array[i])]
         max_energy = max(max_energy, maximum(vcat(vecs...)))
         upper_bound = maximum(mean(vecs) .+ sqrt.(var(vecs)))
         max_bound = max(max_bound, upper_bound)
@@ -34,7 +34,7 @@ function multiple_mpc_rendering(data_array, data_description, title, output_path
         push!(ax_master_array, ax_arr)
         push!(ax_last_array, ax_last)
 
-        vecs = [data_array[i][j][:signal][3, :] for j in 1:length(data_array[i])]
+        vecs = [data_array[i][j][:signal][signal_index, :] for j in 1:length(data_array[i])]
         push!(average_array, mean(vecs))
         push!(upper_bound_array, average_array[end] .+ sqrt.(var(vecs)))
         push!(lower_bound_array, average_array[end] .- sqrt.(var(vecs)))
@@ -62,7 +62,7 @@ function multiple_mpc_rendering(data_array, data_description, title, output_path
             idx = findfirst(tspan[i] .<= t)[1]
             empty!(ax_last_array[k])
             for j in 1:length(data_array[k])
-                lines!(ax_last_array[k], t[1:idx], data_array[k][j][:signal][3, 1:idx], color=colors[j])
+                lines!(ax_last_array[k], t[1:idx], data_array[k][j][:signal][signal_index, 1:idx], color=colors[j])
             end
 
             empty!(ax_average_array[k])
@@ -80,7 +80,7 @@ function moving_std(signal, window_size)
     return [std(signal[max(1, i-window_size+1):i]) for i in 1:length(signal)]
 end
 
-function create_figures(data_array, data_description, title, output_path)
+function create_figures(data_array, data_description, title, output_path, signal_index)
     colors = [  :red, :blue, :green, :orange, :purple, :cyan, :magenta, :yellow, :brown, :pink,
                 :lime, :teal, :violet, :gold, :indigo, :olive, :navy, :coral, :turquoise, :salmon ]
     fig = Figure(;size = (1600, 2400))
@@ -88,7 +88,7 @@ function create_figures(data_array, data_description, title, output_path)
     max_bound = 0
     max_energy = 0
     for i in 1:length(data_array)
-        vecs = [data_array[i][j][:signal][3, :] for j in 1:length(data_array[i])]
+        vecs = [data_array[i][j][:signal][signal_index, :] for j in 1:length(data_array[i])]
         max_energy = max(max_energy, maximum(vcat(vecs...)))
         upper_bound = maximum(mean(vecs) .+ sqrt.(var(vecs)))
         max_bound = max(max_bound, upper_bound)
@@ -102,15 +102,15 @@ function create_figures(data_array, data_description, title, output_path)
         empty!(ax_last)
         for j in 1:length(data_array[i])
             window_size = 4000
-            std_deviation = moving_std(data_array[i][j][:signal][3, :], window_size)
-            upper_signal = moving_average(data_array[i][j][:signal][3, :], window_size) .+ std_deviation
-            lower_signal = moving_average(data_array[i][j][:signal][3, :], window_size) .- std_deviation
+            std_deviation = moving_std(data_array[i][j][:signal][signal_index, :], window_size)
+            upper_signal = moving_average(data_array[i][j][:signal][signal_index, :], window_size) .+ std_deviation
+            lower_signal = moving_average(data_array[i][j][:signal][signal_index, :], window_size) .- std_deviation
 
             # band!(ax_last, t, lower_signal, upper_signal, color=colors[end-j])
-            lines!(ax_last, t, data_array[i][j][:signal][3, :], color=colors[j])
+            lines!(ax_last, t, data_array[i][j][:signal][signal_index, :], color=colors[j])
         end
         
-        vecs = [data_array[i][j][:signal][3, :] for j in 1:length(data_array[i])]
+        vecs = [data_array[i][j][:signal][signal_index, :] for j in 1:length(data_array[i])]
         average = mean(vecs)
         upper_bound = average .+ sqrt.(var(vecs))
         lower_bound = average .- sqrt.(var(vecs))
@@ -128,10 +128,11 @@ function create_figures(data_array, data_description, title, output_path)
 end
 
 
-dataset_name = "pos_adjustment_masked_M=2"
+# dataset_name = "pos_adjustment_masked_signals_M=2"
+dataset_name = "full_adjustment_masked_signals_M=2"
 # dataset_name = "dataset_pos_adjustment_masked"
 DATA_PATH = "scratch/$dataset_name"
-@time env = BSON.load(joinpath(DATA_PATH, "env_4.bson"))[:env]
+@time env = BSON.load(joinpath(DATA_PATH, "env.bson"))[:env]
 dim = env.dim
 
 env.actions = 200
@@ -142,34 +143,31 @@ tspan = collect(range(t[1], t[end], frames))
 
 
 
-step = 3
-# output_folder = "42526_AEM_42525_NODE_10000_focus.mpc"
-# output_folder = "42527_AEM_42606_NODE_6000_minScattering.mpc"
-# output_folder = "42616_AEM_42617_NODE_6000_focus.mpc"
-# output_folder = "42616_AEM_42617_NODE_8700_focus_opposite_quadrant_initialization.mpc"
-# output_folder = "42616_AEM_42617_NODE_9000_focus_opposite_quadrant_initialization.mpc"
-output_folder = "42526_AEM_10000_focus_opposite_quadrant_initialization.mpc"
-# output_folder = "42616_AEM_11000_focus_opposite_quadrant_initialization.mpc"
+# output_folder = "42694AEM_42696NODE_10000_M=2_focus.mpc"
+# output_folder = "42694AEM_42696NODE_10000_M=2_focus_20.mpc"
+# output_folder = "42873AEM_10000_M=2_focus_fullyAdjustable_1024.mpc"
+# output_folder = "M=4_focus_shots=256.mpc"
+output_folder = "M=2_focus_shots=512.mpc"
+focusing = true
 
 prefix = "comparison"
 # title = "Total Scattered Energy"
 title = "Focused Energy"# in Upper Right Quadrant"
 
-
 j=1
-step = 8
-mpc_data_1_1024 = [BSON.load(joinpath(output_folder, "mpc_horizon=1_shots=1024_$i.bson")) for i in j:(j+step-1)]
-mpc_data_1_512 = [BSON.load(joinpath(output_folder, "mpc_horizon=1_shots=512_$i.bson")) for i in j:(j+step-1)]
-mpc_data_1 = [BSON.load(joinpath(output_folder, "mpc_horizon=1_$i.bson")) for i in j:(j+step-1)]
-# mpc_data_2 = [BSON.load(joinpath(output_folder, "mpc_horizon=2_$i.bson")) for i in j:(j+step-1)]
-# mpc_data_5 = [BSON.load(joinpath(output_folder, "mpc_horizon=5_$i.bson")) for i in j:(j+step-1)]
-# node_data = [BSON.load(joinpath(output_folder, "node_$i.bson")) for i in j:(j+step-1)]
-random_data = [BSON.load(joinpath(output_folder, "random_horizon=1_$i.bson")) for i in j:(j+step-1)]
-# data_array = [mpc_data, node_data, random_data]
-# data_array = [mpc_data_1_1024, mpc_data_1_512, mpc_data_1, mpc_data_2, mpc_data_5, random_data]
-data_array = [mpc_data_1_1024, mpc_data_1_512, mpc_data_1, random_data]
-multiple_mpc_rendering(data_array, ["MPC Shots=1024", "MPC Shots=512", "MPC Shots=256", "Random"], title, joinpath(output_folder, "$(prefix)_$j-$(j+step-1).mp4"))
-# create_figures([mpc_data, node_data, random_data], ["MPC", "NODE", "Random"], title, joinpath(output_folder, "$(prefix)_$j-$(j+step-1).png"))
-# create_figures(data_array, ["MPC Horizon=1 ; Shots=1024", "Random"], title, joinpath(output_folder, "$(prefix)_$j-$(j+step-1).png"))
-# create_figures(data_array, ["MPC Horizon=1 ; Shots=1024", "MPC Horizon=1 ; Shots=512", "MPC Horizon=1 ; Shots=256", "MPC Horizon=2 ; Shots=256", "MPC Horizon=5 ; Shots=256", "Random"], title, joinpath(output_folder, "$(prefix)_$j-$(j+step-1).png"))
-
+step = 12
+index_array = vcat(j:(j+step-1))
+# index_array = vcat(1:3, 7:9)
+# for j in 1:step:20
+mpc_data_1 = [BSON.load(joinpath(output_folder, "mpc_$i.bson")) for i in index_array]
+node_data = [BSON.load(joinpath(output_folder, "node_$i.bson")) for i in index_array]
+random_data = [BSON.load(joinpath(output_folder, "random_$i.bson")) for i in index_array]
+# data_array = [mpc_data_1, node_data, random_data]
+data_array = [mpc_data_1, node_data, random_data]
+# title_array = ["MPC (AEM)", "MPC (NODE)", "Random"]
+title_array = ["MPC (AEM)", "MPC (NODE)", "Random"]
+create_figures(data_array, title_array, title, joinpath(output_folder, "$(prefix)_$j-$(j+step-1).png"), focusing ? 13 : 3)
+# create_figures(data_array, title_array, title, joinpath(output_folder, "$(prefix)_6.png"), focusing ? 13 : 3)
+multiple_mpc_rendering(data_array, title_array, title, joinpath(output_folder, "$(prefix)_$j-$(j+step-1).mp4"), focusing ? 13 : 3)
+# multiple_mpc_rendering(data_array, title_array, title, joinpath(output_folder, "$(prefix)_6.mp4"), focusing ? 13 : 3)
+# end

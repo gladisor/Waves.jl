@@ -5,8 +5,9 @@ using ReinforcementLearning
 using Interpolations: linear_interpolation
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(0)
+Flux.device!(3)
 display(Flux.device())
+include("../src/masks.jl")
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
     return [policy(env) for i in 1:horizon]
@@ -22,6 +23,7 @@ struct RandomShooting <: AbstractPolicy
     horizon::Int
     shots::Int
     alpha::Float32
+    focusing::Bool
 end
 
 function compute_action_cost(a::Matrix{<: AbstractDesign})
@@ -47,10 +49,13 @@ function (mpc::RandomShooting)(env::WaveEnv)
 
     energy = compute_energy_cost(mpc.model, s, a, t)
     penalty = compute_action_cost(a)
-    # cost = energy .+ mpc.alpha * penalty
-    # idx = argmin(cost)
-    cost = energy .- mpc.alpha * penalty
-    idx = argmax(cost)
+    if focusing
+        cost = energy .- mpc.alpha * penalty
+        idx = argmax(cost)
+    else
+        cost = energy .+ mpc.alpha * penalty
+        idx = argmin(cost)
+    end
     return a[1, idx]
 end
 
@@ -82,8 +87,10 @@ function build_interpolator(
         RLBase.reset!(env)
     end
 
+    masks = cat(create_patches(700, 350)..., dims = 3)
+
     while !is_terminated(env)
-        tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
+        tspan, interp, u_tot, u_inc = cpu(env(policy(env), masks))
 
         push!(tspans, tspan)
         push!(interps, interp)
@@ -124,73 +131,82 @@ function create_data(env, mpc, frames, tspan, output_path, title)
     return output_path
 end
 
+function log_message(logpath, message)
+    logfile = open(joinpath(logpath, "log.txt"), "a")
+    println(logfile, "$message")
+    close(logfile)
+end
 
 # dataset_name = "dataset_pos_adjustment_masked"
 # dataset_name = "pos_adjustment_masked_M=2"
-dataset_name = "fully_adjustable_masked_M=2"
+# dataset_name = "full_adjustment_masked_signals_M=2"
+dataset_name = "pos_adjustment_masked_signals_M=4"
 DATA_PATH = "scratch/$dataset_name"
 @time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
 dim = cpu(env.dim)
+focusing = true
 
-jobid = 42616
-model_name = "AEM_batchsize=64_jobID=$jobid"
-checkpoint_step = 11000
+jobid = 42880
+model_name = "AEM_focusing_jobID=$jobid"
+checkpoint_step = 10000
 
 MODEL_PATH = "scratch/$dataset_name/models/$model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
-node_model_name = "NODE_batchsize=64_jobID=42525"
+node_jobid = 42883
+node_model_name = "NODE_focusing_jobID=$node_jobid"
 NODE_MODEL_PATH = "scratch/$dataset_name/models/$node_model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
-# node_model = gpu(BSON.load(NODE_MODEL_PATH)[:model])
+node_model = gpu(BSON.load(NODE_MODEL_PATH)[:model])
 
-output_folder = mkpath("$(jobid)_AEM_$(checkpoint_step)_focus_opposite_quadrant_initialization.mpc")
+# output_folder = mkpath("$(jobid)AEM_$(node_jobid)NODE_$(checkpoint_step)_M=2_focus_20.mpc")
+output_folder = mkpath("M=4_focus_shots=512.mpc")
+log_message(output_folder, "dataset_name: $(dataset_name)\nAEM: $model_name\nNODE: $node_model_name\ncheckpoint_step = $checkpoint_step")
 
-runs = 8
+runs = 20
 if isfile(joinpath(output_folder, "positions.bson"))
     initial_positions = BSON.load(joinpath(output_folder, "positions.bson"))[:pos]
 else
     initial_positions = []
     for run in 1:runs
+        reset!(env)
+        # design_ = env.design
+        design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(4, 2), env.design.cylinders.r, env.design.cylinders.c))
         # design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
-        design_ = FullyAdjustableScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
+        # design_ = FullyAdjustableScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
         push!(initial_positions, design_)
     end
     BSON.bson(joinpath(output_folder, "positions.bson"), pos=cpu(initial_positions))
 end
 
 for horizon in [1]
-    # horizon = 1
     shots = 512
     alpha = 1.0
-    mpc = RandomShooting(policy, model, horizon, shots, alpha)
-    # node_mpc = RandomShooting(policy, node_model, horizon, shots, alpha)
+    mpc = RandomShooting(policy, model, horizon, shots, alpha, focusing)
+    node_mpc = RandomShooting(policy, node_model, horizon, shots, alpha, focusing)
 
     env.actions = 200
     t = build_tspan(0.0f0, env.dt, env.actions * env.integration_steps)
     seconds = 40.0
     frames = Int(round(Waves.FRAMES_PER_SECOND * seconds))
     tspan = collect(range(t[1], t[end], frames))
+    log_message(output_folder, "shots = $shots\nalpha = $alpha\nenv.actions = $(env.actions)\nseconds = $seconds")
 
-    for run_idx in 1:runs
+    for run_idx in 7:12
         try
             reset!(env)
-            # env.design = gpu(FullyAdjustableScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c)))
-            # env.design = gpu(AdjustablePositionScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c)))
             env.design = gpu(initial_positions[run_idx])
             design_1 = deepcopy(env.design)
             design_2 = deepcopy(env.design)
-            @time create_data(env, mpc, frames, tspan, joinpath(output_folder, "mpc_horizon=$(horizon)_shots=1024_$run_idx.bson"), "MPC (AEM)")
+            @time create_data(env, mpc, frames, tspan, joinpath(output_folder, "mpc_$run_idx.bson"), "MPC (AEM)")
             
-            if !isfile(joinpath(output_folder, "random_$run_idx.bson"))
-                reset!(env)
-                env.design = design_1
-                @time create_data(env, policy, frames, tspan, joinpath(output_folder, "random_$run_idx.bson"), "Random")
-            end
+            reset!(env)
+            env.design = design_1
+            @time create_data(env, policy, frames, tspan, joinpath(output_folder, "random_$run_idx.bson"), "Random")
 
             reset!(env)
             env.design = design_2
-            # @time create_data(env, node_mpc, frames, tspan, joinpath(output_folder, "node_$run_idx.bson"), "MPC (NODE)")
+            @time create_data(env, node_mpc, frames, tspan, joinpath(output_folder, "node_$run_idx.bson"), "MPC (NODE)")
             println("\n\n *** Finished run number $run_idx ***\n\n")
         catch e
             println("Caught error for run number $run_idx : $(e)")
@@ -198,6 +214,8 @@ for horizon in [1]
         end
     end
 end
+
+
 # for run_idx in 1:10
 #     try
 #         @time mpc_path = create_random_data(env, mpc, frames, tspan, joinpath(output_folder, "random_$run_idx.bson"))

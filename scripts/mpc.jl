@@ -186,7 +186,7 @@ NODE_MODEL_PATH = "scratch/$dataset_name/models/$node_model_name/checkpoint_step
 node_model = gpu(BSON.load(NODE_MODEL_PATH)[:model])
 
 # output_folder = mkpath("$(jobid)AEM_$(node_jobid)NODE_$(checkpoint_step)_M=2_focus_20.mpc")
-output_folder = mkpath("M=1_pos_$(focusing ? "focusing" : "suppression")_shots=512_noOverlap_2.mpc")
+output_folder = mkpath("M=1_pos_$(focusing ? "focusing" : "suppression").mpc")
 log_message(output_folder, "dataset_name: $(dataset_name)\nAEM: $model_name\nNODE: $node_model_name\ncheckpoint_step = $checkpoint_step")
 
 runs = 12
@@ -195,8 +195,8 @@ if isfile(joinpath(output_folder, "positions.bson"))
 else
     initial_positions = []
     for run in 1:runs
-        # reset!(env)
-        # design_ = env.design
+        reset!(env)
+        design_ = env.design
         # design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(4, 2), env.design.cylinders.r, env.design.cylinders.c))
         design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(1, 2), env.design.cylinders.r, env.design.cylinders.c))
         # design_ = FullyAdjustableScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
@@ -241,109 +241,3 @@ for horizon in [1]
     end
 end
 
-
-# println("recording \"mpc.mp4\"")
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control (Red)", xlabel = "Space (m)", ylabel = "Space (m)")
-# ax2 = Axis(fig[2, 1], aspect = 1.0, title = "MPC (Green)", xlabel = "Space (m)", ylabel = "Space (m)")
-# ax3 = Axis(fig[1:2, 2], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
-# xlims!(ax3, t[1], t[end])
-# ylims!(ax3, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-
-# record(fig, joinpath(output_folder, "mpc.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-#     println(i)
-#     empty!(ax1)
-#     heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-#     mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
-#     empty!(ax2)
-#     heatmap!(ax2, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-#     mesh!(ax2, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
-
-#     idx = findfirst(tspan[i] .<= t)[1]
-#     empty!(ax3)
-#     lines!(ax3, t[1:idx], mpc_signal[3, 1:idx], color = :green)
-#     lines!(ax3, t[1:idx], random_signal[3, 1:idx], color = :red)
-# end
-
-# println("recording \"actions=100_random_control.mp4\"")
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control", xlabel = "Space (m)", ylabel = "Space (m)")
-# record(fig, joinpath(output_folder, "actions=100_random_control.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-#     println(i)
-#     empty!(ax1)
-#     heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-#     mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
-# end
-
-# println("recording \"actions=100_mpc.mp4\"")
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], aspect = 1.0, title = "MPC", xlabel = "Space (m)", ylabel = "Space (m)")
-# record(fig, joinpath(output_folder, "actions=100_mpc.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-#     println(i)
-#     empty!(ax1)
-#     heatmap!(ax1, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-#     mesh!(ax1, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
-# end
-
-# println("recording \"actions=100_scattered_energy.mp4\"")
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
-# xlims!(ax1, t[1], t[end])
-# ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-# record(fig, joinpath(output_folder, "actions=100_scattered_energy.mp4"), axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-#     idx = findfirst(tspan[i] .<= t)[1]
-#     empty!(ax1)
-#     lines!(ax1, t[1:idx], mpc_signal[3, 1:idx], color = :green)
-#     lines!(ax1, t[1:idx], random_signal[3, 1:idx], color = :red)
-# end
-
-# fig = Figure()
-# ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
-# xlims!(ax1, t[1], t[end])
-# ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-# empty!(ax1)
-# lines!(ax1, vec(t), mpc_signal[3, :], color = :green, label = "MPC")
-# lines!(ax1, vec(t), random_signal[3, :], color = :red, label = "Random Control")
-# axislegend(ax1)
-# save(joinpath(output_folder, "actions=100_scattered_energy.png"), fig)
-
-
-
-
-# mpc_signal = render!(mpc, env, path = "mpc.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
-# mpc_signal = flatten_repeated_last_dim(cat(transpose.(mpc_signal)..., dims = 3))
-# reset!(env)
-# env.source.shape = shape
-# random_signal = render!(policy, env, path = "random.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
-# random_signal = flatten_repeated_last_dim(cat(transpose.(random_signal)..., dims = 3))
-
-# tspan = build_tspan(0.0f0, env.dt, size(mpc_signal, 2)-1)
-
-# fig = Figure()
-# ax = Axis(fig[1, 1], title = "Scattered Energy In Response to Actuation (50 actions)", xlabel = "Time (s)", ylabel = "Scattered Energy")
-# lines!(ax, tspan, mpc_signal[3, :], label = "MPC", color = :green)
-# lines!(ax, tspan, random_signal[3, :], label = "Random", color = :red)
-# axislegend(ax, position = :rb)
-# save("signals.png", fig)
-
-
-
-# # delta_mu = (env.source.μ_high .- env.source.μ_low)
-# # x = gpu(collect(range(0.0f0, 1.0f0, 5)))
-# # mu = env.source.μ_low .+ delta_mu .* x
-
-# # for location in axes(mu, 1)
-# #     shape = build_normal(env.source.grid, mu[[location], :], env.source.σ, env.source.a)
-
-# #     for episode in 1:4
-# #         reset!(env)
-# #         env.source.shape = shape
-# #         mpc_ep = generate_episode!(mpc, env, reset = false)
-# #         # save(mpc_ep, "control_results/cPILS_location=$location,episode=$episode.bson")
-# #         save(mpc_ep, "control_results/PINC_location=$location,episode=$episode.bson")
-# #         # reset!(env)
-# #         # env.source.shape = shape
-# #         # random_ep = generate_episode!(policy, env, reset = false)
-# #         # save(random_ep, "control_results/random_location=$location,episode=$episode.bson")
-# #     end
-# # end

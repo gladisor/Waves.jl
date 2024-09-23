@@ -40,3 +40,8 @@ Manifest.toml
 
 #scratch folder
 scratch/*
+
+*.txt
+*.mp4
+download/*
+initial_conditions/*

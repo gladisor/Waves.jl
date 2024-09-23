@@ -3,79 +3,55 @@ using Optimisers
 using Images: imresize
 println("Loaded Packages")
 
-# dataset_name = "dataset_radii_design_space"
-# dataset_name = "dataset_pos_adjustment_masked"
-M = "2"
-dataset_name = "pos_adjustment_masked_signals_M=$M"
-DATA_PATH = "scratch/$dataset_name"
-for checkpoint in [3300]
-    # checkpoint = 10500
-    jobid = 42694
-    # jobid = 42606
-    model_type = "AEM"
-    # model_type = "NODE"
-    model_name = "$(model_type)_batchsize=64_jobID=$jobid"
-    ## generating paths
-    MODEL_PATH = joinpath(DATA_PATH, "models/$model_name/checkpoint_step=$checkpoint/checkpoint.bson")
-    ## loading from storage
-    model = BSON.load(MODEL_PATH)[:model]
+my_theme = Theme(fontsize = 34)
+set_theme!(my_theme)
 
-    for s_i in [1 51]
-        for i in [497 499]
-            ## loading data
-            episode_number = i #497
-            ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
-            horizon = 100
-            s, a, t, y = Flux.batch.(prepare_data(ep, horizon))
-            start_index = s_i
-            s = s[start_index:end]
-            a = a[:, start_index:end]
-            t = t[:, start_index:end]
-            y = y[:, :, start_index:end]
-            ## inferrence
-            @time y_hat = model(s[1, :], a[:, [1]], t[:, [1]])
-            ## plotting comparison
-            fig = Figure()
-            ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "Focused Energy", title = "Fixed Source Location Focused Energy Prediction With Random Control")
-            lines!(ax, t[:, 1], y[:, 13, 1], label = "Ground Truth")
-            lines!(ax, t[:, 1], y_hat[:, 3, 1], color = (:red, 0.6), label = "$(model_type) Model")
-            # lines!(ax, t[:, 1], y_hat[:, 1], color = (:red, 0.6), label = "$(model_type) Model")
-            axislegend(ax, position = :lt)
-            save(joinpath(mkpath("$(jobid)_prediction_$(model_type)_M=$(M)"), "$(checkpoint)_$(episode_number)_$(horizon)_$(jobid)_$(start_index).png"), fig)
-            println("saved: $(checkpoint)_$(episode_number)_$(horizon)_$(jobid)_$(start_index).png")
+datasets = ["pos_adjustment_masked_signals_M=1", "pos_adjustment_masked_signals_M=2", "pos_adjustment_masked_signals_M=4", "full_adjustment_masked_signals_M=2"]
+run_tuples = [  (42777, 42890, true, datasets[1]), (42722, 42889, false, datasets[1]), (42694, 42884, true, datasets[2]), (42774, 42891, false, datasets[2]), # M=1, M=2
+                (42880, 42883, true, datasets[3]), (42881, 42887, false, datasets[3]), (42873, 42886, true, datasets[4]), (42878, 42887, false, datasets[4])] # M=4, M=2(fullyAdj)
+                # AEM_jobid, NODE_jobid, focusing(true/false), dataset_name
+
+for (jobid, node_jobid, focusing, dataset_name) in run_tuples[3:3]
+    M = dataset_name[end]
+    DATA_PATH = "scratch/$dataset_name"
+    for checkpoint in [8000]
+        model_name = "AEM_$(focusing ? "focusing" : "suppression")_jobID=$jobid"
+        node_model_name = "NODE_$(focusing ? "focusing" : "suppression")_jobID=$node_jobid"
+
+        ## generating paths
+        MODEL_PATH = joinpath(DATA_PATH, "models/$model_name/checkpoint_step=$checkpoint/checkpoint.bson")
+        NODE_MODEL_PATH = joinpath(DATA_PATH, "models/$node_model_name/checkpoint_step=$checkpoint/checkpoint.bson")
+        ## loading from storage
+        model = BSON.load(MODEL_PATH)[:model]
+        node_model = BSON.load(NODE_MODEL_PATH)[:model]
+        for s_i in [1]
+            for i in 477 #475:480 #[498 500]
+                ## loading data
+                episode_number = i #497
+                ep = Episode(path = joinpath(DATA_PATH, "episodes/episode$episode_number.bson"))
+                horizon = 100
+                s, a, t, y = Flux.batch.(prepare_data(ep, horizon))
+                start_index = s_i
+                s = s[start_index:end]
+                a = a[:, start_index:end]
+                t = t[:, start_index:end]
+                y = y[:, :, start_index:end]
+                ## inferrence
+                @time y_hat = model(s[1, :], a[:, [1]], t[:, [1]])
+                @time y_hat_node = node_model(s[1, :], a[:, [1]], t[:, [1]])
+                ## plotting comparison
+                fig = Figure(;size = (1600, 1200), figure_padding = (10, 30, 10, 10))
+                ax = Axis(fig[1, 1], xlabel = "Time (s)", ylabel = "$(focusing ? "Focused" : "Suppressed") Energy", title = "$(focusing ? "Focused" : "Suppressed") Energy Prediction With Random Control")
+                # ylims!(ax, -0.4, 0.4)
+                xlims!(ax, 0, t[end, 1])
+
+                lines!(ax, t[:, 1], y[:, focusing ? 13 : 3, 1], label = "Ground Truth")
+                lines!(ax, t[:, 1], y_hat[:, 3, 1], color = (:green, 0.6), label = "AEM")
+                lines!(ax, t[:, 1], y_hat_node[:, 3, 1], color = (:red, 0.6), label = "NODE")
+                axislegend(ax, position = :lt)
+                output_folder = mkpath(joinpath("predictions2", "M=$(dataset_name[end])$(contains(dataset_name, "full") ? "fullyAdj" : "")_$(focusing ? "focus" : "suppress")"))
+                save(joinpath(output_folder, "$(checkpoint)_$(episode_number)_$(start_index).png"), fig)
+            end
         end
     end
 end
-# using CSV, DataFrames, Statistics
-# averaging = 5
-# t = collect(1:length(y)) * horizon / 1000 / length(y)
-# y = y[:, 3, 1]
-# y_hat = cnn_y_hat[:, 3, 1]
-# CSV.write("prediction_output.csv", DataFrame(["t" "y" "y_hat"], :auto))
-# for i in 1:averaging:(length(t)-1)
-#     i_step = [t[i] mean(y[i:i+averaging]) mean(y_hat[i:i+averaging])]
-#     CSV.write("prediction_output.csv", DataFrame(i_step, :auto), append=true)
-# end
-
-# @time data = [Episode(path = joinpath(DATA_PATH, "episodes/episode$i.bson")) for i in 468:500]
-# data_loader_kwargs = Dict(:batchsize => 32, :shuffle => true, :partial => false)
-
-# horizon = collect(20:10:200)
-# our_error = Vector{Float32}[]
-# # node_error = Vector{Float32}[]
-
-# for h in horizon
-#     val_loader = Flux.DataLoader(prepare_data(data, h); data_loader_kwargs...)
-#     s, a, t, y = gpu(Flux.batch.(first(val_loader)))
-
-#     y_sc = y[:, 3, :]
-#     @time y_hat = our_model(s, a, t)[:, 3, :]
-#     # @time y_hat = node_model(s, a, t)
-
-#     error = cpu(vec(Flux.mse(y_sc, y_hat, agg = x -> Flux.mean(x, dims = 1))))
-#     push!(our_error, error)
-#     # push!(node_error, error)
-
-#     BSON.bson("variable_source_results/our_error.bson", horizon = horizon, error = our_error)
-#     # BSON.bson("variable_source_results/node_error.bson", horizon = horizon, error = node_error)
-# end

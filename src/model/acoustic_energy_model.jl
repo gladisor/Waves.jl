@@ -34,48 +34,6 @@ function (source::SinusoidalSource)(t::AbstractVector{Float32})
     return f .* sin.(2.0f0 * pi * permutedims(t) * source.freq)
 end
 
-# function build_wave_encoder(;
-#         env::WaveEnv, 
-#         latent_dim::OneDim,
-#         h_size::Int,
-#         nfreq::Int,
-#         c0::Float32,
-#         k::Tuple{Int, Int} = (3, 3),
-#         in_channels::Int = 3,
-#         activation::Function = leakyrelu)
-
-#     nfields = 6
-
-#     return Chain(
-#         TotalWaveInput(),
-#         LocalizationLayer(env.dim, env.resolution),
-#         ResidualBlock(k, 2 + in_channels, 32, activation),
-#         ResidualBlock(k, 32, 64, activation),
-#         ResidualBlock(k, 64, h_size, activation),
-#         GlobalMaxPool(),
-#         Flux.flatten,
-#         Parallel(
-#             vcat,
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#             Chain(Dense(h_size, h_size, activation), Dense(h_size, h_size, activation), Dense(h_size, nfreq)),
-#         ),
-#         b -> reshape(b, nfreq, nfields, :),
-#         SinWaveEmbedder(latent_dim, nfreq),
-#         x -> hcat(
-#             x[:, [1], :],                               # u_tot
-#             x[:, [2], :], #./ c0,                         # v_tot
-#             x[:, [3], :],                               # u_inc
-#             x[:, [4], :], #./ c0,                         # v_inc
-#             x[:, [5], :],                               # f
-#             x[:, [6], :] .^ 2                           # pml
-#             )
-#         )
-# end
-
 struct AcousticEnergyModel
     wave_encoder::WaveEncoder
     design_encoder::DesignEncoder

@@ -7,7 +7,6 @@ using Images: imresize
 include("../src/masks.jl")
 
 function build_rectangular_grid(nx::Int, ny::Int, r::Float32)
-
     x = []
 
     for i in 1:nx
@@ -22,7 +21,6 @@ function build_rectangular_grid(nx::Int, ny::Int, r::Float32)
 end
 
 function build_rectangular_grid_design_space()
-
     pos = Matrix(build_rectangular_grid(5, 5, 1.0f0 + 0.1f0)')
     M = size(pos, 1)
 
@@ -63,10 +61,7 @@ design_space = DesignSpace(low, high)
 masks = cat(create_patches(700, 350)..., dims = 3)
 
 env = gpu(WaveEnv(dim; 
-    # design_space = build_rectangular_grid_design_space(),
-    # design_space = Waves.build_triple_ring_design_space(),
     design_space=design_space,
-    # source = Source(pulse, 1000.0f0),
     source = RandomPosGaussianSource(build_grid(dim), μ_low, μ_high, σ, a, 1000.0f0),
     integration_steps = 100,
     actions = 200
@@ -94,7 +89,6 @@ BSON.bson(joinpath(path, "env.bson"), env = cpu(env))
 
 for i in 1:500
     ep = generate_episode!(policy, env, position_mask=masks)
-    # ep = generate_episode!(policy, env)
     save(ep, joinpath(path, "episodes/episode$i.bson"))
 end
 
@@ -127,8 +121,7 @@ function custom_env()
         )
 
     DATA_PATH = "./scratch/"
-    # name = "pos_adjustment_masked_M=2"
-    name = "dataset_pos_adjustment_masked"
+    name = "pos_adjustment_masked_M=2"
     path = mkpath(joinpath(DATA_PATH, name))
     BSON.bson(joinpath(path, "env_1.bson"), env = cpu(env))
 end

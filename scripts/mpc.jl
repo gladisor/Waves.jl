@@ -5,7 +5,7 @@ using ReinforcementLearning
 using Interpolations: linear_interpolation
 Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
-Flux.device!(3)
+Flux.device!(0)
 display(Flux.device())
 include("../src/masks.jl")
 
@@ -42,18 +42,46 @@ function Waves.build_tspan(mpc::RandomShooting, env::WaveEnv)
         mpc.shots)...)
 end
 
+function propagate_designs(de::DesignEncoder, s, a, t)
+    t_ = t[1:de.integration_steps:end, :]
+    d = [si.design for si in s]
+    recur = Flux.Recur(de, d)
+    design_sequences = hcat(d, [recur(a[i, :]) for i in axes(a, 1)]...)
+    return design_sequences
+end
+
+function has_overlap(scatterers::Waves.AbstractScatterers)
+    pos = cpu(scatterers.cylinders.pos)
+    r = cpu(scatterers.cylinders.r)
+    M = size(pos, 1)
+
+    for i in 1:M
+        for j in (i+1):M
+            d = Flux.norm(pos[i, :] - pos[j, :])
+            if d - (r[i] + r[j] + 0.1) <= 0.0
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 function (mpc::RandomShooting)(env::WaveEnv)
     s = gpu(fill(state(env), mpc.shots))
     a = build_action_sequence(mpc.policy, env, mpc.horizon, mpc.shots)
     t = build_tspan(mpc, env) |> gpu
-
+    
+    ds = propagate_designs(mpc.model.design_encoder, s, a, t)
+    overlap_vec = gpu(sum(has_overlap.(ds), dims=2)[:, 1])
     energy = compute_energy_cost(mpc.model, s, a, t)
     penalty = compute_action_cost(a)
-    if focusing
-        cost = energy .- mpc.alpha * penalty
+
+    if mpc.focusing
+        cost = energy .- mpc.alpha * penalty .- overlap_vec * 1000
         idx = argmax(cost)
     else
-        cost = energy .+ mpc.alpha * penalty
+        cost = energy .+ mpc.alpha * penalty .+ overlap_vec * 1000
         idx = argmin(cost)
     end
     return a[1, idx]
@@ -137,42 +165,40 @@ function log_message(logpath, message)
     close(logfile)
 end
 
-# dataset_name = "dataset_pos_adjustment_masked"
-# dataset_name = "pos_adjustment_masked_M=2"
 # dataset_name = "full_adjustment_masked_signals_M=2"
-dataset_name = "pos_adjustment_masked_signals_M=4"
+dataset_name = "pos_adjustment_masked_signals_M=1"
 DATA_PATH = "scratch/$dataset_name"
 @time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
 dim = cpu(env.dim)
 focusing = true
 
-jobid = 42880
-model_name = "AEM_focusing_jobID=$jobid"
-checkpoint_step = 10000
+jobid = 42777
+model_name = "AEM_$(focusing ? "focusing" : "suppression")_jobID=$jobid"
+checkpoint_step = 8000
 
 MODEL_PATH = "scratch/$dataset_name/models/$model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
-node_jobid = 42883
-node_model_name = "NODE_focusing_jobID=$node_jobid"
+node_jobid = 42890
+node_model_name = "NODE_$(focusing ? "focusing" : "suppression")_jobID=$node_jobid"
 NODE_MODEL_PATH = "scratch/$dataset_name/models/$node_model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
 node_model = gpu(BSON.load(NODE_MODEL_PATH)[:model])
 
 # output_folder = mkpath("$(jobid)AEM_$(node_jobid)NODE_$(checkpoint_step)_M=2_focus_20.mpc")
-output_folder = mkpath("M=4_focus_shots=512.mpc")
+output_folder = mkpath("M=1_pos_$(focusing ? "focusing" : "suppression")_shots=512_noOverlap_2.mpc")
 log_message(output_folder, "dataset_name: $(dataset_name)\nAEM: $model_name\nNODE: $node_model_name\ncheckpoint_step = $checkpoint_step")
 
-runs = 20
+runs = 12
 if isfile(joinpath(output_folder, "positions.bson"))
     initial_positions = BSON.load(joinpath(output_folder, "positions.bson"))[:pos]
 else
     initial_positions = []
     for run in 1:runs
-        reset!(env)
+        # reset!(env)
         # design_ = env.design
-        design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(4, 2), env.design.cylinders.r, env.design.cylinders.c))
-        # design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
+        # design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(4, 2), env.design.cylinders.r, env.design.cylinders.c))
+        design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(1, 2), env.design.cylinders.r, env.design.cylinders.c))
         # design_ = FullyAdjustableScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
         push!(initial_positions, design_)
     end
@@ -192,7 +218,7 @@ for horizon in [1]
     tspan = collect(range(t[1], t[end], frames))
     log_message(output_folder, "shots = $shots\nalpha = $alpha\nenv.actions = $(env.actions)\nseconds = $seconds")
 
-    for run_idx in 7:12
+    for run_idx in 1:6
         try
             reset!(env)
             env.design = gpu(initial_positions[run_idx])
@@ -215,16 +241,6 @@ for horizon in [1]
     end
 end
 
-
-# for run_idx in 1:10
-#     try
-#         @time mpc_path = create_random_data(env, mpc, frames, tspan, joinpath(output_folder, "random_$run_idx.bson"))
-#         println("\n\n\n *** Finished run number $run_idx ***\n\n\n")
-#     catch e
-#         println("Caught error for run number $run_idx : $e")
-#         GC.gc()
-#     end
-# end
 
 # println("recording \"mpc.mp4\"")
 # fig = Figure()

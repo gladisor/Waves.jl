@@ -1,4 +1,4 @@
-export NODEEnergyModel, NODEDynamics
+export NODEEnergyModel, NODEDynamics, generate_latent_solution
 
 struct NODEDynamics <: AbstractDynamics 
     re
@@ -27,19 +27,22 @@ function NODEEnergyModel(env::WaveEnv, activation::Function, h_size::Int, nfreq:
     elements = size(latent_dim)[1]
 
     nframes = size(env.wave, 4) + 1 ## add additional channel for force shape
-    fields = 3
 
     wave_encoder = WaveEncoder(
-        build_cnn_base(env, nframes, activation, h_size),
-        Chain(Dense(h_size, elements)))
+        build_cnn_base(env, nframes, h_size, activation),
+        Chain(
+            Dense(h_size, 6 * h_size, activation),
+            Dense(6 * h_size, 3 * h_size, activation),
+            Dense(3 * h_size, 3)
+            )
+        )
 
     design_encoder = DesignEncoder(env, h_size, activation, nfreq, latent_dim)
 
     mlp = Chain(
-        Dense(2 * elements, elements, activation),
-        Dense(elements, elements, activation),
-        Dense(elements, elements, activation),
-        Dense(elements, elements)
+        Dense(3 + elements, 32, activation),
+        Dense(32, 32, activation),
+        Dense(32, 3)
     )
 
     params, re = Flux.destructure(mlp)
@@ -53,12 +56,16 @@ function Waves.generate_latent_solution(model::NODEEnergyModel, s::Vector{WaveEn
     z0 = Flux.unsqueeze(model.wave_encoder(s), 2)
     C = model.design_encoder(s, a, t)
     θ = [C, model.dynamics_params]
+    # return reshape(model.iter(z0, t, θ), size(z0, 1) ÷ 3, 3, length(s), :)
     return model.iter(z0, t, θ)
 end
 
 function (model::NODEEnergyModel)(s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32})
     z = generate_latent_solution(model, s, a, t)
-    return permutedims(dropdims(sum(z .^ 2, dims = 1) * model.dx, dims = (1, 2)), (2, 1))
+    return permutedims(z[:, 1, :, :], (3, 1, 2))
+    # energy = sum(z .^ 2, dims = 1) * model.dx
+    # return permutedims(energy[1, :, :, :], (3, 1, 2))
+    # return permutedims(dropdims(sum(z .^ 2, dims = 1) * model.dx, dims = (1, 2)), (2, 1))
 end
 
 function node_loss(model::NODEEnergyModel, s::Vector{WaveEnvState}, a::Matrix{<: AbstractDesign}, t::AbstractMatrix{Float32}, y::AbstractArray{Float32, 3})
@@ -76,7 +83,7 @@ function make_plots(model::NODEEnergyModel, batch; path::String, samples::Int)
 
     for i in 1:min(length(s), samples)
         tspan = cpu(t[:, i])
-        Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
+        Waves.plot_predicted_energy(tspan, y[:, 3, i], y_hat[:, 3, i], title = "Scattered Energy", path = joinpath(path, "sc$i.png"))
     end
 
     return nothing

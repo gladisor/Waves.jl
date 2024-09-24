@@ -88,7 +88,7 @@ function RLBase.reset!(env::WaveEnv)
 end
 
 FRAMESKIP = 10
-function (env::WaveEnv)(action::AbstractDesign)
+function (env::WaveEnv)(action::AbstractDesign, position_mask::Union{AbstractArray, Nothing} = nothing)
     tspan = build_tspan(env)
     ti = time(env)
 
@@ -106,12 +106,29 @@ function (env::WaveEnv)(action::AbstractDesign)
     u_inc = sol[:, :, 7, :]
     u_sc = u_tot .- u_inc
     dΩ = get_dx(env.dim) * get_dy(env.dim)
+    
     tot_energy = vec(sum(u_tot .^ 2, dims = (1, 2))) * dΩ
     inc_energy = vec(sum(u_inc .^ 2, dims = (1, 2))) * dΩ
     sc_energy =  vec(sum(u_sc  .^ 2, dims = (1, 2))) * dΩ
 
+    # masking
+    if !isnothing(position_mask)
+        # position mask dimensions = 700 x 700 x 1 x channels
+        position_mask = CUDA.CuArray{Bool}(position_mask)
+        masked_field_tot = (u_tot[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
+        masked_field_inc = (u_inc[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
+        masked_field_sc = (u_sc[:, :, :, :] .^ 2) .* Flux.unsqueeze(position_mask, 3)
+        masked_energy_tot = dropdims(sum(masked_field_tot, dims = (1, 2)), dims = (1, 2)) * dΩ
+        masked_energy_inc = dropdims(sum(masked_field_inc, dims = (1, 2)), dims = (1, 2)) * dΩ
+        masked_energy_sc = dropdims(sum(masked_field_sc, dims = (1, 2)), dims = (1, 2)) * dΩ
+    end
+    
     ## setting environment variables
-    env.signal = hcat(tot_energy, inc_energy, sc_energy)
+    if !isnothing(position_mask)
+        env.signal = hcat(tot_energy, inc_energy, sc_energy, masked_energy_tot, masked_energy_inc, masked_energy_sc)
+    else
+        env.signal = hcat(tot_energy, inc_energy, sc_energy)
+    end
     env.design = next_design
     env.wave = sol[:, :, :, end-(2*FRAMESKIP):FRAMESKIP:end] ## 3 frames with frameskip of 5
     env.time_step += env.integration_steps

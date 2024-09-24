@@ -1,6 +1,6 @@
 export ALUMINIUM, COPPER, BRASS, AIR, WATER
 export DesignSpace, DesignInterpolator
-export NoDesign, Cylinders, AdjustableRadiiScatterers, AdjustablePositionScatterers, Cloak
+export NoDesign, Cylinders, AdjustableRadiiScatterers, AdjustablePositionScatterers, FullyAdjustableScatterers, Cloak
 export speed, build_action_space
 export DesignSequence
 
@@ -111,7 +111,7 @@ function speed(cyls::Cylinders, grid::AbstractArray{Float32, 3}, ambient_speed::
     mask = location_mask(cyls, grid)
     ambient_mask = dropdims(sum(mask, dims = 3), dims = 3) .== 0
     C0 = ambient_mask * ambient_speed
-    C_design = dropdims(sum(mask .* reshape(cyls.c, 1, 1, length(cyls)), dims = 3), dims = 3)
+    C_design = dropdims(sum((mask .!= 0) .* reshape(cyls.c, 1, 1, length(cyls)), dims = 3), dims = 3)
     return C0 .+ C_design
 end
 
@@ -204,6 +204,22 @@ function build_action_space(design::AdjustablePositionScatterers, scale::Float32
     s = build_action_space(design.cylinders, scale)
     low = AdjustablePositionScatterers(Cylinders(s.low.pos, s.low.r * 0.0f0, s.low.c * 0.0f0))
     high = AdjustablePositionScatterers(Cylinders(s.high.pos, s.high.r * 0.0f0, s.high.c * 0.0f0))
+    return DesignSpace(low, high)
+end
+
+struct FullyAdjustableScatterers <: AbstractScatterers
+    cylinders::Cylinders
+end
+
+Flux.@functor FullyAdjustableScatterers
+# Flux.trainable(design::AdjustableRadiiScatterers) = (;cylinders = (;pos = nothing, r = design.cylinders.r, c = nothing))
+Flux.trainable(design::FullyAdjustableScatterers) = (;design.cylinders.pos, design.cylinders.r)
+Base.vec(design::FullyAdjustableScatterers) = vcat(vec(design.cylinders.pos), design.cylinders.r)
+
+function build_action_space(design::FullyAdjustableScatterers, scale::Float32)
+    s = build_action_space(design.cylinders, scale)
+    low = FullyAdjustableScatterers(Cylinders(s.low.pos * 2.0f0, s.low.r, s.low.c * 0.0f0))
+    high = FullyAdjustableScatterers(Cylinders(s.high.pos * 2.0f0, s.high.r, s.high.c * 0.0f0))
     return DesignSpace(low, high)
 end
 

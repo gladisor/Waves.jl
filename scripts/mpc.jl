@@ -7,6 +7,7 @@ Flux.CUDA.allowscalar(false)
 println("Loaded Packages")
 Flux.device!(0)
 display(Flux.device())
+include("../src/masks.jl")
 
 function build_action_sequence(policy::AbstractPolicy, env::AbstractEnv, horizon::Int)
     return [policy(env) for i in 1:horizon]
@@ -22,6 +23,7 @@ struct RandomShooting <: AbstractPolicy
     horizon::Int
     shots::Int
     alpha::Float32
+    focusing::Bool
 end
 
 function compute_action_cost(a::Matrix{<: AbstractDesign})
@@ -29,7 +31,7 @@ function compute_action_cost(a::Matrix{<: AbstractDesign})
     return vec(sum(sqrt.(sum(x .^ 2, dims = 1)), dims = 2))
 end
 
-function compute_energy_cost(model::AcousticEnergyModel, s, a, t)
+function compute_energy_cost(model, s, a, t)
     y_hat = model(s, a, t)
     return vec(sum(y_hat[:, 3, :], dims = 1))
 end
@@ -40,15 +42,48 @@ function Waves.build_tspan(mpc::RandomShooting, env::WaveEnv)
         mpc.shots)...)
 end
 
+function propagate_designs(de::DesignEncoder, s, a, t)
+    t_ = t[1:de.integration_steps:end, :]
+    d = [si.design for si in s]
+    recur = Flux.Recur(de, d)
+    design_sequences = hcat(d, [recur(a[i, :]) for i in axes(a, 1)]...)
+    return design_sequences
+end
+
+function has_overlap(scatterers::Waves.AbstractScatterers)
+    pos = cpu(scatterers.cylinders.pos)
+    r = cpu(scatterers.cylinders.r)
+    M = size(pos, 1)
+
+    for i in 1:M
+        for j in (i+1):M
+            d = Flux.norm(pos[i, :] - pos[j, :])
+            if d - (r[i] + r[j] + 0.1) <= 0.0
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 function (mpc::RandomShooting)(env::WaveEnv)
     s = gpu(fill(state(env), mpc.shots))
     a = build_action_sequence(mpc.policy, env, mpc.horizon, mpc.shots)
     t = build_tspan(mpc, env) |> gpu
-
+    
+    ds = propagate_designs(mpc.model.design_encoder, s, a, t)
+    overlap_vec = gpu(sum(has_overlap.(ds), dims=2)[:, 1])
     energy = compute_energy_cost(mpc.model, s, a, t)
     penalty = compute_action_cost(a)
-    cost = energy .+ mpc.alpha * penalty
-    idx = argmin(cost)
+
+    if mpc.focusing
+        cost = energy .- mpc.alpha * penalty .- overlap_vec * 1000
+        idx = argmax(cost)
+    else
+        cost = energy .+ mpc.alpha * penalty .+ overlap_vec * 1000
+        idx = argmin(cost)
+    end
     return a[1, idx]
 end
 
@@ -80,8 +115,10 @@ function build_interpolator(
         RLBase.reset!(env)
     end
 
+    masks = cat(create_patches(700, 350)..., dims = 3)
+
     while !is_terminated(env)
-        tspan, interp, u_tot, u_inc = cpu(env(policy(env)))
+        tspan, interp, u_tot, u_inc = cpu(env(policy(env), masks))
 
         push!(tspans, tspan)
         push!(interps, interp)
@@ -96,163 +133,111 @@ function build_interpolator(
 
         push!(σ, cpu(env.signal))
 
-        println(env.time_step)
+        println("time step: $(env.time_step)  ||  free memory [MB]: $(Sys.free_memory()/2^20)")
     end
 
     tspan = flatten_repeated_last_dim(hcat(tspans...))
-
+    println("tspan flattened.  ||  free memory [MB]: $(Sys.free_memory()/2^20)")
     x = flatten_repeated_last_dim(cat(x..., dims = 4))
+    println("x flattened.  ||  free memory [MB]: $(Sys.free_memory()/2^20)")
     x = linear_interpolation(tspan, Flux.unbatch(x))
-
+    println("linear interpolation done.  ||  free memory [MB]: $(Sys.free_memory()/2^20)")
     return x, interps, σ
 end
 
 
+function create_data(env, mpc, frames, tspan, output_path, title)
+    x, interps, σ = build_interpolator(mpc, env, reset = false, field = :sc)
+    signal = flatten_repeated_last_dim(cat(transpose.(σ)..., dims = 3))
 
-dataset_name = "variable_source_yaxis_x=-10.0"
-DATA_PATH = "/scratch/cmpe299-fa22/tristan/data/$dataset_name"
+    BSON.bson(output_path, 
+        x=[x(tspan[i]) .^ 2 for i in 1:frames], 
+        interps=interps, 
+        signal=signal,
+        title=title)
+
+    return output_path
+end
+
+function log_message(logpath, message)
+    logfile = open(joinpath(logpath, "log.txt"), "a")
+    println(logfile, "$message")
+    close(logfile)
+end
+
+# dataset_name = "full_adjustment_masked_signals_M=2"
+dataset_name = "pos_adjustment_masked_signals_M=1"
+DATA_PATH = "scratch/$dataset_name"
 @time env = gpu(BSON.load(joinpath(DATA_PATH, "env.bson"))[:env])
 dim = cpu(env.dim)
+focusing = true
 
-MODEL_PATH = "/scratch/cmpe299-fa22/tristan/data/variable_source_yaxis_x=-10.0/models/ours_balanced_field_scale/checkpoint_step=10040/checkpoint.bson"
+jobid = 42777
+model_name = "AEM_$(focusing ? "focusing" : "suppression")_jobID=$jobid"
+checkpoint_step = 8000
+
+MODEL_PATH = "scratch/$dataset_name/models/$model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
 model = gpu(BSON.load(MODEL_PATH)[:model])
 policy = RandomDesignPolicy(action_space(env))
 
+node_jobid = 42890
+node_model_name = "NODE_$(focusing ? "focusing" : "suppression")_jobID=$node_jobid"
+NODE_MODEL_PATH = "scratch/$dataset_name/models/$node_model_name/checkpoint_step=$checkpoint_step/checkpoint.bson"
+node_model = gpu(BSON.load(NODE_MODEL_PATH)[:model])
 
-horizon = 5 #10
-shots = 256
-alpha = 1.0
-mpc = RandomShooting(policy, model, horizon, shots, alpha)
+# output_folder = mkpath("$(jobid)AEM_$(node_jobid)NODE_$(checkpoint_step)_M=2_focus_20.mpc")
+output_folder = mkpath("M=1_pos_$(focusing ? "focusing" : "suppression").mpc")
+log_message(output_folder, "dataset_name: $(dataset_name)\nAEM: $model_name\nNODE: $node_model_name\ncheckpoint_step = $checkpoint_step")
 
-env.actions = 100
-
-reset!(env)
-shape = env.source.shape
-x_mpc, interps_mpc, σ_mpc = build_interpolator(mpc, env, reset = false, field = :sc)
-
-reset!(env)
-env.source.shape = shape
-x_random, interps_random, σ_random = build_interpolator(policy, env, reset = false, field = :sc)
-
-mpc_signal = flatten_repeated_last_dim(cat(transpose.(σ_mpc)..., dims = 3))
-random_signal = flatten_repeated_last_dim(cat(transpose.(σ_random)..., dims = 3))
-
-
-t = build_tspan(0.0f0, env.dt, env.actions * env.integration_steps)
-seconds = 40.0
-frames = Int(round(Waves.FRAMES_PER_SECOND * seconds))
-tspan = collect(range(t[1], t[end], frames))
-
-fig = Figure()
-ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control (Red)", xlabel = "Space (m)", ylabel = "Space (m)")
-ax2 = Axis(fig[2, 1], aspect = 1.0, title = "MPC (Green)", xlabel = "Space (m)", ylabel = "Space (m)")
-ax3 = Axis(fig[1:2, 2], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
-xlims!(ax3, t[1], t[end])
-ylims!(ax3, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-
-record(fig, "mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-    println(i)
-    empty!(ax1)
-    heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-    mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
-    empty!(ax2)
-    heatmap!(ax2, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-    mesh!(ax2, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
-
-    idx = findfirst(tspan[i] .<= t)[1]
-    empty!(ax3)
-    lines!(ax3, t[1:idx], mpc_signal[3, 1:idx], color = :green)
-    lines!(ax3, t[1:idx], random_signal[3, 1:idx], color = :red)
+runs = 12
+if isfile(joinpath(output_folder, "positions.bson"))
+    initial_positions = BSON.load(joinpath(output_folder, "positions.bson"))[:pos]
+else
+    initial_positions = []
+    for run in 1:runs
+        reset!(env)
+        design_ = env.design
+        # design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(4, 2), env.design.cylinders.r, env.design.cylinders.c))
+        design_ = AdjustablePositionScatterers(Cylinders(-8 .* rand(1, 2), env.design.cylinders.r, env.design.cylinders.c))
+        # design_ = FullyAdjustableScatterers(Cylinders(-8 .* rand(2, 2), env.design.cylinders.r, env.design.cylinders.c))
+        push!(initial_positions, design_)
+    end
+    BSON.bson(joinpath(output_folder, "positions.bson"), pos=cpu(initial_positions))
 end
 
+for horizon in [1]
+    shots = 512
+    alpha = 1.0
+    mpc = RandomShooting(policy, model, horizon, shots, alpha, focusing)
+    node_mpc = RandomShooting(policy, node_model, horizon, shots, alpha, focusing)
 
-fig = Figure()
-ax1 = Axis(fig[1, 1], aspect = 1.0, title = "Random Control", xlabel = "Space (m)", ylabel = "Space (m)")
-record(fig, "actions=100_random_control.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-    println(i)
-    empty!(ax1)
-    heatmap!(ax1, dim.x, dim.y, x_random(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-    mesh!(ax1, Waves.multi_design_interpolation(interps_random, tspan[i]))
+    env.actions = 200
+    t = build_tspan(0.0f0, env.dt, env.actions * env.integration_steps)
+    seconds = 40.0
+    frames = Int(round(Waves.FRAMES_PER_SECOND * seconds))
+    tspan = collect(range(t[1], t[end], frames))
+    log_message(output_folder, "shots = $shots\nalpha = $alpha\nenv.actions = $(env.actions)\nseconds = $seconds")
+
+    for run_idx in 1:6
+        try
+            reset!(env)
+            env.design = gpu(initial_positions[run_idx])
+            design_1 = deepcopy(env.design)
+            design_2 = deepcopy(env.design)
+            @time create_data(env, mpc, frames, tspan, joinpath(output_folder, "mpc_$run_idx.bson"), "MPC (AEM)")
+            
+            reset!(env)
+            env.design = design_1
+            @time create_data(env, policy, frames, tspan, joinpath(output_folder, "random_$run_idx.bson"), "Random")
+
+            reset!(env)
+            env.design = design_2
+            @time create_data(env, node_mpc, frames, tspan, joinpath(output_folder, "node_$run_idx.bson"), "MPC (NODE)")
+            println("\n\n *** Finished run number $run_idx ***\n\n")
+        catch e
+            println("Caught error for run number $run_idx : $(e)")
+            GC.gc()
+        end
+    end
 end
 
-fig = Figure()
-ax1 = Axis(fig[1, 1], aspect = 1.0, title = "MPC", xlabel = "Space (m)", ylabel = "Space (m)")
-record(fig, "actions=100_mpc.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-    println(i)
-    empty!(ax1)
-    heatmap!(ax1, dim.x, dim.y, x_mpc(tspan[i]) .^ 2, colormap = :ice, colorrange = (0.0, 0.2))
-    mesh!(ax1, Waves.multi_design_interpolation(interps_mpc, tspan[i]))
-end
-
-fig = Figure()
-ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
-xlims!(ax1, t[1], t[end])
-ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-record(fig, "actions=100_scattered_energy.mp4", axes(tspan, 1), framerate = Waves.FRAMES_PER_SECOND) do i
-    idx = findfirst(tspan[i] .<= t)[1]
-    empty!(ax1)
-    lines!(ax1, t[1:idx], mpc_signal[3, 1:idx], color = :green)
-    lines!(ax1, t[1:idx], random_signal[3, 1:idx], color = :red)
-end
-
-fig = Figure()
-ax1 = Axis(fig[1, 1], title = "Scattered Energy in Environment", xlabel = "Time (s)", ylabel = "Energy")
-xlims!(ax1, t[1], t[end])
-ylims!(ax1, 0.0, max(maximum(mpc_signal[3, :]), maximum(random_signal[3, :])) * 1.20)
-empty!(ax1)
-lines!(ax1, vec(t), mpc_signal[3, :], color = :green, label = "MPC")
-lines!(ax1, vec(t), random_signal[3, :], color = :red, label = "Random Control")
-axislegend(ax1)
-save("actions=100_scattered_energy.png", fig)
-
-
-
-
-# mpc_signal = render!(mpc, env, path = "mpc.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
-# mpc_signal = flatten_repeated_last_dim(cat(transpose.(mpc_signal)..., dims = 3))
-# reset!(env)
-# env.source.shape = shape
-# random_signal = render!(policy, env, path = "random.mp4", energy = true, bound = 0.2f0, reset = false, field = :sc)
-# random_signal = flatten_repeated_last_dim(cat(transpose.(random_signal)..., dims = 3))
-
-# tspan = build_tspan(0.0f0, env.dt, size(mpc_signal, 2)-1)
-
-# fig = Figure()
-# ax = Axis(fig[1, 1], title = "Scattered Energy In Response to Actuation (50 actions)", xlabel = "Time (s)", ylabel = "Scattered Energy")
-# lines!(ax, tspan, mpc_signal[3, :], label = "MPC", color = :green)
-# lines!(ax, tspan, random_signal[3, :], label = "Random", color = :red)
-# axislegend(ax, position = :rb)
-# save("signals.png", fig)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# # delta_mu = (env.source.μ_high .- env.source.μ_low)
-# # x = gpu(collect(range(0.0f0, 1.0f0, 5)))
-# # mu = env.source.μ_low .+ delta_mu .* x
-
-# # for location in axes(mu, 1)
-# #     shape = build_normal(env.source.grid, mu[[location], :], env.source.σ, env.source.a)
-
-# #     for episode in 1:4
-# #         reset!(env)
-# #         env.source.shape = shape
-# #         mpc_ep = generate_episode!(mpc, env, reset = false)
-# #         # save(mpc_ep, "control_results/cPILS_location=$location,episode=$episode.bson")
-# #         save(mpc_ep, "control_results/PINC_location=$location,episode=$episode.bson")
-# #         # reset!(env)
-# #         # env.source.shape = shape
-# #         # random_ep = generate_episode!(policy, env, reset = false)
-# #         # save(random_ep, "control_results/random_location=$location,episode=$episode.bson")
-# #     end
-# # end

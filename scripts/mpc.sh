@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J data
+#SBATCH -J mpc
 
 #SBATCH -p gpu
 #SBATCH -N 1
@@ -12,4 +12,4 @@
 #SBATCH --mail-user=noam.smilovich@sjsu.edu
 
 module load julia
-srun julia --project scripts/data.jl
+srun julia --project scripts/mpc.jl

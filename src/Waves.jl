@@ -33,6 +33,7 @@ using BSON
 using FileIO
 import LinearAlgebra
 using Images: imresize
+using Metalhead
 
 abstract type AbstractDim end
 abstract type AbstractDesign end
@@ -56,6 +57,7 @@ include("model/layers.jl")
 include("model/design_encoder.jl")
 include("model/wave_encoder.jl")
 include("model/acoustic_energy_model.jl")
+include("model/latent_transformation_model.jl")
 ## variants
 include("model/node.jl")
 include("model/pinn.jl")
